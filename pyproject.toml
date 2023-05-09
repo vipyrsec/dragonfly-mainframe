@@ -1,0 +1,48 @@
+[project]
+name = "dragonfly-mainframe"
+version = "0.1.0"
+description = "Distributes tasks to dragonfly-clients and handles package status updates."
+authors = [
+    {name = "jz9", email = "69145546+jonathan-d-zhang@users.noreply.github.com"},
+]
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+dependencies = [
+    "fastapi>=0.95.1",
+    "uvicorn[standard]>=0.22.0",
+]
+
+[tool.pdm]
+[tool.pdm.dev-dependencies]
+lint = [
+    "pre-commit>=3.3.1",
+    "ruff>=0.0.265",
+    "black>=23.3.0",
+    "isort>=5.12.0",
+    "pyright>=1.1.306",
+]
+test = [
+    "pytest>=7.3.1",
+]
+
+[tool.pdm.scripts]
+format = { shell = "black . && isort ." }
+lint = { shell = "pyright && ruff ." }
+test = "pytest ."
+precommit = { shell = "pdm run pre-commit run --all-files" }
+all = { composite = ["format", "lint", "test"] }
+
+[tool.isort]
+profile = "black"
+
+[tool.black]
+target-version = ["py310"]
+line-length = 120
+
+[tool.ruff]
+line-length = 120
+
+[tool.pyright]
+include = ["src/**/*.py"]
+strict = ["src/**/*.py"]
