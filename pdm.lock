@@ -263,17 +263,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sqlalchemy"
-version = "2.0.12"
-extras = ["asyncio"]
-requires_python = ">=3.7"
-summary = "Database Abstraction Library"
-dependencies = [
-    "SQLAlchemy==2.0.12",
-    "greenlet!=0.4.17",
-]
-
-[[package]]
 name = "starlette"
 version = "0.26.1"
 requires_python = ">=3.7"
@@ -350,7 +339,7 @@ summary = "An implementation of the WebSocket Protocol (RFC 6455 & 7692)"
 [metadata]
 lock_version = "4.2"
 groups = ["default", "lint", "test"]
-content_hash = "sha256:8ed627e02857e7921d68a90b1b94113ebb39f01f4675c67faacb65c32c23a036"
+content_hash = "sha256:f5688daf9468e202c56e1e93eee7086ade75f2b7f34d5f5baf24d4863107626a"
 
 [metadata.files]
 "alembic 1.10.4" = [
