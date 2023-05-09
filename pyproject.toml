@@ -14,7 +14,7 @@ dependencies = [
     "SQLAlchemy>=2.0.12",
     "python-dotenv>=1.0.0",
     "alembic>=1.10.4",
-    "psycopg2>=2.9.6",
+    "asyncpg>=0.27.0",
 ]
 
 [tool.pdm]

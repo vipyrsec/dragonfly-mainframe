@@ -1,8 +1,8 @@
 """initial
 
-Revision ID: ba3662b96099
-Revises: Initial
-Create Date: 2023-05-09 14:43:50.059616
+Revision ID: 0ad8044bf4d5
+Revises:
+Create Date: 2023-05-09 17:10:34.139530
 
 """
 from alembic import op
@@ -11,7 +11,7 @@ from sqlalchemy import FetchedValue
 
 
 # revision identifiers, used by Alembic.
-revision = "ba3662b96099"
+revision = "0ad8044bf4d5"
 down_revision = None
 branch_labels = None
 depends_on = None

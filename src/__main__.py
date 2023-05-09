@@ -1,32 +1,30 @@
-import os
-
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 
 from .models import Package
 
 load_dotenv()
 
+engine = create_async_engine("postgresql+asyncpg://postgres:postgres@localhost:5432")
 app = FastAPI()
-
-engine = create_engine(os.getenv("DB_URL", "sqlite:///:memory:"))
 
 
 @app.post("/queue-package")
-def queue_package():
+async def queue_package():
     """Add a package to the database to be scanned later."""
 
 
 @app.get("/package")
-def give_work():
+async def give_work():
     """Find an unscanned package and return it."""
-    with Session(engine) as session:
-        print(session)
-        print(select(Package))
+    async with AsyncSession(engine) as session:
+        data = await session.execute(select(Package))
+        for row in data.scalars():
+            print(row)
 
 
 @app.post("/package")
-def update_verdict():
+async def update_verdict():
     """Update the database with the result of a package scan."""
