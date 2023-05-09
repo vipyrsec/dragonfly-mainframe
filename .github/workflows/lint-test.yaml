@@ -22,7 +22,7 @@ jobs:
 
       - name: Install deps
         run: |
-          pdm sync -d
+          pdm install -d
 
       - name: Run precommits  # in case someone forgets to install pre-commit
         run: |
