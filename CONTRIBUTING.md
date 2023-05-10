@@ -11,7 +11,7 @@ Once installed, use `pdm install -d` to install dev dependencies.
 ### Postgres
 We use Postgres to store packages. I recommend simply using the Postgres Docker container.
 
-Something like, `docker run --rm -it -e POSTGRES_PASSWORD=postgres postgres`
+Something like, `docker run --rm -it -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres`
 
 Once Postgres is installed and running, you can run the Alembic migrations with `pdm run alembic upgrade head`.
 
