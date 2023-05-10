@@ -1,10 +1,10 @@
 import uuid
 from enum import Enum
-
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from typing import Optional
 
 from sqlalchemy import FetchedValue
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
@@ -39,3 +39,5 @@ class Package(Base):
 
     name: Mapped[str]
     status: Mapped[Status]
+    score: Mapped[Optional[int]]
+    most_malicious_file: Mapped[Optional[str]]
