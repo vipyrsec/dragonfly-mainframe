@@ -1,6 +1,6 @@
 [project]
 name = "dragonfly-mainframe"
-version = "0.1.0"
+version = "0.2.0"
 description = "Distributes tasks to dragonfly-clients and handles package status updates."
 authors = [
     {name = "jz9", email = "69145546+jonathan-d-zhang@users.noreply.github.com"},
