@@ -1,5 +1,5 @@
-from datetime import datetime
 import uuid
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 
@@ -53,6 +53,3 @@ class Package(Base):
     client_id: Mapped[str]
 
     reported_at: Mapped[datetime]
-
-    
-
