@@ -1,4 +1,4 @@
-"""empty message
+"""Add remaining columns
 
 Revision ID: b5ec215f4679
 Revises: 5264b2894e56
