@@ -50,6 +50,6 @@ class Package(Base):
     pending_at: Mapped[Optional[datetime]]
     finished_at: Mapped[Optional[datetime]]
 
-    client_id: Mapped[str]
+    client_id: Mapped[Optional[str]]
 
     reported_at: Mapped[Optional[datetime]]
