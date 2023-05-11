@@ -1,10 +1,14 @@
+import asyncio
+import datetime as dt
 from typing import Optional
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy import insert
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from mainframe.__main__ import app
+from mainframe.models import Package, Status
 
 pytest_plugins = ("pytest_asyncio",)
 
@@ -12,11 +16,48 @@ pytest_plugins = ("pytest_asyncio",)
 client = TestClient(app)
 
 
-@pytest.fixture(scope="module")
-def async_session():
+@pytest.fixture(scope="session")
+def event_loop():
+    loop = asyncio.get_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest.fixture(scope="session")
+async def async_session():
     engine = create_async_engine("postgresql+asyncpg://postgres:postgres@db:5432")
-    async_session = async_sessionmaker(bind=engine, expire_on_commit=False)
-    yield async_session
+    asm = async_sessionmaker(bind=engine, expire_on_commit=False)
+
+    async with asm() as session:
+        await session.execute(
+            insert(Package),
+            [
+                dict(
+                    package_id="fce0366b-0bcf-4a29-a0a7-4d4bdf3c6f61",
+                    name="a",
+                    version="0.1.0",
+                    status=Status.FINISHED,
+                    queued_at=dt.datetime.now(),
+                ),
+                dict(
+                    package_id="df157a3c-8994-467f-a494-9d63eaf96564",
+                    name="b",
+                    version="0.1.0",
+                    status=Status.PENDING,
+                    queued_at=dt.datetime.now(),
+                ),
+                dict(
+                    package_id="04685768-e41d-49e4-9192-19b6d435226a",
+                    name="a",
+                    version="0.2.0",
+                    status=Status.QUEUED,
+                    queued_at=dt.datetime.now(),
+                ),
+            ],
+        )
+        await session.commit()
+
+    yield asm
 
 
 @pytest.fixture
@@ -46,7 +87,14 @@ def test_package_lookup_rejects_invalid_combinations(since: Optional[int], name:
     if version is not None:
         version_q = f"version={version}"
 
-    print(f"/package?{since_q}&{name_q}&{version_q}")
-    r = client.get(f"/package?{since_q}&{name_q}&{version_q}")
+    url = f"/package?{since_q}&{name_q}&{version_q}"
+    print(url)
+    r = client.get(url)
 
     assert r.status_code == 400
+
+
+async def test_package_lookup(session: AsyncSession):
+    print(session)
+
+    assert False
