@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 
@@ -23,6 +24,7 @@ class Status(Enum):
     QUEUED = "queued"
     PENDING = "pending"
     FINISHED = "finished"
+    FAILED = "failed"
 
 
 class Package(Base):
@@ -38,6 +40,16 @@ class Package(Base):
     )
 
     name: Mapped[str]
+    version: Mapped[str]
     status: Mapped[Status]
+
     score: Mapped[Optional[int]]
     most_malicious_file: Mapped[Optional[str]]
+
+    queued_at: Mapped[datetime]
+    pending_at: Mapped[Optional[datetime]]
+    finished_at: Mapped[Optional[datetime]]
+
+    client_id: Mapped[str]
+
+    reported_at: Mapped[datetime]
