@@ -1,4 +1,5 @@
 import datetime as dt
+import os
 from dataclasses import dataclass
 from typing import Optional
 
@@ -11,7 +12,7 @@ from .models import Package
 
 load_dotenv()
 
-engine = create_async_engine("postgresql+asyncpg://postgres:postgres@localhost:5432")
+engine = create_async_engine(os.getenv("DB_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432"))
 async_session = async_sessionmaker(bind=engine, expire_on_commit=False)
 app = FastAPI()
 
