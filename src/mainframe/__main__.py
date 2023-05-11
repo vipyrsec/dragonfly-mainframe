@@ -1,3 +1,4 @@
+import os
 import uuid
 from dataclasses import dataclass
 from typing import Optional
@@ -11,7 +12,7 @@ from .models import Package, Status
 
 load_dotenv()
 
-engine = create_async_engine("postgresql+asyncpg://postgres:postgres@localhost:5432")
+engine = create_async_engine(os.getenv("DB_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432"))
 app = FastAPI()
 
 

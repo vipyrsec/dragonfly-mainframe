@@ -1,3 +1,4 @@
+import os
 import asyncio
 from logging.config import fileConfig
 
@@ -11,6 +12,9 @@ from mainframe import models
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# modify the config here because ConfigParser can't handle default values
+config.set_main_option("sqlalchemy.url", os.getenv("DB_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432"))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
