@@ -52,4 +52,4 @@ class Package(Base):
 
     client_id: Mapped[str]
 
-    reported_at: Mapped[datetime]
+    reported_at: Mapped[Optional[datetime]]
