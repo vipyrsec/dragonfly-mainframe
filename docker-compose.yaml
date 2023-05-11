@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  mainframe:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    tty: true
+    environment:
+      DB_URL: postgresql+asyncpg://postgres:postgres@db:5432
+
+  db:
+    image: postgres
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: postgres
