@@ -8,11 +8,19 @@ COPY pyproject.toml pdm.lock ./
 COPY src/ src/
 RUN mkdir __pypackages__ && python -m pdm install --prod --no-lock --no-editable
 
-FROM python:3.11-slim@sha256:181e49146bfdc8643ebe0f66cd06f27f42df40a0921438e96770dab09797effb as runner
+############################################
+FROM builder as test
+
+COPY tests/ tests/
+RUN python -m pdm install -d
+
+CMD ["python", "-m", "pdm", "run", "pytest", "tests"]
+
+############################################
+FROM python:3.11-slim@sha256:181e49146bfdc8643ebe0f66cd06f27f42df40a0921438e96770dab09797effb as prod
 
 ENV PYTHONPATH=/app/pkgs
 WORKDIR /app
-
 COPY --from=builder /app/__pypackages__/3.11/lib pkgs/
 
 COPY src/ src/
