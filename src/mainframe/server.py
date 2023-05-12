@@ -1,17 +1,17 @@
-from contextlib import asynccontextmanager
 import datetime as dt
 import os
+import typing
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Optional
-import typing
-import aiohttp
 
+import aiohttp
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
+from letsbuilda.pypi import PyPIServices
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from pydantic import BaseModel
-from letsbuilda.pypi import PyPIServices
 
 from .models import Package, Status
 
@@ -20,6 +20,7 @@ load_dotenv()
 engine = create_async_engine(os.getenv("DB_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432"))
 async_session = async_sessionmaker(bind=engine, expire_on_commit=False)
 
+
 @asynccontextmanager
 async def lifespan(app_: FastAPI):
     """Load the state for the app"""
@@ -27,13 +28,16 @@ async def lifespan(app_: FastAPI):
     pypi_client = PyPIServices(session)
     app_.state.pypi_client = pypi_client
 
-    yield 
+    yield
+
 
 app = FastAPI(lifespan=lifespan)
 
+
 async def get_pypi_client():
-    pypi_client = typing.cast(PyPIServices, app.state.pypi_client) # type: ignore
+    pypi_client = typing.cast(PyPIServices, app.state.pypi_client)  # type: ignore
     yield pypi_client
+
 
 async def get_db():
     session = async_session()
@@ -55,20 +59,26 @@ class Error:
 
     detail: str
 
+
 class QueuePackageBody(BaseModel):
     name: str
     version: Optional[str]
 
+
 class QueuePackageResponse(BaseModel):
     id: str
 
-@app.post("/package", responses={
-    409: {"model": Error},
-    404: {"model": Error},
-})
+
+@app.post(
+    "/package",
+    responses={
+        409: {"model": Error},
+        404: {"model": Error},
+    },
+)
 async def queue_package(
-    body: QueuePackageBody, 
-    session: AsyncSession = Depends(get_db), 
+    body: QueuePackageBody,
+    session: AsyncSession = Depends(get_db),
     pypi_client: PyPIServices = Depends(get_pypi_client),
 ) -> QueuePackageResponse:
     """
@@ -93,15 +103,15 @@ async def queue_package(
         package_metadata = await pypi_client.get_package_metadata(name, version)
     except KeyError:
         raise HTTPException(404, detail=f"Package {name}@{version} was not found on PyPI")
-    
-    version = package_metadata.info.version # Use latest version if not provided
+
+    version = package_metadata.info.version  # Use latest version if not provided
 
     query = select(Package).where(Package.name == name).where(Package.version == version)
     package = await session.scalar(query)
 
     if package is not None:
         raise HTTPException(409, f"Package {name}@{version} is already queued for scanning")
-    
+
     package = Package(
         name=name,
         version=version,
@@ -112,6 +122,7 @@ async def queue_package(
     await session.commit()
 
     return QueuePackageResponse(id=str(package.package_id))
+
 
 @app.get("/package", responses={400: {"model": Error, "description": "Invalid parameter combination."}})
 async def lookup_package_info(
