@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from mainframe.__main__ import app
+from mainframe.server import app
 from mainframe.models import Package, Status
 
 pytest_plugins = ("pytest_asyncio",)
