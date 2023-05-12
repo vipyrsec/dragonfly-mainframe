@@ -16,7 +16,7 @@ FROM builder as test
 
 RUN python -m pdm install -d
 RUN echo "#!/bin/sh" > entrypoint.sh
-RUN echo "pdm run alembic upgrade head && pdm run pytest tests" >> entrypoint.sh
+RUN echo "pdm run alembic upgrade head && pdm run pytest -vvv tests" >> entrypoint.sh
 RUN chmod +x entrypoint.sh
 
 COPY tests/ tests/
@@ -30,6 +30,8 @@ ENV PYTHONPATH=/app/pkgs
 WORKDIR /app
 COPY --from=builder /app/__pypackages__/3.11/lib pkgs/
 
+COPY alembic/ alembic/
+COPY alembic.ini ./
 COPY src/ src/
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
