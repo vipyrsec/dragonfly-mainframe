@@ -12,7 +12,7 @@ from mainframe.models import Base, Package, Status
 
 _api_url = "http://localhost:8000"
 
-server = subprocess.Popen(["python", "-m", "pdm", "run", "uvicorn", "src.mainframe.server:app"], stdout=subprocess.PIPE)
+server = subprocess.Popen(["python", "-m", "pdm", "run", "uvicorn", "src.mainframe.server:app"])
 
 for _ in range(15):
     time.sleep(1)
