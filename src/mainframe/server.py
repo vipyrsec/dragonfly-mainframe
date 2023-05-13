@@ -61,6 +61,11 @@ class Error:
 
 
 class QueuePackageBody(BaseModel):
+    """
+    name:  A str of the name of the package to be scanned
+    version: An optional str of the package version to scan. If omitted, latest version is used
+    """
+
     name: str
     version: Optional[str]
 
@@ -85,9 +90,7 @@ async def queue_package(
     Queue a package to be scanned when the next runner is available
 
     Args:
-        Body:
-            name: A str of the name of the package to be scanned
-            version: An optional str of the package version to scan. If omitted, latest version is used
+        Body: Request body paramters
         session: Database session
         pypi_client: client instance used to interact with PyPI JSON API
 
