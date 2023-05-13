@@ -1,7 +1,9 @@
+from operator import itemgetter
 from typing import Optional
 
 import pytest
 import requests
+from fastapi.encoders import jsonable_encoder
 
 
 def build_query_string(since: Optional[int], name: Optional[str], version: Optional[str]) -> str:
@@ -55,3 +57,30 @@ def test_package_lookup_rejects_invalid_combinations(
 
     r = requests.get(api_url + url)
     assert r.status_code == 400
+
+
+@pytest.mark.parametrize(
+    "since,name,version,exp",
+    [
+        (0, "a", None, [0]),
+        (0, None, None, [0, 1]),
+        (0, "b", None, [1]),
+    ],
+)
+def test_package_lookup(
+    since: Optional[int], name: Optional[str], version: Optional[str], exp: list[int], api_url: str, test_data
+):
+    url = build_query_string(since, name, version)
+    print(url)
+
+    ans = itemgetter(*exp)(test_data)
+    if len(exp) == 1:
+        ans = [ans]
+
+    r = requests.get(api_url + url)
+    print(repr(r.text))
+
+    def key(d):
+        return d["package_id"]
+
+    assert sorted(r.json(), key=key) == sorted(jsonable_encoder(ans), key=key)
