@@ -1,15 +1,14 @@
-from dataclasses import dataclass
 from typing import Optional
 
+from pydantic import BaseModel
 
-@dataclass(frozen=True)
-class Error:
+
+class Error(BaseModel):
     """Error"""
 
     detail: str
 
 
-@dataclass(frozen=True)
-class PackageScanResult:
+class PackageScanResult(BaseModel):
     most_malicious_file: Optional[str]
     score: int
