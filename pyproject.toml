@@ -28,7 +28,6 @@ lint = [
 ]
 test = [
     "pytest>=7.3.1",
-    "httpx>=0.24.0",
     "pytest-asyncio>=0.21.0",
 ]
 
@@ -36,7 +35,7 @@ test = [
 format = { shell = "black . && isort ." }
 lint = { shell = "pyright && ruff ." }
 test = {shell = "docker compose up --build --abort-on-container-exit || docker compose down --volumes" }
-precommit = { shell = "pdm run pre-commit run --all-files" }
+precommit = { shell = "pre-commit run --all-files" }
 all = { composite = ["format", "lint", "test"] }
 
 [tool.isort]
@@ -52,6 +51,7 @@ line-length = 120
 [tool.pyright]
 include = ["src/**/*.py"]
 strict = ["src/**/*.py"]
+
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

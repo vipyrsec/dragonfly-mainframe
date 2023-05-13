@@ -42,12 +42,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "certifi"
-version = "2023.5.7"
-requires_python = ">=3.6"
-summary = "Python package for providing Mozilla's CA Bundle."
-
-[[package]]
 name = "cfgv"
 version = "3.3.1"
 requires_python = ">=3.6.1"
@@ -102,34 +96,10 @@ requires_python = ">=3.7"
 summary = "A pure-Python, bring-your-own-I/O implementation of HTTP/1.1"
 
 [[package]]
-name = "httpcore"
-version = "0.17.0"
-requires_python = ">=3.7"
-summary = "A minimal low-level HTTP client."
-dependencies = [
-    "anyio<5.0,>=3.0",
-    "certifi",
-    "h11<0.15,>=0.13",
-    "sniffio==1.*",
-]
-
-[[package]]
 name = "httptools"
 version = "0.5.0"
 requires_python = ">=3.5.0"
 summary = "A collection of framework independent HTTP protocol utils."
-
-[[package]]
-name = "httpx"
-version = "0.24.0"
-requires_python = ">=3.7"
-summary = "The next generation HTTP client."
-dependencies = [
-    "certifi",
-    "httpcore<0.18.0,>=0.15.0",
-    "idna",
-    "sniffio",
-]
 
 [[package]]
 name = "identify"
@@ -378,7 +348,7 @@ summary = "An implementation of the WebSocket Protocol (RFC 6455 & 7692)"
 [metadata]
 lock_version = "4.2"
 groups = ["default", "lint", "test"]
-content_hash = "sha256:a247c6a1294c701ee20c5ec48423c0f2f5258a201888f06f57f670a7201a0c28"
+content_hash = "sha256:b8fd0eae6e728fb90d958d5e71688c01f1e4740e5c0fc63685982aa72f2b8702"
 
 [metadata.files]
 "alembic 1.10.4" = [
@@ -453,10 +423,6 @@ content_hash = "sha256:a247c6a1294c701ee20c5ec48423c0f2f5258a201888f06f57f670a72
     {url = "https://files.pythonhosted.org/packages/de/b4/76f152c5eb0be5471c22cd18380d31d188930377a1a57969073b89d6615d/black-23.3.0-cp310-cp310-win_amd64.whl", hash = "sha256:35d1381d7a22cc5b2be2f72c7dfdae4072a3336060635718cc7e1ede24221d6c"},
     {url = "https://files.pythonhosted.org/packages/eb/a5/17b40bfd9b607b69fa726b0b3a473d14b093dcd5191ea1a1dd664eccfee3/black-23.3.0-cp311-cp311-macosx_10_16_universal2.whl", hash = "sha256:c7ab5790333c448903c4b721b59c0d80b11fe5e9803d8703e84dcb8da56fec1b"},
     {url = "https://files.pythonhosted.org/packages/fd/5b/fc2d7922c1a6bb49458d424b5be71d251f2d0dc97be9534e35d171bdc653/black-23.3.0-cp39-cp39-macosx_10_16_universal2.whl", hash = "sha256:f0bd2f4a58d6666500542b26354978218a9babcdc972722f4bf90779524515f3"},
-]
-"certifi 2023.5.7" = [
-    {url = "https://files.pythonhosted.org/packages/93/71/752f7a4dd4c20d6b12341ed1732368546bc0ca9866139fe812f6009d9ac7/certifi-2023.5.7.tar.gz", hash = "sha256:0f0d56dc5a6ad56fd4ba36484d6cc34451e1c6548c61daad8c320169f91eddc7"},
-    {url = "https://files.pythonhosted.org/packages/9d/19/59961b522e6757f0c9097e4493fa906031b95b3ebe9360b2c3083561a6b4/certifi-2023.5.7-py3-none-any.whl", hash = "sha256:c6c2e98f5c7869efca1f8916fed228dd91539f9f1b444c314c06eef02980c716"},
 ]
 "cfgv 3.3.1" = [
     {url = "https://files.pythonhosted.org/packages/6d/82/0a0ebd35bae9981dea55c06f8e6aaf44a49171ad798795c72c6f64cba4c2/cfgv-3.3.1-py2.py3-none-any.whl", hash = "sha256:c6a0883f3917a037485059700b9e75da2464e6c27051014ad85ba6aaa5884426"},
@@ -548,10 +514,6 @@ content_hash = "sha256:a247c6a1294c701ee20c5ec48423c0f2f5258a201888f06f57f670a72
     {url = "https://files.pythonhosted.org/packages/95/04/ff642e65ad6b90db43e668d70ffb6736436c7ce41fcc549f4e9472234127/h11-0.14.0-py3-none-any.whl", hash = "sha256:e3fe4ac4b851c468cc8363d500db52c2ead036020723024a109d37346efaa761"},
     {url = "https://files.pythonhosted.org/packages/f5/38/3af3d3633a34a3316095b39c8e8fb4853a28a536e55d347bd8d8e9a14b03/h11-0.14.0.tar.gz", hash = "sha256:8f19fbbe99e72420ff35c00b27a34cb9937e902a8b810e2c88300c6f0a3b699d"},
 ]
-"httpcore 0.17.0" = [
-    {url = "https://files.pythonhosted.org/packages/41/16/c809655d32fd93e688b9e2a1aaba1008118369d1eda00818f6f65eb509f8/httpcore-0.17.0.tar.gz", hash = "sha256:cc045a3241afbf60ce056202301b4d8b6af08845e3294055eb26b09913ef903c"},
-    {url = "https://files.pythonhosted.org/packages/6c/39/05ebe30333ec66bba849d3c25c85d759b94c43bb03b2222de051c50d4390/httpcore-0.17.0-py3-none-any.whl", hash = "sha256:0fdfea45e94f0c9fd96eab9286077f9ff788dd186635ae61b312693e4d943599"},
-]
 "httptools 0.5.0" = [
     {url = "https://files.pythonhosted.org/packages/01/72/65b1f74371b2673b6833663f653ef6c5575d3fc481df3053a38f90535b59/httptools-0.5.0-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:c1d2357f791b12d86faced7b5736dea9ef4f5ecdc6c3f253e445ee82da579449"},
     {url = "https://files.pythonhosted.org/packages/04/4a/4b1d0f839a3911352632998305c78af09f2df980c728eb365ca09c800524/httptools-0.5.0.tar.gz", hash = "sha256:295874861c173f9101960bba332429bb77ed4dcd8cdf5cee9922eb00e4f6bc09"},
@@ -594,10 +556,6 @@ content_hash = "sha256:a247c6a1294c701ee20c5ec48423c0f2f5258a201888f06f57f670a72
     {url = "https://files.pythonhosted.org/packages/f9/bb/e785de3eddc7dacf57492ec8c8d694a45f81165947562d79af7a1b8eebf4/httptools-0.5.0-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:7e5eefc58d20e4c2da82c78d91b2906f1a947ef42bd668db05f4ab4201a99f49"},
     {url = "https://files.pythonhosted.org/packages/fb/8b/64c6cd4af7af7e0044047fd9b95c29ee6306685b65d6b835e55c5e1f257b/httptools-0.5.0-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:8ffce9d81c825ac1deaa13bc9694c0562e2840a48ba21cfc9f3b4c922c16f372"},
     {url = "https://files.pythonhosted.org/packages/fe/24/abf869224c81d8136ca14221dfa90e71612ca723d8c02e975ef7987b8319/httptools-0.5.0-cp36-cp36m-musllinux_1_1_x86_64.whl", hash = "sha256:850fec36c48df5a790aa735417dca8ce7d4b48d59b3ebd6f83e88a8125cde324"},
-]
-"httpx 0.24.0" = [
-    {url = "https://files.pythonhosted.org/packages/4e/c1/692013f1e6115a061a14f6c7d05947515a1eb7b85ef6e9bf0ffbf0e92738/httpx-0.24.0-py3-none-any.whl", hash = "sha256:447556b50c1921c351ea54b4fe79d91b724ed2b027462ab9a329465d147d5a4e"},
-    {url = "https://files.pythonhosted.org/packages/ae/23/f7beaf11a8b95fc173b8979c4bfd23ea7711c5ebd458d657d24a59df7e9f/httpx-0.24.0.tar.gz", hash = "sha256:507d676fc3e26110d41df7d35ebd8b3b8585052450f4097401c9be59d928c63e"},
 ]
 "identify 2.5.24" = [
     {url = "https://files.pythonhosted.org/packages/4f/fd/2c46fba2bc032ba4c970bb8de59d25187087d7138a0ebf7c1dcc91d94f01/identify-2.5.24-py2.py3-none-any.whl", hash = "sha256:986dbfb38b1140e763e413e6feb44cd731faf72d1909543178aa79b0e258265d"},
