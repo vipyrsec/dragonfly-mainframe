@@ -90,7 +90,7 @@ async def queue_package(
     Queue a package to be scanned when the next runner is available
 
     Args:
-        Body: Request body paramters
+        Body: Request body parameters
         session: Database session
         pypi_client: client instance used to interact with PyPI JSON API
 
