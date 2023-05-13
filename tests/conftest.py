@@ -1,12 +1,47 @@
+import subprocess
+import requests
+import time
+import sys
 import datetime as dt
 
 import pytest
-from mainframe.models import Status
+from sqlalchemy import create_engine, insert
+from sqlalchemy.orm import sessionmaker
+from mainframe.models import Base, Status, Package
 
-api_url = "http://localhost:8000"
+_api_url = "http://localhost:8000"
+
+server = subprocess.Popen(["python", "-m", "pdm", "run", "uvicorn", "src.mainframe.server:app"], stdout=subprocess.PIPE)
+
+for _ in range(5):
+    time.sleep(1)
+    try:
+        r = requests.get(f"{_api_url}/package?since=0", timeout=5)
+        if r.status_code == 500:
+            break
+    except requests.exceptions.ConnectionError:
+        continue
+else:
+    print("Server did not start in time")
+    sys.exit(1)
 
 
 @pytest.fixture(scope="session")
+def engine():
+    return create_engine("postgresql://postgres:postgres@db:5432")
+
+
+@pytest.fixture(scope="session")
+def sm(engine):
+    return sessionmaker(bind=engine)
+
+
+@pytest.fixture
+def api_url():
+    return _api_url
+
+
+@pytest.fixture
 def test_data():
     return [
         dict(
@@ -49,3 +84,15 @@ def test_data():
             reported_at=None,
         ),
     ]
+
+
+@pytest.fixture
+def db_session(engine, sm, test_data):
+    Base.metadata.create_all(engine)
+    with sm() as session:
+        trans = session.begin()
+        session.execute(insert(Package), test_data)
+        yield session
+        trans.rollback()
+        session.close()
+    Base.metadata.drop_all(engine)

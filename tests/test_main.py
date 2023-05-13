@@ -1,6 +1,7 @@
 from typing import Optional
 
 import pytest
+import requests
 
 
 def build_query_string(since: Optional[int], name: Optional[str], version: Optional[str]) -> str:
@@ -44,11 +45,13 @@ def test_build_query_string(inp: tuple[Optional[int], Optional[str], Optional[st
         (None, None, None),
     ],
 )
-def test_package_lookup_rejects_invalid_combinations(since: Optional[int], name: Optional[str], version: Optional[str]):
+def test_package_lookup_rejects_invalid_combinations(
+    since: Optional[int], name: Optional[str], version: Optional[str], api_url: str
+):
     """Test that invalid combinations are rejected with a 400 response code."""
 
     url = build_query_string(since, name, version)
     print(url)
-    # r = client.get(url)
 
-    # assert r.status_code == 400
+    r = requests.get(api_url + url)
+    assert r.status_code == 400

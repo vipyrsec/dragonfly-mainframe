@@ -8,20 +8,15 @@ COPY pyproject.toml pdm.lock ./
 RUN mkdir __pypackages__ && python -m pdm install --prod --no-lock --no-editable
 COPY src/ src/
 RUN python -m pdm install --prod --no-lock --no-editable
-COPY alembic/ alembic/
-COPY alembic.ini ./
 
 ############################################
 FROM builder as test
 
 RUN python -m pdm install -d
-RUN echo "#!/bin/sh" > entrypoint.sh
-RUN echo "pdm run alembic upgrade head && pdm run pytest -vvv tests" >> entrypoint.sh
-RUN chmod +x entrypoint.sh
 
 COPY tests/ tests/
 
-CMD ["./entrypoint.sh"]
+CMD ["pdm", "run", "pytest", "tests"]
 
 ############################################
 FROM python:3.11-slim@sha256:181e49146bfdc8643ebe0f66cd06f27f42df40a0921438e96770dab09797effb as prod

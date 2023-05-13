@@ -30,12 +30,14 @@ lint = [
 ]
 test = [
     "pytest>=7.3.1",
+    "requests>=2.30.0",
+    "psycopg2-binary>=2.9.6",
 ]
 
 [tool.pdm.scripts]
 format = { shell = "black . && isort ." }
-lint = { shell = "pyright && ruff ." }
-test = {shell = "docker compose up --build --abort-on-container-exit || docker compose down --volumes" }
+lint = { shell = "pyright; ruff ." }
+test = {shell = "docker compose up --build --abort-on-container-exit; docker compose down --volumes" }
 precommit = { shell = "pre-commit run --all-files" }
 all = { composite = ["format", "lint", "test"] }
 
@@ -43,7 +45,7 @@ all = { composite = ["format", "lint", "test"] }
 profile = "black"
 
 [tool.black]
-target-version = ["py310"]
+target-version = ["py311"]
 line-length = 120
 
 [tool.ruff]
