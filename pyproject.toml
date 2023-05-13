@@ -30,7 +30,6 @@ lint = [
 ]
 test = [
     "pytest>=7.3.1",
-    "pytest-asyncio>=0.21.0",
 ]
 
 [tool.pdm.scripts]
@@ -53,7 +52,3 @@ line-length = 120
 [tool.pyright]
 include = ["src/**/*.py"]
 strict = ["src/**/*.py"]
-
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"

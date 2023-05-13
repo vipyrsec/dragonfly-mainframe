@@ -1,13 +1,12 @@
 import datetime as dt
 
 import pytest
-
 from mainframe.models import Status
 
-pytest_plugins = ("pytest_asyncio",)
+api_url = "http://localhost:8000"
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def test_data():
     return [
         dict(
