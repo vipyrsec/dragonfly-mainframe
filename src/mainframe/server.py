@@ -53,21 +53,23 @@ class PackageScanResult:
     score: int
 
 
-@dataclass(frozen=True)
-class Error:
-    """Error"""
-
-    detail: str
-
-
-class QueuePackageBody(BaseModel):
+class PackageSpecifier(BaseModel):
     """
+    Model used to specify a package by name and version
+
     name:  A str of the name of the package to be scanned
     version: An optional str of the package version to scan. If omitted, latest version is used
     """
 
     name: str
     version: Optional[str]
+
+
+@dataclass(frozen=True)
+class Error:
+    """Error"""
+
+    detail: str
 
 
 class QueuePackageResponse(BaseModel):
@@ -82,7 +84,7 @@ class QueuePackageResponse(BaseModel):
     },
 )
 async def queue_package(
-    body: QueuePackageBody,
+    package: PackageSpecifier,
     session: AsyncSession = Depends(get_db),
     pypi_client: PyPIServices = Depends(get_pypi_client),
 ) -> QueuePackageResponse:
@@ -99,8 +101,8 @@ async def queue_package(
         409: The given package and version combination has already been queued
     """
 
-    name = body.name
-    version = body.version
+    name = package.name
+    version = package.version
 
     try:
         package_metadata = await pypi_client.get_package_metadata(name, version)
@@ -110,12 +112,12 @@ async def queue_package(
     version = package_metadata.info.version  # Use latest version if not provided
 
     query = select(Package).where(Package.name == name).where(Package.version == version)
-    package = await session.scalar(query)
+    row = await session.scalar(query)
 
-    if package is not None:
+    if row is not None:
         raise HTTPException(409, f"Package {name}@{version} is already queued for scanning")
 
-    package = Package(
+    new_package = Package(
         name=name,
         version=version,
         status=Status.QUEUED,
@@ -124,7 +126,7 @@ async def queue_package(
     session.add(package)
     await session.commit()
 
-    return QueuePackageResponse(id=str(package.package_id))
+    return QueuePackageResponse(id=str(new_package.package_id))
 
 
 @app.get("/package", responses={400: {"model": Error, "description": "Invalid parameter combination."}})
