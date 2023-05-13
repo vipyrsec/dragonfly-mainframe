@@ -46,7 +46,7 @@ class Package(Base):
     score: Mapped[Optional[int]]
     most_malicious_file: Mapped[Optional[str]]
 
-    queued_at: Mapped[datetime]
+    queued_at: Mapped[Optional[datetime]] = mapped_column(server_default=FetchedValue(), default=datetime.utcnow)
     pending_at: Mapped[Optional[datetime]]
     finished_at: Mapped[Optional[datetime]]
 
