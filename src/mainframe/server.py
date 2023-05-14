@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from letsbuilda.pypi import PyPIServices
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from .endpoints import package, model
+from .endpoints import job, package
 
 load_dotenv()
 
@@ -35,4 +35,4 @@ async def get_pypi_client():
 
 
 app.include_router(package.router)
-app.include_router(model.router)
+app.include_router(job.router)
