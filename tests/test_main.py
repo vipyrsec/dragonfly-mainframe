@@ -8,7 +8,7 @@ from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from mainframe.__main__ import app
-from mainframe.models import Package, Status
+from mainframe.models.orm import Package, Status
 
 pytest_plugins = ("pytest_asyncio",)
 
