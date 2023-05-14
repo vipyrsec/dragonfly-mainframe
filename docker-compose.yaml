@@ -11,7 +11,10 @@ services:
         condition: service_healthy
     tty: true
     environment:
-      DB_URL: postgresql+asyncpg://postgres:postgres@db:5432
+      # disable prepared statement cache because we want to be able to create and destroy tables for each test
+      # when enabled, any schema change will invalidate the cache, causing an error
+      # disabling the cache results in a minor speed penalty, but this should be fine
+      DB_URL: postgresql+asyncpg://postgres:postgres@db:5432?prepared_statement_cache_size=0
 
   db:
     image: postgres

@@ -1,70 +1,41 @@
-import asyncio
-import datetime as dt
+from operator import itemgetter
 from typing import Optional
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import insert
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
-from mainframe.__main__ import app
-from mainframe.models.orm import Package, Status
-
-pytest_plugins = ("pytest_asyncio",)
+import requests
+from fastapi.encoders import jsonable_encoder
 
 
-client = TestClient(app)
+def build_query_string(since: Optional[int], name: Optional[str], version: Optional[str]) -> str:
+    """Helper function for generating query parameters."""
+    since_q = name_q = version_q = ""
+    if since is not None:
+        since_q = f"since={since}"
+    if name is not None:
+        name_q = f"name={name}"
+    if version is not None:
+        version_q = f"version={version}"
+
+    params = [since_q, name_q, version_q]
+
+    url = f"/package?{'&'.join(x for x in params if x != '')}"
+    return url
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.get_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture(scope="session")
-async def async_session():
-    engine = create_async_engine("postgresql+asyncpg://postgres:postgres@db:5432")
-    asm = async_sessionmaker(bind=engine, expire_on_commit=False)
-
-    async with asm() as session:
-        await session.execute(
-            insert(Package),
-            [
-                dict(
-                    package_id="fce0366b-0bcf-4a29-a0a7-4d4bdf3c6f61",
-                    name="a",
-                    version="0.1.0",
-                    status=Status.FINISHED,
-                    queued_at=dt.datetime.now(),
-                ),
-                dict(
-                    package_id="df157a3c-8994-467f-a494-9d63eaf96564",
-                    name="b",
-                    version="0.1.0",
-                    status=Status.PENDING,
-                    queued_at=dt.datetime.now(),
-                ),
-                dict(
-                    package_id="04685768-e41d-49e4-9192-19b6d435226a",
-                    name="a",
-                    version="0.2.0",
-                    status=Status.QUEUED,
-                    queued_at=dt.datetime.now(),
-                ),
-            ],
-        )
-        await session.commit()
-
-    yield asm
-
-
-@pytest.fixture
-async def session(async_session):
-    session = async_session()
-    yield session
-    await session.close()
+@pytest.mark.parametrize(
+    "inp,exp",
+    [
+        ((0, "name", "ver"), "/package?since=0&name=name&version=ver"),
+        ((0, None, "ver"), "/package?since=0&version=ver"),
+        ((None, None, "ver"), "/package?version=ver"),
+        ((None, None, None), "/package?"),
+    ],
+)
+def test_build_query_string(inp: tuple[Optional[int], Optional[str], Optional[str]], exp: str):
+    """Test build_query_string"""
+    out = build_query_string(*inp)
+    print(out)
+    assert out == exp
 
 
 @pytest.mark.parametrize(
@@ -76,25 +47,40 @@ async def session(async_session):
         (None, None, None),
     ],
 )
-def test_package_lookup_rejects_invalid_combinations(since: Optional[int], name: Optional[str], version: Optional[str]):
+def test_package_lookup_rejects_invalid_combinations(
+    since: Optional[int], name: Optional[str], version: Optional[str], api_url: str
+):
     """Test that invalid combinations are rejected with a 400 response code."""
 
-    since_q = name_q = version_q = ""
-    if since is not None:
-        since_q = f"since={since}"
-    if name is not None:
-        name_q = f"name={name}"
-    if version is not None:
-        version_q = f"version={version}"
-
-    url = f"/package?{since_q}&{name_q}&{version_q}"
+    url = build_query_string(since, name, version)
     print(url)
-    r = client.get(url)
 
+    r = requests.get(api_url + url)
     assert r.status_code == 400
 
 
-async def test_package_lookup(session: AsyncSession):
-    print(session)
+@pytest.mark.parametrize(
+    "since,name,version,exp",
+    [
+        (0, "a", None, [0]),
+        (0, None, None, [0, 1]),
+        (0, "b", None, [1]),
+    ],
+)
+def test_package_lookup(
+    since: Optional[int], name: Optional[str], version: Optional[str], exp: list[int], api_url: str, test_data
+):
+    url = build_query_string(since, name, version)
+    print(url)
 
-    assert False
+    ans = itemgetter(*exp)(test_data)
+    if len(exp) == 1:
+        ans = [ans]
+
+    r = requests.get(api_url + url)
+    print(repr(r.text))
+
+    def key(d):
+        return d["package_id"]
+
+    assert sorted(r.json(), key=key) == sorted(jsonable_encoder(ans), key=key)
