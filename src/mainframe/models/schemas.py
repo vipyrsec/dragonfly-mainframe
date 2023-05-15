@@ -11,13 +11,19 @@ class Error(BaseModel):
 
 
 class PackageScanResult(BaseModel):
+    """Result of scanning a package."""
+
     most_malicious_file: Optional[str]
     score: int
 
 
 class JobResult(BaseModel):
+    """Package ID of a requested job."""
+
     package_id: UUID
 
 
 class NoJob(BaseModel):
+    """Returned when no available jobs were found."""
+
     detail: str
