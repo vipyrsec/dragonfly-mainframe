@@ -17,7 +17,7 @@ The tests for each python module should go in a separate tests file.
 We use `requests` for making requests to the API. Use the fixture `api_url` for the URL to make requests to.
 For example:
 ```py
-def test_root(api_url: str, ):
+def test_root(api_url: str):
     r = requests.get(api_url)
     assert r.status_code == 200
 ```
@@ -35,7 +35,7 @@ All database changes are rolled back after each test, so you are given a fresh d
 
 ### Running the tests
 #### Method 1 - Recommended
-Use `pdm test`.
+Use `pdm test`. This should be the go-to method.
 
 #### Method 2
 Alternatively you can run Postgresql locally or in a container, then run the server using `pdm run python -m uvicorn src.mainframe.server:app`.
