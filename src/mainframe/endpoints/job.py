@@ -27,4 +27,4 @@ async def get_job(session: AsyncSession = Depends(get_db)) -> JobResult | NoJob:
     await session.execute(stmt)
     await session.commit()
 
-    return JobResult(package_id=package.package_id)
+    return JobResult(package_id=package.package_id, name=package.name, version=package.version)

@@ -18,9 +18,11 @@ class PackageScanResult(BaseModel):
 
 
 class JobResult(BaseModel):
-    """Package ID of a requested job."""
+    """Package information of a requested job."""
 
     package_id: UUID
+    name: str
+    version: str
 
 
 class NoJob(BaseModel):
