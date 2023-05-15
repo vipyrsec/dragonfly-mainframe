@@ -8,7 +8,7 @@ import requests
 from sqlalchemy import Engine, create_engine, insert
 from sqlalchemy.orm import sessionmaker
 
-from mainframe.models import Base, Package, Status
+from mainframe.models.orm import Base, Package, Status
 
 _api_url = "http://localhost:8000"
 
