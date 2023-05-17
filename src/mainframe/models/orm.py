@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import Optional
 
 from sqlalchemy import Column, FetchedValue, ForeignKey, Table
 from sqlalchemy.dialects.postgresql import UUID
@@ -55,7 +55,7 @@ class Package(Base):
 
     score: Mapped[Optional[int]]
     inspector_url: Mapped[Optional[str]]
-    rules: Mapped[List[Rules]] = relationship(secondary=package_rules)
+    rules: Mapped[list[Rules]] = relationship(secondary=package_rules)
 
     queued_at: Mapped[Optional[datetime]] = mapped_column(server_default=FetchedValue(), default=datetime.utcnow)
     pending_at: Mapped[Optional[datetime]]
