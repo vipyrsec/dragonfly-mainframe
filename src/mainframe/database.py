@@ -1,12 +1,10 @@
-import os
 from typing import AsyncGenerator
 
-from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-load_dotenv()
+from mainframe.constants import settings
 
-engine = create_async_engine(os.getenv("DB_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432"))
+engine = create_async_engine(settings.db_url)
 async_session = async_sessionmaker(bind=engine, expire_on_commit=False)
 
 
