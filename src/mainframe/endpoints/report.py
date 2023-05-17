@@ -4,23 +4,22 @@ from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from letsbuilda.pypi import PyPIServices
+from msgraph.core import GraphClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from mainframe.constants import settings
 from mainframe.database import get_db
-from mainframe.dependencies import get_pypi_client
+from mainframe.dependencies import get_ms_graph_client, get_pypi_client
 from mainframe.models.orm import Package
 from mainframe.models.schemas import Error, PackageSpecifier
 from utils.mailer import send_email
-from utils.microsoft import build_ms_graph_client
 from utils.pypi import file_path_from_inspector_url
-
-graph_client = build_ms_graph_client()
 
 
 def send_report_email(
+    graph_client: GraphClient,
     *,
     package_name: str,
     package_version: str,
@@ -73,6 +72,7 @@ async def report_package(
     body: ReportPackageBody,
     session: Annotated[AsyncSession, Depends(get_db)],
     pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
+    graph_client: Annotated[GraphClient, Depends(get_ms_graph_client)],
 ):
     """
     Report a package by sending an email to PyPI with the appropriate format
@@ -172,6 +172,7 @@ async def report_package(
     additional_information = body.additional_information
 
     send_report_email(
+        graph_client,
         package_name=name,
         package_version=version,
         inspector_url=inspector_url,
