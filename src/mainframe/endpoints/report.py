@@ -1,6 +1,6 @@
 import datetime as dt
 from textwrap import dedent
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from letsbuilda.pypi import PyPIServices
@@ -26,7 +26,7 @@ def send_report_email(
     package_version: str,
     inspector_url: str,
     additional_information: str | None,
-    rules_matched: List[str],
+    rules_matched: list[str],
 ):
     if additional_information is None and len(rules_matched) == 0:
         raise ValueError("Cannot report a package that matched 0 rules without additional information")
