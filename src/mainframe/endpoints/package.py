@@ -2,12 +2,14 @@ import datetime as dt
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from letsbuilda.pypi import PyPIServices
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mainframe.database import get_db
-from mainframe.models.orm import Package
-from mainframe.models.schemas import Error
+from mainframe.models.orm import Package, Status
+from mainframe.models.schemas import Error, PackageSpecifier, QueuePackageResponse
+from mainframe.server import get_pypi_client
 
 router = APIRouter()
 
@@ -58,3 +60,54 @@ async def lookup_package_info(
 
     data = await session.scalars(query)
     return data.all()
+
+
+@router.post(
+    "/package",
+    responses={
+        409: {"model": Error},
+        404: {"model": Error},
+    },
+)
+async def queue_package(
+    package: PackageSpecifier,
+    session: AsyncSession = Depends(get_db),
+    pypi_client: PyPIServices = Depends(get_pypi_client),
+) -> QueuePackageResponse:
+    """
+    Queue a package to be scanned when the next runner is available
+    Args:
+        Body: Request body paramters
+        session: Database session
+        pypi_client: client instance used to interact with PyPI JSON API
+    Returns:
+        404: The given package and version combination was not found on PyPI
+        409: The given package and version combination has already been queued
+    """
+
+    name = package.name
+    version = package.version
+
+    try:
+        package_metadata = await pypi_client.get_package_metadata(name, version)
+    except KeyError:
+        raise HTTPException(404, detail=f"Package {name}@{version} was not found on PyPI")
+
+    version = package_metadata.info.version  # Use latest version if not provided
+
+    query = select(Package).where(Package.name == name).where(Package.version == version)
+    row = await session.scalar(query)
+
+    if row is not None:
+        raise HTTPException(409, f"Package {name}@{version} is already queued for scanning")
+
+    new_package = Package(
+        name=name,
+        version=version,
+        status=Status.QUEUED,
+    )
+
+    session.add(new_package)
+    await session.commit()
+
+    return QueuePackageResponse(id=str(new_package.package_id))

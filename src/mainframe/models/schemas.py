@@ -41,3 +41,9 @@ class NoJob(BaseModel):
     """Returned when no available jobs were found."""
 
     detail: str
+
+
+class QueuePackageResponse(BaseModel):
+    """Returned after queueing a package. Contains the UUID"""
+
+    id: str

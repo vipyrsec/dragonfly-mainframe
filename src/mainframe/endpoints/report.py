@@ -116,22 +116,32 @@ async def report_package(
 
     version = package_metadata.info.version
 
-    row = await session.scalar(
-        select(Package)
-        .where(Package.name == name)
-        .where(Package.version == version)
-        .options(selectinload(Package.rules))
-    )
+    query = select(Package).where(Package.name == name).options(selectinload(Package.rules))
+
+    rows = (await session.scalars(query)).fetchall()
 
     inspector_url: str | None = None
     additional_information: str | None = None
     rules_matched: list[str] = []
 
-    if row is None:
-        raise HTTPException(404, detail=f"A record for package `{name}@{version}` does not exist in the database")
+    if not rows:
+        raise HTTPException(404, detail=f"No records for package `{name}` were found in the database")
 
-    if row.reported_at is not None:
-        raise HTTPException(409, detail=f"Package `{name}@{version}` has already been reported")
+    for row in rows:
+        if row.reported_at is not None:
+            raise HTTPException(
+                409,
+                detail=(
+                    f"Only one version of a package may be reported at a time. "
+                    f"(`{row.name}@{row.version}` was already reported)"
+                ),
+            )
+
+    row = await session.scalar(query.where(Package.version == version))
+    if row is None:
+        raise HTTPException(
+            404, detail=f"Package `{name}` has records in the database, but none with version `{version}`"
+        )
 
     if body.inspector_url is None:
         if row.inspector_url is None:
