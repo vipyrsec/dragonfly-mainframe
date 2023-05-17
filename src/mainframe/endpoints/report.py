@@ -38,8 +38,8 @@ def send_report_email(
         Version: {package_version}
         File path: {file_path_from_inspector_url(inspector_url)}
         Inspector URL: {inspector_url}
-        Additional Information: {additional_information or 'No user description provided'}
-        Yara rules matched: {', '.join(rules_matched) or 'No rules matched'}
+        Additional Information: {additional_information or "No user description provided"}
+        Yara rules matched: {", ".join(rules_matched) or "No rules matched"}
     """
     content = dedent(content)
 
