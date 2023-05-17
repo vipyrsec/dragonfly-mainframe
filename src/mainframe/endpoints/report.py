@@ -92,17 +92,17 @@ async def report_package(
     has not yet been scanned and therefore has no records for `inspector_url`
     or any matched rules
 
-    If the package has successfully been scanned (that is, it is in a FINISHED state),
-    and it has been determined to be malicious, then neither inspector_url nor additional_information
-    is required. If the inspector_url is omitted, then it will be that of the most malicious file scanned
+    If the package has successfully been scanned (that is, it is in a `FINISHED` state),
+    and it has been determined to be malicious, then neither `inspector_url` nor `additional_information`
+    is required. If the `inspector_url` is omitted, then it will be that of the most malicious file scanned
     (that is, the file with the highest aggregate yara weight score).
     If the `additional_information` is omitted, the final e-mail sent to the destination address will read
     "No user description provided."
     If either of these fields are included, they override the default value in the database.
 
-    If the package has successfully been scanned (that is, it is in a FINISHED state),
+    If the package has successfully been scanned (that is, it is in a `FINISHED` state),
     and it has been determined NOT to be malicious (that is, it has no matched rules),
-    then you must provide inspector_url AND additional_information.
+    then you must provide `inspector_url` AND `additional_information`.
 
     In all cases, the API will provide information on what fields it is missing and why.
     This way, clients may retry the request with the proper information provided
