@@ -1,6 +1,8 @@
-from fastapi import APIRouter
-from pkgutil import walk_packages
 from importlib import import_module
+from pkgutil import walk_packages
+
+from fastapi import APIRouter
+
 from mainframe import endpoints
 
 routers: list[APIRouter] = []
