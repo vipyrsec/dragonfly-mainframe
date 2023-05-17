@@ -1,5 +1,5 @@
 import datetime as dt
-from typing import Optional
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from letsbuilda.pypi import PyPIServices
@@ -7,19 +7,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mainframe.database import get_db
+from mainframe.dependencies import get_pypi_client
 from mainframe.models.orm import Package, Status
 from mainframe.models.schemas import Error, PackageSpecifier, QueuePackageResponse
-from mainframe.server import get_pypi_client
 
 router = APIRouter()
 
 
 @router.get("/package", responses={400: {"model": Error, "description": "Invalid parameter combination."}})
 async def lookup_package_info(
+    session: Annotated[AsyncSession, Depends(get_db)],
     since: Optional[int] = None,
     name: Optional[str] = None,
     version: Optional[str] = None,
-    session: AsyncSession = Depends(get_db),
 ):
     """
     Lookup information on scanned packages based on name, version, or time scanned.
@@ -71,8 +71,8 @@ async def lookup_package_info(
 )
 async def queue_package(
     package: PackageSpecifier,
-    session: AsyncSession = Depends(get_db),
-    pypi_client: PyPIServices = Depends(get_pypi_client),
+    session: Annotated[AsyncSession, Depends(get_db)],
+    pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
 ) -> QueuePackageResponse:
     """
     Queue a package to be scanned when the next runner is available

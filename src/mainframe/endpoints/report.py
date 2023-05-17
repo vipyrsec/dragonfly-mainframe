@@ -1,6 +1,6 @@
 import datetime as dt
 from textwrap import dedent
-from typing import Optional
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from letsbuilda.pypi import PyPIServices
@@ -10,9 +10,9 @@ from sqlalchemy.orm import selectinload
 
 from mainframe.constants import settings
 from mainframe.database import get_db
+from mainframe.dependencies import get_pypi_client
 from mainframe.models.orm import Package
 from mainframe.models.schemas import Error, PackageSpecifier
-from mainframe.server import get_pypi_client
 from utils.mailer import send_email
 from utils.microsoft import build_ms_graph_client
 from utils.pypi import file_path_from_inspector_url
@@ -71,8 +71,8 @@ router = APIRouter()
 )
 async def report_package(
     body: ReportPackageBody,
-    session: AsyncSession = Depends(get_db),
-    pypi_client: PyPIServices = Depends(get_pypi_client),
+    session: Annotated[AsyncSession, Depends(get_db)],
+    pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
 ):
     """
     Report a package by sending an email to PyPI with the appropriate format
