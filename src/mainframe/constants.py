@@ -1,6 +1,18 @@
 from pydantic import BaseSettings
 
 
+class MicrosoftSettings(BaseSettings):
+    tenant_id: str
+    client_id: str
+    client_secret: str
+
+    class Config(BaseSettings.Config):
+        env_prefix = "microsoft_"
+
+
+microsoft_settings = MicrosoftSettings()  # pyright: ignore
+
+
 class Settings(BaseSettings):
     email_recipient: str
     bcc_recipients: set[str] = set()
