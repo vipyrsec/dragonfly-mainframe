@@ -1,7 +1,7 @@
 from pydantic import BaseSettings
 
 
-class MicrosoftSettings(BaseSettings):
+class Microsoft(BaseSettings):
     tenant_id: str
     client_id: str
     client_secret: str
@@ -11,10 +11,10 @@ class MicrosoftSettings(BaseSettings):
         env_file = ".env"
 
 
-microsoft_settings = MicrosoftSettings()  # pyright: ignore
+microsoft_settings = Microsoft()  # pyright: ignore
 
 
-class Settings(BaseSettings):
+class Mainframe(BaseSettings):
     email_recipient: str
     bcc_recipients: set[str] = set()
 
@@ -24,4 +24,4 @@ class Settings(BaseSettings):
         env_file = ".env"
 
 
-settings = Settings()  # pyright: ignore
+mainframe_settings = Mainframe()  # pyright: ignore
