@@ -7,7 +7,7 @@ class Microsoft(BaseSettings):
     client_secret: str
 
     class Config(BaseSettings.Config):
-        env_prefix = "MICROSOFT_"
+        env_prefix = "microsoft_"
         env_file = ".env"
 
 
