@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from mainframe.constants import settings
+from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
 from mainframe.dependencies import get_ms_graph_client, get_pypi_client
 from mainframe.models.orm import Package
@@ -47,9 +47,9 @@ def send_report_email(
         sender="system@mantissecurity.org",
         subject=f"Automated PyPI Malware Report: {package_name}@{package_version}",
         content=content,
-        to_recipients=[settings.email_recipient],
+        to_recipients=[mainframe_settings.email_recipient],
         cc_recipients=[],
-        bcc_recipients=list(settings.bcc_recipients),
+        bcc_recipients=list(mainframe_settings.bcc_recipients),
     )
 
 
