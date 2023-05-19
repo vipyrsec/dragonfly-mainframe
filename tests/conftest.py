@@ -12,7 +12,7 @@ from mainframe.models.orm import Base, Package, Status
 
 _api_url = "http://localhost:8000"
 
-server = subprocess.Popen(["python", "-m", "pdm", "run", "uvicorn", "src.mainframe.server:app"])
+server = subprocess.Popen(["pdm", "run", "uvicorn", "src.mainframe.server:app"])
 
 for _ in range(15):
     time.sleep(1)
@@ -51,7 +51,7 @@ def test_data():
             version="0.1.0",
             status=Status.FINISHED,
             score=0,
-            most_malicious_file="main.py",
+            inspector_url="main.py",
             queued_at=dt.datetime(2023, 5, 12, 18),
             pending_at=dt.datetime(2023, 5, 12, 18, 30),
             finished_at=dt.datetime(2023, 5, 12, 19),
@@ -64,7 +64,7 @@ def test_data():
             version="0.1.0",
             status=Status.FINISHED,
             score=None,
-            most_malicious_file=None,
+            inspector_url=None,
             queued_at=dt.datetime(2023, 5, 12, 15),
             pending_at=dt.datetime(2023, 5, 12, 16),
             finished_at=dt.datetime(2023, 5, 12, 16, 30),
@@ -77,7 +77,7 @@ def test_data():
             version="0.2.0",
             status=Status.QUEUED,
             score=None,
-            most_malicious_file=None,
+            inspector_url=None,
             queued_at=dt.datetime(2023, 5, 12, 17),
             pending_at=None,
             finished_at=None,
@@ -90,7 +90,7 @@ def test_data():
             version="0.2.0",
             status=Status.PENDING,
             score=None,
-            most_malicious_file=None,
+            inspector_url=None,
             queued_at=dt.datetime(2023, 5, 12, 19),
             pending_at=dt.datetime(2023, 5, 12, 20),
             finished_at=None,
