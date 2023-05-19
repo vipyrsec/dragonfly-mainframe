@@ -12,7 +12,7 @@ Once installed, use `pdm install -d` to install dev dependencies.
 ## Tests
 ### Writing tests
 We use `pytest` to run our tests. Tests go in the `tests/` directory.
-The tests for each python module should go in a separate tests file. 
+The tests for each python module should go in a separate tests file.
 
 We use `requests` for making requests to the API. Use the fixture `api_url` for the URL to make requests to.
 For example:

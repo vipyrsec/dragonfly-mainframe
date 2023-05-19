@@ -17,6 +17,8 @@ dependencies = [
     "asyncpg>=0.27.0",
     "letsbuilda-pypi>=4.0.0",
     "aiohttp>=3.8.4",
+    "msgraph-core>=0.2.2",
+    "azure-identity>=1.13.0",
 ]
 
 [tool.pdm]
