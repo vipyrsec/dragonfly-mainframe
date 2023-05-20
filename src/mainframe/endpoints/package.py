@@ -1,17 +1,64 @@
 import datetime as dt
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from letsbuilda.pypi import PyPIServices
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from mainframe.database import get_db
-from mainframe.dependencies import get_pypi_client
-from mainframe.models.orm import Package, Status
-from mainframe.models.schemas import Error, PackageSpecifier, QueuePackageResponse
+from mainframe.models.orm import Package, Rule, Status
+from mainframe.models.schemas import (
+    Error,
+    PackageScanResult,
+    PackageSpecifier,
+    QueuePackageResponse,
+)
+from mainframe.rules import Rules
 
 router = APIRouter()
+
+
+@router.put(
+    "/package",
+    responses={
+        400: {"model": Error},
+        409: {"model": Error},
+    },
+)
+async def submit_results(
+    result: PackageScanResult, request: Request, session: Annotated[AsyncSession, Depends(get_db)]
+):
+    name = result.name
+    version = result.version
+
+    rules: Rules = request.app.state.rules
+
+    for rule in result.rules_matched:
+        if rule not in rules.rules:
+            raise HTTPException(400, f"Rule '{rule}' is not a valid rule for package `{name}@{version}`")
+
+    row = await session.scalar(
+        select(Package)
+        .where(Package.name == name)
+        .where(Package.version == version)
+        .options(selectinload(Package.rules))
+    )
+
+    if row is None:
+        raise HTTPException(404, f"Package `{name}@{version}` not found in database.")
+
+    if row.status == Status.FINISHED:
+        raise HTTPException(409, f"Package `{name}@{version}` is already in a FINISHED state.")
+
+    row.status = Status.FINISHED
+    row.finished_at = dt.datetime.utcnow()
+    row.inspector_url = result.inspector_url
+    row.score = result.score
+    row.rules = [Rule(name=name) for name in result.rules_matched]
+
+    await session.commit()
 
 
 @router.get("/package", responses={400: {"model": Error, "description": "Invalid parameter combination."}})
@@ -50,7 +97,7 @@ async def lookup_package_info(
     if (not nn_name and not nn_since) or (nn_version and nn_since):
         raise HTTPException(status_code=400)
 
-    query = select(Package)
+    query = select(Package).options(selectinload(Package.rules))
     if nn_name:
         query = query.where(Package.name == name)
     if nn_version:
@@ -72,7 +119,7 @@ async def lookup_package_info(
 async def queue_package(
     package: PackageSpecifier,
     session: Annotated[AsyncSession, Depends(get_db)],
-    pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
+    request: Request,
 ) -> QueuePackageResponse:
     """
     Queue a package to be scanned when the next runner is available
@@ -88,6 +135,7 @@ async def queue_package(
     name = package.name
     version = package.version
 
+    pypi_client: PyPIServices = request.app.state.pypi_client
     try:
         package_metadata = await pypi_client.get_package_metadata(name, version)
     except KeyError:

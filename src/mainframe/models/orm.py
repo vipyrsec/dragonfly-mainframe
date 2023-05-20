@@ -5,7 +5,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import Column, FetchedValue, ForeignKey, Table
+from sqlalchemy import FetchedValue, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -29,14 +29,6 @@ class Status(Enum):
     FAILED = "failed"
 
 
-package_rules = Table(
-    "package_rules",
-    Base.metadata,
-    Column("package_id", ForeignKey("packages.package_id")),
-    Column("rule_name", ForeignKey("rules.name")),
-)
-
-
 class Package(Base):
     """The packages."""
 
@@ -55,7 +47,7 @@ class Package(Base):
 
     score: Mapped[Optional[int]]
     inspector_url: Mapped[Optional[str]]
-    rules: Mapped[list[Rules]] = relationship(secondary=package_rules)
+    rules: Mapped[list[Rule]] = relationship()
 
     queued_at: Mapped[Optional[datetime]] = mapped_column(server_default=FetchedValue(), default=datetime.utcnow)
     pending_at: Mapped[Optional[datetime]]
@@ -66,9 +58,10 @@ class Package(Base):
     reported_at: Mapped[Optional[datetime]]
 
 
-class Rules(Base):
+class Rule(Base):
     """YARA rules"""
 
     __tablename__: str = "rules"
 
     name: Mapped[str] = mapped_column(primary_key=True)
+    package_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("packages.package_id"))
