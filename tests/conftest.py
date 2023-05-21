@@ -2,7 +2,6 @@ import datetime as dt
 import json
 import logging
 import subprocess
-import sys
 import time
 import uuid
 from pathlib import Path
@@ -18,41 +17,44 @@ from mainframe.models.orm import Base, Package, Status
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__file__)
 
-TIMEOUT = 30
-
 _api_url = "http://localhost:8000"
-
-# This startup section is slightly cursed, but works relatively well. The idea
-# is that we start the server as a subprocess in order to make http requests to
-# it. However, we need to wait for some time in order to make sure that the
-# server is ready to handle our requests.
-#
-# So to do that, we simply read the server logs until we find "Application
-# startup complete" Afterwards, we restore the stderr of the subprocess to
-# `sys.stderr` to be able to see any further logs that pop up
-
-logger.info("Starting server subprocess")
-server = subprocess.Popen(
-    ["pdm", "run", "uvicorn", "src.mainframe.server:app"], stderr=subprocess.PIPE, universal_newlines=True
-)
-
-r = conc_read.ConcurrentReader(cast(IO, server.stderr))
-
-with r:
-    for x in r:
-        if x is None:
-            continue
-        logging.debug(x)
-        if "Application startup complete" in x:
-            break
-        time.sleep(0.2)
-
-server.stderr = sys.stderr
 
 
 TEST_DIR = Path(__file__).parent
 TEST_DATA_DIR = TEST_DIR / "test_data"
 TEST_DATA_FILES = list(TEST_DATA_DIR.iterdir())
+# TEST_DATA_FILES = [TEST_DATA_DIR / "sample.json"]
+
+
+logger.info("Starting server subprocess")
+start_point = time.perf_counter()
+server = subprocess.Popen(
+    ["pdm", "run", "uvicorn", "src.mainframe.server:app"], stderr=subprocess.PIPE, universal_newlines=True, bufsize=1
+)
+r = conc_read.ConcurrentReader(cast(IO, server.stderr), poll_freq=20)
+
+
+def pytest_sessionstart():
+    # This startup section is slightly cursed, but works relatively well. The
+    # idea is that we start the server as a subprocess in order to make http
+    # requests to it. However, we need to wait for some time in order to make
+    # sure that the server is ready to handle our requests.
+
+    # So to do that, we simply read the server logs until we find "Application
+    # startup complete".
+
+    for x in r:
+        if x is None:
+            time.sleep(0.1)
+            continue
+        if "Uvicorn running on" in x:
+            break
+
+    logger.info(f"Server started in {time.perf_counter() - start_point}s")
+
+
+def pytest_sessionfinish():
+    r.close()
 
 
 @pytest.fixture(scope="session")

@@ -1,4 +1,5 @@
 import queue
+import sys
 import threading
 import time
 from collections.abc import Generator
@@ -9,15 +10,12 @@ class ConcurrentReader:
     """
     Class that allows non-blocking reads from a file-like object with an optional timeout.
 
-    Once the `ConcurrentReader` is closed, either manually with
-    `ConcurrentReader.close` or when a context manager exits, attempting to
-    read from the instance will raise a `ValueError`
+    An instance of ConcurrentReader will continously read from the file-like object until it is closed.
 
     Attributes:
         f: The file-like object to read from.
         timeout: A float representing the max time spent reading.
         poll_freq: A float representing the frequency in Hertz of polls of the file-like object.
-        closed: A read-only bool indicating if the `ConcurrentReader` is closed.
     """
 
     def __init__(self, f: IO, timeout: float = 10, poll_freq: float = 1):
@@ -36,6 +34,8 @@ class ConcurrentReader:
 
         self._still_reading = True
         self._q = queue.Queue()
+        # use a daemon thread so that we can exit even if a readline call is blocking us
+        self._reader_thread = threading.Thread(target=self._reader, daemon=True)
 
     @property
     def closed(self):
@@ -47,10 +47,11 @@ class ConcurrentReader:
         self._still_reading = False
 
     def _reader(self):
-        while True:
-            if not self._still_reading:
-                break
-            self._q.put(self.f.readline())
+        while self._still_reading:
+            x = self.f.readline()
+            if x != "":
+                print(f"SERVER: {x!r}", file=sys.stderr)
+                self._q.put(x)
             time.sleep(1 / self.poll_freq)
 
     def __iter__(self) -> Generator[Optional[str], None, None]:
@@ -59,9 +60,6 @@ class ConcurrentReader:
 
         Yields:
             A string if a line was read by the reader, None otherwise.
-
-        Raises:
-            ValueError: Attempted to read from a closed ConcurrentReader.
         """
 
         # Since `IO.readline` blocks until it can read a newline, we use
@@ -69,18 +67,13 @@ class ConcurrentReader:
         # main thread keeps track of the elapsed time, and stops reading when
         # it exceeds `self.timeout`.
 
-        if not self._still_reading:
-            raise ValueError("Attempted to read from a closed ConcurrentReader")
-
-        t = threading.Thread(target=self._reader)
-        t.start()
+        self._reader_thread.start()
 
         start = time.perf_counter()
         while True:
             elapsed = time.perf_counter() - start
 
-            if elapsed > self.timeout:
-                self._still_reading = False
+            if self.timeout > 0 and elapsed > self.timeout:
                 return
 
             try:
