@@ -33,6 +33,4 @@ async def get_job(
 
     package_metadata = await pypi_client.get_package_metadata(package.name, package.version)
     distribution_urls = [distribution.url for distribution in package_metadata.urls]
-
-    # FIXME: Add other package data needed by the client.
     return JobResult(name=package.name, version=package.version, distributions=distribution_urls)
