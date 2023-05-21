@@ -1,11 +1,15 @@
 from contextlib import asynccontextmanager
 from os import getenv
+from typing import Annotated
 
 import aiohttp
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from letsbuilda.pypi import PyPIServices
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from mainframe.database import get_db
 from mainframe.endpoints import routers
+from mainframe.models.orm import Rule
 from mainframe.models.schemas import ServerMetadata
 from mainframe.rules import Rules, fetch_rules
 
@@ -37,10 +41,13 @@ async def root_route() -> ServerMetadata:
 
 
 @app.post("/update-rules/")
-async def update_rules():
+async def update_rules(session: Annotated[AsyncSession, Depends(get_db)]):
     """Update the rules"""
     rules = await fetch_rules(app.state.http_session)
     app.state.rules = rules
+
+    session.add_all(Rule(name=rule_name) for rule_name in rules.rules)
+    await session.commit()
 
 
 for router in routers:

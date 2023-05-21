@@ -15,7 +15,6 @@ from mainframe.models.schemas import (
     PackageSpecifier,
     QueuePackageResponse,
 )
-from mainframe.rules import Rules
 
 router = APIRouter()
 
@@ -32,12 +31,6 @@ async def submit_results(
 ):
     name = result.name
     version = result.version
-
-    rules: Rules = request.app.state.rules
-
-    for rule in result.rules_matched:
-        if rule not in rules.rules:
-            raise HTTPException(400, f"Rule '{rule}' is not a valid rule for package `{name}@{version}`")
 
     row = await session.scalar(
         select(Package)
@@ -56,7 +49,13 @@ async def submit_results(
     row.finished_at = dt.datetime.utcnow()
     row.inspector_url = result.inspector_url
     row.score = result.score
-    row.rules = [Rule(name=name) for name in result.rules_matched]
+
+    for rule_name in result.rules_matched:
+        rule = await session.scalar(select(Rule).where(Rule.name == rule_name))
+        if rule is None:
+            raise HTTPException(400, f"Rule '{rule}' is not a valid rule for package `{name}@{version}`")
+
+        row.rules.append(rule)
 
     await session.commit()
 
