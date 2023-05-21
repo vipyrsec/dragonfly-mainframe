@@ -33,8 +33,8 @@ class Status(Enum):
 package_rules = Table(
     "package_rules",
     Base.metadata,
-    Column("package_id", ForeignKey("packages.package_id")),
-    Column("rule_name", ForeignKey("rules.name")),
+    Column("package_id", ForeignKey("packages.package_id"), primary_key=True),
+    Column("rule_name", ForeignKey("rules.name"), primary_key=True),
 )
 
 
