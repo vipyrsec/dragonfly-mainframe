@@ -19,6 +19,7 @@ services:
       MICROSOFT_CLIENT_ID: client_id
       MICROSOFT_CLIENT_SECRET: client_secret
       EMAIL_RECIPIENT: email_recipient
+      DRAGONFLY_GITHUB_TOKEN: github_token
 
   db:
     image: postgres
