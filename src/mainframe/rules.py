@@ -21,6 +21,11 @@ class Rules:
 
 async def fetch_rules(http_session: ClientSession) -> Rules:
     """Return a dictionary mapping filenames to content"""
+
+    # Running in a test environment, avoid hitting the GitHub API
+    if mainframe_settings.dragonfly_github_token == "test":
+        return Rules(rules_commit="test", rules={})
+
     rules = {}
     buffer = BytesIO()
 

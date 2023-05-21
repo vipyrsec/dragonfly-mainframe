@@ -20,7 +20,7 @@ class Mainframe(BaseSettings):
 
     db_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432"
 
-    dragonfly_github_token: str
+    dragonfly_github_token: str = "test"
 
     class Config(BaseSettings.Config):
         env_file = ".env"
