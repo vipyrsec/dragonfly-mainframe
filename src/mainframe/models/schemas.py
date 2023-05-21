@@ -1,5 +1,4 @@
 from typing import Optional
-from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -40,9 +39,9 @@ class PackageScanResult(PackageSpecifier):
 class JobResult(BaseModel):
     """Package information of a requested job."""
 
-    package_id: UUID
     name: str
     version: str
+    distributions: list[str]
 
 
 class NoJob(BaseModel):
