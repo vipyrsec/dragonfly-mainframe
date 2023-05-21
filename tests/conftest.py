@@ -1,34 +1,53 @@
 import datetime as dt
 import json
+import logging
 import subprocess
 import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Generator
+from typing import IO, Generator, cast
 
+import conc_read
 import pytest
-import requests
 from sqlalchemy import Engine, create_engine, insert
 from sqlalchemy.orm import Session, sessionmaker
 
 from mainframe.models.orm import Base, Package, Status
 
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__file__)
+
+TIMEOUT = 30
+
 _api_url = "http://localhost:8000"
 
-server = subprocess.Popen(["pdm", "run", "uvicorn", "src.mainframe.server:app"])
+# This startup section is slightly cursed, but works relatively well. The idea
+# is that we start the server as a subprocess in order to make http requests to
+# it. However, we need to wait for some time in order to make sure that the
+# server is ready to handle our requests.
+#
+# So to do that, we simply read the server logs until we find "Application
+# startup complete" Afterwards, we restore the stderr of the subprocess to
+# `sys.stderr` to be able to see any further logs that pop up
 
-for _ in range(15):
-    time.sleep(1)
-    try:
-        r = requests.get(f"{_api_url}/package?since=0", timeout=5)
-        if r.status_code == 500:
+logger.info("Starting server subprocess")
+server = subprocess.Popen(
+    ["pdm", "run", "uvicorn", "src.mainframe.server:app"], stderr=subprocess.PIPE, universal_newlines=True
+)
+
+r = conc_read.ConcurrentReader(cast(IO, server.stderr))
+
+with r:
+    for x in r:
+        if x is None:
+            continue
+        logging.debug(x)
+        if "Application startup complete" in x:
             break
-    except requests.exceptions.ConnectionError:
-        continue
-else:
-    print("Server did not start in time")
-    sys.exit(1)
+        time.sleep(0.2)
+
+server.stderr = sys.stderr
 
 
 TEST_DIR = Path(__file__).parent

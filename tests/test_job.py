@@ -1,6 +1,6 @@
-import uuid
 import datetime as dt
 import typing
+import uuid
 
 import requests
 from sqlalchemy import func, select
