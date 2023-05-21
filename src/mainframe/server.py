@@ -5,13 +5,24 @@ from typing import Annotated
 import aiohttp
 from fastapi import Depends, FastAPI
 from letsbuilda.pypi import PyPIServices
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mainframe.database import get_db
+from mainframe.database import async_session, get_db
 from mainframe.endpoints import routers
 from mainframe.models.orm import Rule
 from mainframe.models.schemas import ServerMetadata
 from mainframe.rules import Rules, fetch_rules
+
+
+async def sync_rules(*, http_session: aiohttp.ClientSession, session: AsyncSession):
+    rules = await fetch_rules(http_session)
+    session.add_all(Rule(name=rule_name) for rule_name in rules.rules)
+    try:
+        await session.commit()
+    except IntegrityError:
+        # Ignore rules that already exist in the database
+        pass
 
 
 @asynccontextmanager
@@ -24,6 +35,10 @@ async def lifespan(app_: FastAPI):
     app_.state.rules = rules
     app_.state.http_session = http_session
     app_.state.pypi_client = pypi_client
+
+    session = async_session()
+    await sync_rules(http_session=http_session, session=session)
+    await session.close()
 
     yield
 
@@ -46,8 +61,7 @@ async def update_rules(session: Annotated[AsyncSession, Depends(get_db)]):
     rules = await fetch_rules(app.state.http_session)
     app.state.rules = rules
 
-    session.add_all(Rule(name=rule_name) for rule_name in rules.rules)
-    await session.commit()
+    await sync_rules(http_session=app.state.http_session, session=session)
 
 
 for router in routers:

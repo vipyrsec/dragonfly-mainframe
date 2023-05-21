@@ -53,7 +53,7 @@ async def submit_results(
     for rule_name in result.rules_matched:
         rule = await session.scalar(select(Rule).where(Rule.name == rule_name))
         if rule is None:
-            raise HTTPException(400, f"Rule '{rule}' is not a valid rule for package `{name}@{version}`")
+            raise HTTPException(400, f"Rule '{rule_name}' is not a valid rule for package `{name}@{version}`")
 
         row.rules.append(rule)
 
