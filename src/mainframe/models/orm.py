@@ -56,7 +56,7 @@ class Package(Base):
 
     score: Mapped[Optional[int]]
     inspector_url: Mapped[Optional[str]]
-    rules: Mapped[list[Rule]] = relationship(secondary=lambda: package_rules)
+    rules: Mapped[list[Rule]] = relationship(secondary=package_rules)
     rule_names: AssociationProxy[list[str]] = association_proxy("rules", "name", creator=lambda name: Rule(name=name))
 
     queued_at: Mapped[Optional[datetime]] = mapped_column(server_default=FetchedValue(), default=datetime.utcnow)
