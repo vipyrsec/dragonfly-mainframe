@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mainframe.database import get_db
@@ -22,9 +22,8 @@ async def get_job(session: AsyncSession = Depends(get_db)) -> JobResult | NoJob:
     if not package:
         return NoJob(detail="No available packages to scan. Try again later.")
 
-    now = datetime.utcnow()
-    stmt = update(Package).where(Package.package_id == package.package_id).values(status=Status.PENDING, pending_at=now)
-    await session.execute(stmt)
+    package.status = Status.PENDING
+    package.pending_at = datetime.utcnow()
     await session.commit()
 
     # FIXME: Add other package data needed by the client.
