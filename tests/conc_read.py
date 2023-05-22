@@ -16,9 +16,10 @@ class ConcurrentReader:
         f: The file-like object to read from.
         timeout: A float representing the max time spent reading.
         poll_freq: A float representing the frequency in Hertz of polls of the file-like object.
+        quiet: A bool indicating whether or not to mirror the read data to stderr.
     """
 
-    def __init__(self, f: IO, timeout: float = 10, poll_freq: float = 1):
+    def __init__(self, f: IO, timeout: float = 10, poll_freq: float = 1, quiet: bool = False):
         """
         Initializes the instance with a given file-like object.
 
@@ -36,6 +37,7 @@ class ConcurrentReader:
         self._q = queue.Queue()
         # use a daemon thread so that we can exit even if a readline call is blocking us
         self._reader_thread = threading.Thread(target=self._reader, daemon=True)
+        self.quiet = quiet
 
     @property
     def closed(self):
@@ -50,7 +52,8 @@ class ConcurrentReader:
         while self._still_reading:
             x = self.f.readline()
             if x != "":
-                print(f"SERVER: {x!r}", file=sys.stderr)
+                if not self.quiet:
+                    print(f"SERVER: {x!r}", file=sys.stderr)
                 self._q.put(x)
             time.sleep(1 / self.poll_freq)
 
