@@ -18,7 +18,7 @@
         "version": "0.2.0",
         "status": "finished",
         "score": 10,
-        "inspector_url": "main.py",
+        "inspector_url": null,
         "queued_at": "2023-05-12T19:00:00",
         "pending_at": "2023-05-12T19:30:00",
         "finished_at": "2023-05-12T20:00:00",
