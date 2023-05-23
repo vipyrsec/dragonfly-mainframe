@@ -34,7 +34,7 @@ class ConcurrentReader:
         self.poll_freq = poll_freq
 
         self._still_reading = True
-        self._q = queue.Queue()
+        self._queue = queue.Queue()
         # use a daemon thread so that we can exit even if a readline call is blocking us
         self._reader_thread = threading.Thread(target=self._reader, daemon=True)
         self.quiet = quiet
@@ -50,11 +50,11 @@ class ConcurrentReader:
 
     def _reader(self):
         while self._still_reading:
-            x = self.f.readline()
-            if x != "":
+            line = self.f.readline()
+            if line != "":
                 if not self.quiet:
-                    print(f"SERVER: {x!r}", file=sys.stderr)
-                self._q.put(x)
+                    print(f"SERVER: {line!r}", file=sys.stderr)
+                self._queue.put(line)
             time.sleep(1 / self.poll_freq)
 
     def __iter__(self) -> Generator[Optional[str], None, None]:
@@ -80,7 +80,7 @@ class ConcurrentReader:
                 return
 
             try:
-                yield self._q.get_nowait()
+                yield self._queue.get_nowait()
             except queue.Empty:
                 yield
 

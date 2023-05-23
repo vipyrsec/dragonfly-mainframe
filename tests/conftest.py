@@ -27,11 +27,14 @@ TEST_DATA_FILES = list(TEST_DATA_DIR.iterdir())
 
 
 logger.info("Starting server subprocess")
-start_point = time.perf_counter()
+
+if logger.isEnabledFor(logging.INFO):
+    start_point = time.perf_counter()
+
 server = subprocess.Popen(
     ["pdm", "run", "uvicorn", "src.mainframe.server:app"], stderr=subprocess.PIPE, universal_newlines=True, bufsize=1
 )
-r = conc_read.ConcurrentReader(cast(IO, server.stderr), poll_freq=20)
+concurrent_reader = conc_read.ConcurrentReader(cast(IO, server.stderr), poll_freq=20)
 
 
 def pytest_sessionstart():
@@ -43,18 +46,18 @@ def pytest_sessionstart():
     # So to do that, we simply read the server logs until we find "Application
     # startup complete".
 
-    for x in r:
-        if x is None:
+    for line in concurrent_reader:
+        if line is None:
             time.sleep(0.1)
             continue
-        if "Uvicorn running on" in x:
+        if "Uvicorn running on" in line:
             break
 
     logger.info(f"Server started in {time.perf_counter() - start_point}s")
 
 
 def pytest_sessionfinish():
-    r.close()
+    concurrent_reader.close()
 
 
 @pytest.fixture(scope="session")
