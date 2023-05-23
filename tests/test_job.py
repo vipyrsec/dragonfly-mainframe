@@ -4,7 +4,8 @@ import requests
 def test_acquire_job(api_url: str):
     r = requests.post(f"{api_url}/job")
     r.raise_for_status()
-    assert r.json()["package_id"] == "04685768-e41d-49e4-9192-19b6d435226a"
+    json = r.json()
+    assert json["name"] == "a" and json["version"] == "0.2.0"
 
 
 def test_no_jobs(api_url: str):
