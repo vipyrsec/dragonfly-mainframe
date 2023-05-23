@@ -57,6 +57,7 @@ def test_data():
             finished_at=dt.datetime(2023, 5, 12, 19),
             client_id="remmy",
             reported_at=None,
+            rules=[],
         ),
         dict(
             package_id="df157a3c-8994-467f-a494-9d63eaf96564",
@@ -70,6 +71,7 @@ def test_data():
             finished_at=dt.datetime(2023, 5, 12, 16, 30),
             client_id="remmy",
             reported_at=dt.datetime(2023, 5, 12, 16, 30, 6),
+            rules=[],
         ),
         dict(
             package_id="04685768-e41d-49e4-9192-19b6d435226a",
@@ -83,6 +85,7 @@ def test_data():
             finished_at=None,
             client_id=None,
             reported_at=None,
+            rules=[],
         ),
         dict(
             package_id="bbb953ca-95af-4d57-a7a5-0b656f652695",
@@ -96,6 +99,7 @@ def test_data():
             finished_at=None,
             client_id="remmy",
             reported_at=None,
+            rules=[],
         ),
     ]
 
