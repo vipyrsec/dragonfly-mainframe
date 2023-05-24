@@ -42,6 +42,12 @@ class JobResult(BaseModel):
     name: str
     version: str
     distributions: list[str]
+    hash: str
+
+
+class GetRules(BaseModel):
+    hash: str
+    rules: dict[str, str]
 
 
 class NoJob(BaseModel):
