@@ -31,4 +31,9 @@ async def get_job(session: Annotated[AsyncSession, Depends(get_db)], request: Re
     pypi_client: PyPIServices = request.app.state.pypi_client
     package_metadata = await pypi_client.get_package_metadata(package.name, package.version)
     distribution_urls = [distribution.url for distribution in package_metadata.urls]
-    return JobResult(name=package.name, version=package.version, distributions=distribution_urls)
+    return JobResult(
+        name=package.name,
+        version=package.version,
+        distributions=distribution_urls,
+        hash=request.app.state.rules.rules_commit,
+    )
