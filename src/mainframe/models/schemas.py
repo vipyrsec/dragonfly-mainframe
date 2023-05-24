@@ -1,7 +1,13 @@
 from typing import Optional
-from uuid import UUID
 
 from pydantic import BaseModel
+
+
+class ServerMetadata(BaseModel):
+    """Server metadata"""
+
+    server_commit: str
+    rules_commit: str
 
 
 class Error(BaseModel):
@@ -22,19 +28,20 @@ class PackageSpecifier(BaseModel):
     version: Optional[str]
 
 
-class PackageScanResult(BaseModel):
-    """Result of scanning a package."""
+class PackageScanResult(PackageSpecifier):
+    """Client payload to server containing the results of a package scan"""
 
-    most_malicious_file: Optional[str]
-    score: int
+    score: int = 0
+    inspector_url: Optional[str] = None
+    rules_matched: list[str] = []
 
 
 class JobResult(BaseModel):
     """Package information of a requested job."""
 
-    package_id: UUID
     name: str
     version: str
+    distributions: list[str]
 
 
 class NoJob(BaseModel):

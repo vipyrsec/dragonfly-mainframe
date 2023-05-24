@@ -1,7 +1,9 @@
 from datetime import datetime
+from typing import Annotated
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import select, update
+from fastapi import APIRouter, Depends, Request
+from letsbuilda.pypi import PyPIServices
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mainframe.database import get_db
@@ -12,7 +14,7 @@ router = APIRouter()
 
 
 @router.post("/job")
-async def get_job(session: AsyncSession = Depends(get_db)) -> JobResult | NoJob:
+async def get_job(session: Annotated[AsyncSession, Depends(get_db)], request: Request) -> JobResult | NoJob:
     """Request a job to work on."""
 
     query = select(Package).where(Package.status == Status.QUEUED).order_by(Package.queued_at)
@@ -22,10 +24,11 @@ async def get_job(session: AsyncSession = Depends(get_db)) -> JobResult | NoJob:
     if not package:
         return NoJob(detail="No available packages to scan. Try again later.")
 
-    now = datetime.now()
-    stmt = update(Package).where(Package.package_id == package.package_id).values(status=Status.PENDING, pending_at=now)
-    await session.execute(stmt)
+    package.status = Status.PENDING
+    package.pending_at = datetime.utcnow()
     await session.commit()
 
-    # FIXME: Add other package data needed by the client.
-    return JobResult(package_id=package.package_id, name=package.name, version=package.version)
+    pypi_client: PyPIServices = request.app.state.pypi_client
+    package_metadata = await pypi_client.get_package_metadata(package.name, package.version)
+    distribution_urls = [distribution.url for distribution in package_metadata.urls]
+    return JobResult(name=package.name, version=package.version, distributions=distribution_urls)

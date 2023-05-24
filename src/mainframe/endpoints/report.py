@@ -2,7 +2,7 @@ import datetime as dt
 from textwrap import dedent
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from letsbuilda.pypi import PyPIServices
 from msgraph.core import GraphClient
 from sqlalchemy import select
@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
-from mainframe.dependencies import get_ms_graph_client, get_pypi_client
+from mainframe.dependencies import get_ms_graph_client
 from mainframe.models.orm import Package
 from mainframe.models.schemas import Error, PackageSpecifier
 from utils.mailer import send_email
@@ -71,8 +71,8 @@ router = APIRouter()
 async def report_package(
     body: ReportPackageBody,
     session: Annotated[AsyncSession, Depends(get_db)],
-    pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
     graph_client: Annotated[GraphClient, Depends(get_ms_graph_client)],
+    request: Request,
 ):
     """
     Report a package by sending an email to PyPI with the appropriate format
@@ -112,6 +112,7 @@ async def report_package(
     name = body.name
     version = body.version
 
+    pypi_client: PyPIServices = request.app.state.pypi_client
     try:
         package_metadata = await pypi_client.get_package_metadata(name, version)
     except KeyError:
