@@ -7,6 +7,7 @@ from typing import Optional
 
 from sqlalchemy import Column, FetchedValue, ForeignKey, Table
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.ext.associationproxy import AssociationProxy, association_proxy
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -32,8 +33,8 @@ class Status(Enum):
 package_rules = Table(
     "package_rules",
     Base.metadata,
-    Column("package_id", ForeignKey("packages.package_id")),
-    Column("rule_name", ForeignKey("rules.name")),
+    Column("package_id", ForeignKey("packages.package_id"), primary_key=True),
+    Column("rule_name", ForeignKey("rules.name"), primary_key=True),
 )
 
 
@@ -55,7 +56,8 @@ class Package(Base):
 
     score: Mapped[Optional[int]]
     inspector_url: Mapped[Optional[str]]
-    rules: Mapped[list[Rules]] = relationship(secondary=package_rules)
+    rules: Mapped[list[Rule]] = relationship(secondary=package_rules)
+    rule_names: AssociationProxy[list[str]] = association_proxy("rules", "name", creator=lambda name: Rule(name=name))
 
     queued_at: Mapped[Optional[datetime]] = mapped_column(server_default=FetchedValue(), default=datetime.utcnow)
     pending_at: Mapped[Optional[datetime]]
@@ -66,7 +68,7 @@ class Package(Base):
     reported_at: Mapped[Optional[datetime]]
 
 
-class Rules(Base):
+class Rule(Base):
     """YARA rules"""
 
     __tablename__: str = "rules"

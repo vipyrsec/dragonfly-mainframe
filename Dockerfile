@@ -15,8 +15,9 @@ FROM builder as test
 RUN pdm install -d
 
 COPY tests/ tests/
+ENV env=test
 
-CMD ["pdm", "run", "pytest", "tests"]
+CMD ["pdm", "run", "pytest", "tests", "-vv"]
 
 ############################################
 FROM python:3.11-slim@sha256:181e49146bfdc8643ebe0f66cd06f27f42df40a0921438e96770dab09797effb as prod
