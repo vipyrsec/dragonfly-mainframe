@@ -43,6 +43,9 @@ test = {shell = "docker compose up --build --abort-on-container-exit" }
 precommit = { shell = "pre-commit run --all-files" }
 all = { composite = ["format", "lint", "test"] }
 
+start = {cmd = "uvicorn src.mainframe.server:app"}
+dev = {cmd = "uvicorn src.mainframe.server:app --reload"}
+
 [tool.isort]
 profile = "black"
 
