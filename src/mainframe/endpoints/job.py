@@ -28,21 +28,21 @@ async def get_job(session: Annotated[AsyncSession, Depends(get_db)], request: Re
 
     # check pending packages for dead clients
     scalars = await session.scalars(
-                        select(Package)
-                        .where(Package.status == Status.PENDING)
-                        .order_by(Package.queued_at)
-                        .options(selectinload(Package.download_urls))
-                    )
+        select(Package)
+        .where(Package.status == Status.PENDING)
+        .order_by(Package.queued_at)
+        .options(selectinload(Package.download_urls))
+    )
     package = check_dead_client(scalars, request)
 
     # check queued packages
     if not package:
         scalars = await session.scalars(
-                            select(Package)
-                            .where(Package.status == Status.QUEUED)
-                            .order_by(Package.queued_at)
-                            .options(selectinload(Package.download_urls))
-                        )
+            select(Package)
+            .where(Package.status == Status.QUEUED)
+            .order_by(Package.queued_at)
+            .options(selectinload(Package.download_urls))
+        )
         package = scalars.first()
 
     if not package:
@@ -50,7 +50,7 @@ async def get_job(session: Annotated[AsyncSession, Depends(get_db)], request: Re
 
     package.status = Status.PENDING
     package.pending_at = datetime.utcnow()
-    package.client_id = request.headers.get('Authorization')
+    package.client_id = request.headers.get("Authorization")
     await session.commit()
 
     request.app.state.clients[package.client_id] = package.pending_at

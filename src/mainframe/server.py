@@ -1,6 +1,6 @@
-from datetime import datetime
 import asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime
 from os import getenv
 from typing import Annotated
 from unittest.mock import MagicMock
@@ -79,7 +79,7 @@ async def update_rules(session: Annotated[AsyncSession, Depends(get_db)]):
 
 @app.post("/keep-alive/")
 async def keep_alive(request: Request):
-    client_oauth_token = request.headers.get('Authorization')
+    client_oauth_token = request.headers.get("Authorization")
     app.state.clients[client_oauth_token] = datetime.utcnow()
 
 
