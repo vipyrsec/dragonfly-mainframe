@@ -2,9 +2,9 @@ from datetime import datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
-from letsbuilda.pypi import PyPIServices
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from mainframe.database import get_db
 from mainframe.models.orm import Package, Status
@@ -33,8 +33,12 @@ async def get_job(session: Annotated[AsyncSession, Depends(get_db)], request: Re
 
     # check queued packages
     if not package:
-        query = select(Package).where(Package.status == Status.QUEUED).order_by(Package.queued_at)
-        scalars = await session.scalars(query)
+        scalars = await session.scalars(
+            select(Package)
+            .where(Package.status == Status.QUEUED)
+            .order_by(Package.queued_at)
+            .options(selectinload(Package.download_urls))
+        )
         package = scalars.first()
 
     if not package:
@@ -46,7 +50,5 @@ async def get_job(session: Annotated[AsyncSession, Depends(get_db)], request: Re
     await session.commit()
 
     request.app.state.clients[package.client_id] = package.pending_at
-    pypi_client: PyPIServices = request.app.state.pypi_client
-    package_metadata = await pypi_client.get_package_metadata(package.name, package.version)
-    distribution_urls = [distribution.url for distribution in package_metadata.urls]
+    distribution_urls = [distribution.url for distribution in package.download_urls]
     return JobResult(name=package.name, version=package.version, distributions=distribution_urls)
