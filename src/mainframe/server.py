@@ -1,3 +1,4 @@
+from datetime import datetime
 import asyncio
 from contextlib import asynccontextmanager
 from os import getenv
@@ -5,7 +6,7 @@ from typing import Annotated
 from unittest.mock import MagicMock
 
 import aiohttp
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from letsbuilda.pypi import PyPIServices
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,16 +35,19 @@ async def lifespan(app_: FastAPI):
     http_session = aiohttp.ClientSession()
     pypi_client = PyPIServices(http_session)
     rules = await fetch_rules(http_session)
+    clients = {}
 
     if getenv("env") == "test":
         fut: asyncio.Future[MagicMock] = asyncio.Future()
         fut.set_result(MagicMock(return_value=MagicMock()))
         pypi_client.get_package_metadata = MagicMock(return_value=fut)
         pypi_client.get_package_metadata.return_value.urls = [MagicMock(url=None), MagicMock(url=None)]
+        clients = {"remmy": datetime(2023, 5, 12, 20)}
 
     app_.state.rules = rules
     app_.state.http_session = http_session
     app_.state.pypi_client = pypi_client
+    app_.state.clients = clients
 
     session = async_session()
     await sync_rules(http_session=http_session, session=session)
@@ -71,6 +75,12 @@ async def update_rules(session: Annotated[AsyncSession, Depends(get_db)]):
     app.state.rules = rules
 
     await sync_rules(http_session=app.state.http_session, session=session)
+
+
+@app.post("/keep-alive/")
+async def keep_alive(request: Request):
+    client_oauth_token = request.headers.get('Authorization')
+    app.state.clients[client_oauth_token] = datetime.utcnow()
 
 
 for router in routers:
