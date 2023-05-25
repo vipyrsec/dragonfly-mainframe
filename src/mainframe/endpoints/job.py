@@ -27,18 +27,22 @@ async def get_job(session: Annotated[AsyncSession, Depends(get_db)], request: Re
     """Request a job to work on."""
 
     # check pending packages for dead clients
-    query = select(Package).where(Package.status == Status.PENDING).order_by(Package.queued_at)
-    scalars = await session.scalars(query)
+    scalars = await session.scalars(
+                        select(Package)
+                        .where(Package.status == Status.PENDING)
+                        .order_by(Package.queued_at)
+                        .options(selectinload(Package.download_urls))
+                    )
     package = check_dead_client(scalars, request)
 
     # check queued packages
     if not package:
         scalars = await session.scalars(
-            select(Package)
-            .where(Package.status == Status.QUEUED)
-            .order_by(Package.queued_at)
-            .options(selectinload(Package.download_urls))
-        )
+                            select(Package)
+                            .where(Package.status == Status.QUEUED)
+                            .order_by(Package.queued_at)
+                            .options(selectinload(Package.download_urls))
+                        )
         package = scalars.first()
 
     if not package:
