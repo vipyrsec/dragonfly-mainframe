@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from mainframe.database import get_db
-from mainframe.models.orm import Package, Rule, Status
+from mainframe.models.orm import DownloadURL, Package, Rule, Status
 from mainframe.models.schemas import (
     Error,
     PackageScanResult,
@@ -152,6 +152,7 @@ async def queue_package(
         name=name,
         version=version,
         status=Status.QUEUED,
+        download_urls=[DownloadURL(url=url.url) for url in package_metadata.urls],
     )
 
     session.add(new_package)

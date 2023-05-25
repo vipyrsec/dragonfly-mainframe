@@ -58,6 +58,7 @@ class Package(Base):
     inspector_url: Mapped[Optional[str]]
     rules: Mapped[list[Rule]] = relationship(secondary=package_rules)
     rule_names: AssociationProxy[list[str]] = association_proxy("rules", "name", creator=lambda name: Rule(name=name))
+    download_urls: Mapped[list[DownloadURL]] = relationship()
 
     queued_at: Mapped[Optional[datetime]] = mapped_column(server_default=FetchedValue(), default=datetime.utcnow)
     pending_at: Mapped[Optional[datetime]]
@@ -66,6 +67,23 @@ class Package(Base):
     client_id: Mapped[Optional[str]]
 
     reported_at: Mapped[Optional[datetime]]
+
+
+class DownloadURL(Base):
+    """Download URLs"""
+
+    __tablename__: str = "download_urls"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=FetchedValue(),
+        default=uuid.uuid4,
+    )
+
+    package_id: Mapped[str] = mapped_column(ForeignKey("packages.package_id"))
+
+    url: Mapped[str]
 
 
 class Rule(Base):
