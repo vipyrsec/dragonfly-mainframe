@@ -2,9 +2,9 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
-from letsbuilda.pypi import PyPIServices
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from mainframe.database import get_db
 from mainframe.models.orm import Package, Status
@@ -17,8 +17,12 @@ router = APIRouter()
 async def get_job(session: Annotated[AsyncSession, Depends(get_db)], request: Request) -> JobResult | NoJob:
     """Request a job to work on."""
 
-    query = select(Package).where(Package.status == Status.QUEUED).order_by(Package.queued_at)
-    scalars = await session.scalars(query)
+    scalars = await session.scalars(
+        select(Package)
+        .where(Package.status == Status.QUEUED)
+        .order_by(Package.queued_at)
+        .options(selectinload(Package.download_urls))
+    )
     package = scalars.first()
 
     if not package:
