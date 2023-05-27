@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -19,7 +19,7 @@ async def get_job(session: Annotated[AsyncSession, Depends(get_db)], request: Re
 
     scalars = await session.scalars(
         select(Package)
-        .where(or_(Package.status == Status.QUEUED))
+        .where(Package.status == Status.QUEUED)
         .order_by(Package.queued_at)
         .options(selectinload(Package.download_urls))
     )
