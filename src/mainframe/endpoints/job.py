@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -19,8 +19,13 @@ async def get_job(session: Annotated[AsyncSession, Depends(get_db)], request: Re
 
     scalars = await session.scalars(
         select(Package)
-        .where(Package.status == Status.QUEUED)
-        .order_by(Package.queued_at)
+        .where(
+            or_(
+                Package.status == Status.QUEUED,
+                Package.pending_at < datetime.utcnow() - timedelta(minutes=2),
+            )
+        )
+        .order_by(Package.pending_at, Package.queued_at)
         .options(selectinload(Package.download_urls))
     )
     package = scalars.first()
