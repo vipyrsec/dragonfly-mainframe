@@ -2,7 +2,7 @@ from functools import cache
 
 from msgraph.core import GraphClient
 
-from utils.microsoft import build_ms_graph_client
+from mainframe.utils.microsoft import build_ms_graph_client
 
 
 @cache

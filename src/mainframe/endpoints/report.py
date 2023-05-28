@@ -14,8 +14,8 @@ from mainframe.database import get_db
 from mainframe.dependencies import get_ms_graph_client
 from mainframe.models.orm import Package
 from mainframe.models.schemas import Error, PackageSpecifier
-from utils.mailer import send_email
-from utils.pypi import file_path_from_inspector_url
+from mainframe.utils.mailer import send_email
+from mainframe.utils.pypi import file_path_from_inspector_url
 
 
 def send_report_email(
