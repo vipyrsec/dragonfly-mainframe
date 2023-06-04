@@ -15,9 +15,9 @@ microsoft_settings = Microsoft()  # pyright: ignore
 
 
 class Mainframe(BaseSettings):
-    auth0_audience: str
-    auth0_domain: str
     client_origin_url: str
+    auth0_domain: str
+    auth0_audience: str
 
     email_recipient: str
     bcc_recipients: set[str] = set()
