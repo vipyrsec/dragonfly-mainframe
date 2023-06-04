@@ -1,4 +1,4 @@
-FROM python:3.11-slim@sha256:181e49146bfdc8643ebe0f66cd06f27f42df40a0921438e96770dab09797effb as builder
+FROM python:3.11-slim@sha256:eaee5f73efa9ae962d2077756292bc4878c04fcbc13dc168bb00cc365f35647e as builder
 
 RUN pip install -U pip setuptools wheel
 RUN pip install pdm
@@ -9,7 +9,6 @@ RUN mkdir __pypackages__ && pdm install --prod --no-lock --no-editable
 COPY src/ src/
 RUN pdm install --prod --no-lock --no-editable
 
-############################################
 FROM builder as test
 
 RUN pdm install -d
@@ -19,8 +18,7 @@ ENV env=test
 
 CMD ["pdm", "run", "pytest", "tests", "-vv"]
 
-############################################
-FROM python:3.11-slim@sha256:181e49146bfdc8643ebe0f66cd06f27f42df40a0921438e96770dab09797effb as prod
+FROM python:3.11-slim@sha256:eaee5f73efa9ae962d2077756292bc4878c04fcbc13dc168bb00cc365f35647e as prod
 
 ENV PYTHONPATH=/app/pkgs
 WORKDIR /app
