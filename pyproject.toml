@@ -39,7 +39,7 @@ test = [
 [tool.pdm.scripts]
 format = { shell = "black . && isort ." }
 lint = { shell = "pyright; ruff ." }
-test = {shell = "docker compose up --build --abort-on-container-exit" }
+test = {shell = "docker compose up --build --abort-on-container-exit; docker compose down" }
 precommit = { shell = "pre-commit run --all-files" }
 all = { composite = ["format", "lint", "test"] }
 
