@@ -11,19 +11,17 @@ jobs:
   lint_test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: "Checkout repo"
         uses: actions/checkout@v3
 
-      - name: Set up PDM
+      - name: "Setup PDM"
         uses: pdm-project/setup-pdm@v3
         with:
           python-version: "3.11"
           cache: true
 
-      - name: Install deps
-        run: |
-          pdm install -d
+      - name: "Install dependencies"
+        run: pdm install --dev
 
-      - name: Run precommits  # in case someone forgets to install pre-commit
-        run: |
-          pdm precommit
+      - name: "Run precommit"
+        run: pdm precommit
