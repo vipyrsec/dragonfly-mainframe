@@ -25,3 +25,6 @@ jobs:
 
       - name: "Run precommit"
         run: pdm precommit
+
+      - name: "Run tests"
+        run: pdm test
