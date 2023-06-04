@@ -1,18 +1,17 @@
 from functools import cache
 
-from msgraph.core import GraphClient
-from authorization_header_elements import get_bearer_token
-from custom_exceptions import PermissionDeniedException
 from fastapi import Depends
-from json_web_token import JsonWebToken
+from msgraph.core import GraphClient
 
+from mainframe.authorization_header_elements import get_bearer_token
+from mainframe.custom_exceptions import PermissionDeniedException
+from mainframe.json_web_token import JsonWebToken
 from mainframe.utils.microsoft import build_ms_graph_client
 
 
 @cache
 def get_ms_graph_client() -> GraphClient:
     return build_ms_graph_client()
-
 
 
 def validate_token(token: str = Depends(get_bearer_token)):

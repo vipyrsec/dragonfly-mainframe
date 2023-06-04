@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Depends, Request
 
-from dependencies import validate_token
+from mainframe.dependencies import validate_token
 from mainframe.models.schemas import GetRules
 
 router = APIRouter()
