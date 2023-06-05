@@ -37,6 +37,7 @@ async def get_job(session: Annotated[AsyncSession, Depends(get_db)], request: Re
         )
         .order_by(Package.pending_at.nulls_first(), Package.queued_at)
         .options(selectinload(Package.download_urls))
+        .with_for_update()
     )
     package = scalars.first()
 
