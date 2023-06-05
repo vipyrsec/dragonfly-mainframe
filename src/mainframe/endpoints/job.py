@@ -22,6 +22,7 @@ async def get_job(session: Annotated[AsyncSession, Depends(get_db)], request: Re
         .where(Package.status == Status.QUEUED)
         .order_by(Package.queued_at)
         .options(selectinload(Package.download_urls))
+        .with_for_update()
     )
     package = scalars.first()
 
