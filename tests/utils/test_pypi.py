@@ -1,6 +1,6 @@
 import pytest
 
-from utils.pypi import file_path_from_inspector_url
+from mainframe.utils.pypi import file_path_from_inspector_url
 
 # A collection of random inspector URLs mapped to their respective file paths
 test_data = {
