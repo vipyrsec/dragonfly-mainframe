@@ -14,7 +14,7 @@ def get_ms_graph_client() -> GraphClient:
     return build_ms_graph_client()
 
 
-def validate_token(token: str = Depends(get_bearer_token)):
+def validate_token(token: Annotated[str, Depends(get_bearer_token)]):
     return JsonWebToken(token).validate()
 
 
