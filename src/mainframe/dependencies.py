@@ -22,7 +22,7 @@ class PermissionsValidator:
     def __init__(self, required_permissions: list[str]):
         self.required_permissions = required_permissions
 
-    def __call__(self, token: str = Depends(validate_token)):
+    def __call__(self, token: Annotated[str, Depends(validate_token)]):
         token_permissions = token.get("permissions")
         token_permissions_set = set(token_permissions)
         required_permissions_set = set(self.required_permissions)
