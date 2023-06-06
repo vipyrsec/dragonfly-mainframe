@@ -1,4 +1,5 @@
 from functools import cache
+from typing import Annotated
 
 from fastapi import Depends
 from msgraph.core import GraphClient
