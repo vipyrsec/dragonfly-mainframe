@@ -22,6 +22,8 @@ class Mainframe(BaseSettings):
 
     dragonfly_github_token: str
 
+    job_timeout: int = 60 * 2
+
     class Config(BaseSettings.Config):
         env_file = ".env"
 
