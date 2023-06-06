@@ -1,0 +1,28 @@
+[
+    {
+        "package_id": "fce0366b-0bcf-4a29-a0a7-4d4bdf3c6f61",
+        "name": "a",
+        "version": "0.1.0",
+        "status": "finished",
+        "score": 0,
+        "inspector_url": null,
+        "queued_at": "2023-05-12T18:00:00",
+        "pending_at": "2023-05-12T18:30:00",
+        "finished_at": "2023-05-12T19:00:00",
+        "client_id": "remmy",
+        "reported_at": null
+    },
+    {
+        "package_id": "13e22275-9053-4490-ab80-1800789d37da",
+        "name": "a",
+        "version": "0.2.0",
+        "status": "finished",
+        "score": 10,
+        "inspector_url": null,
+        "queued_at": "2023-05-12T19:00:00",
+        "pending_at": "2023-05-12T19:30:00",
+        "finished_at": "2023-05-12T20:00:00",
+        "client_id": "remmy",
+        "reported_at": null
+    }
+]

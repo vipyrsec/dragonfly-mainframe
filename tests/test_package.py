@@ -1,4 +1,3 @@
-from operator import itemgetter
 from typing import Optional
 
 import pytest
@@ -60,22 +59,28 @@ def test_package_lookup_rejects_invalid_combinations(
 
 
 @pytest.mark.parametrize(
-    "since,name,version,exp",
+    "since,name,version",
     [
-        (0, "a", None, [0]),
-        (0, None, None, [0, 1]),
-        (0, "b", None, [1]),
+        (0, "a", None),
+        (0, None, None),
+        (0, "b", None),
+        (None, "a", "0.1.0"),
     ],
 )
 def test_package_lookup(
-    since: Optional[int], name: Optional[str], version: Optional[str], exp: list[int], api_url: str, test_data
+    since: Optional[int], name: Optional[str], version: Optional[str], api_url: str, test_data: list[dict]
 ):
     url = build_query_string(since, name, version)
     print(url)
-
-    ans = itemgetter(*exp)(test_data)
-    if len(exp) == 1:
-        ans = [ans]
+    exp = []
+    for d in test_data:
+        if since is not None and (d["finished_at"] is None or since > int(d["finished_at"].timestamp())):
+            continue
+        if name is not None and d["name"] != name:
+            continue
+        if version is not None and d["version"] != version:
+            continue
+        exp.append(d)
 
     r = requests.get(api_url + url)
     print(repr(r.text))
@@ -83,4 +88,4 @@ def test_package_lookup(
     def key(d):
         return d["package_id"]
 
-    assert sorted(r.json(), key=key) == sorted(jsonable_encoder(ans), key=key)
+    assert sorted(r.json(), key=key) == sorted(jsonable_encoder(exp), key=key)
