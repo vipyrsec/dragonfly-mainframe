@@ -17,4 +17,12 @@ permissions:
 
 jobs:
   build-push:
-    uses: darbiadev/.github/.github/workflows/docker-build-push.yaml@4cf78eb62eae87baacb57a9655070fd6dfac6f7f
+    uses: darbiadev/.github/.github/workflows/docker-build-push.yaml@main
+
+  deploy:
+    needs: build-push
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/main' }}
+    steps:
+      - name: "Update deployment"
+        run: curl -X POST '${{ secrets.DEPLOY_WEBHOOK }}'
