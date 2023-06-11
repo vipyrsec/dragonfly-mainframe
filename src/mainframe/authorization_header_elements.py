@@ -1,3 +1,4 @@
+from os import getenv
 from typing import NamedTuple
 
 from starlette.requests import Request as StarletteRequest
@@ -27,6 +28,9 @@ def get_authorization_header_elements(
 
 
 def get_bearer_token(request: StarletteRequest) -> str:
+    if getenv("GIT_SHA", "development") == "development":
+        return ""
+
     authorization_header = request.headers.get("Authorization")
     if authorization_header:
         authorization_header_elements = get_authorization_header_elements(authorization_header)
