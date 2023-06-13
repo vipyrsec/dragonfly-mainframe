@@ -54,7 +54,7 @@ async def lifespan(app_: FastAPI):
     yield
 
 
-app = FastAPI(lifespan=lifespan, dependencies=[Depends(validate_token)] if mainframe_settings.production else [])
+app = FastAPI(lifespan=lifespan)
 
 if mainframe_settings.production is False:
     app.dependency_overrides[validate_token] = validate_token_override
