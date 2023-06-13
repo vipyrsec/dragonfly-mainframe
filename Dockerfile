@@ -21,6 +21,7 @@ CMD ["pdm", "run", "pytest", "tests", "-vv"]
 FROM python:3.11-slim@sha256:1966141ab594e175852a033da2a38f0cb042b5b92896c22073f8477f96f43b06 as prod
 
 ENV PYTHONPATH=/app/pkgs
+ENV PRODUCTION=true
 WORKDIR /app
 COPY --from=builder /app/__pypackages__/3.11/lib pkgs/
 
