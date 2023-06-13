@@ -61,12 +61,16 @@ class Package(Base):
     download_urls: Mapped[list[DownloadURL]] = relationship()
 
     queued_at: Mapped[Optional[datetime]] = mapped_column(server_default=FetchedValue(), default=datetime.utcnow)
-    pending_at: Mapped[Optional[datetime]]
-    finished_at: Mapped[Optional[datetime]]
+    queued_by: Mapped[str]
 
-    client_id: Mapped[Optional[str]]
+    pending_at: Mapped[Optional[datetime]]
+    pending_by: Mapped[Optional[str]]
+
+    finished_at: Mapped[Optional[datetime]]
+    finished_by: Mapped[Optional[str]]
 
     reported_at: Mapped[Optional[datetime]]
+    reported_by: Mapped[Optional[str]]
 
 
 class DownloadURL(Base):

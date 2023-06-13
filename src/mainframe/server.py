@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import async_session, get_db
-from mainframe.dependencies import validate_token
+from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
 from mainframe.models.orm import Rule
 from mainframe.models.schemas import ServerMetadata
@@ -55,6 +55,9 @@ async def lifespan(app_: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan, dependencies=[Depends(validate_token)] if mainframe_settings.production else [])
+
+if mainframe_settings.production is False:
+    app.dependency_overrides[validate_token] = validate_token_override
 
 
 @app.get("/")

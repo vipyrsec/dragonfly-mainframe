@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from mainframe.database import get_db
+from mainframe.dependencies import validate_token
+from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import DownloadURL, Package, Rule, Status
 from mainframe.models.schemas import (
     Error,
@@ -27,7 +29,9 @@ router = APIRouter()
     },
 )
 async def submit_results(
-    result: PackageScanResult, request: Request, session: Annotated[AsyncSession, Depends(get_db)]
+    result: PackageScanResult,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    auth: Annotated[AuthenticationData, Depends(validate_token)],
 ):
     name = result.name
     version = result.version
@@ -49,6 +53,7 @@ async def submit_results(
     row.finished_at = dt.datetime.utcnow()
     row.inspector_url = result.inspector_url
     row.score = result.score
+    row.finished_by = auth.subject
 
     for rule_name in result.rules_matched:
         rule = await session.scalar(select(Rule).where(Rule.name == rule_name))
@@ -118,6 +123,7 @@ async def lookup_package_info(
 async def queue_package(
     package: PackageSpecifier,
     session: Annotated[AsyncSession, Depends(get_db)],
+    auth: Annotated[AuthenticationData, Depends(validate_token)],
     request: Request,
 ) -> QueuePackageResponse:
     """
@@ -152,6 +158,7 @@ async def queue_package(
         name=name,
         version=version,
         status=Status.QUEUED,
+        queued_by=auth.subject,
         download_urls=[DownloadURL(url=url.url) for url in package_metadata.urls],
     )
 

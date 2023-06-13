@@ -8,6 +8,8 @@ from sqlalchemy.orm import selectinload
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
+from mainframe.dependencies import validate_token
+from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Package, Status
 from mainframe.models.schemas import JobResult, NoJob
 
@@ -15,7 +17,11 @@ router = APIRouter()
 
 
 @router.post("/job")
-async def get_job(session: Annotated[AsyncSession, Depends(get_db)], request: Request) -> JobResult | NoJob:
+async def get_job(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    auth: Annotated[AuthenticationData, Depends(validate_token)],
+    request: Request,
+) -> JobResult | NoJob:
     """
     Request a release to work on.
 
@@ -46,6 +52,7 @@ async def get_job(session: Annotated[AsyncSession, Depends(get_db)], request: Re
 
     package.status = Status.PENDING
     package.pending_at = datetime.utcnow()
+    package.pending_by = auth.subject
     await session.commit()
 
     distribution_urls = [distribution.url for distribution in package.download_urls]
