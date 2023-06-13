@@ -10,7 +10,9 @@ from letsbuilda.pypi import PyPIServices
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mainframe.constants import mainframe_settings
 from mainframe.database import async_session, get_db
+from mainframe.dependencies import validate_token
 from mainframe.endpoints import routers
 from mainframe.models.orm import Rule
 from mainframe.models.schemas import ServerMetadata
@@ -52,7 +54,7 @@ async def lifespan(app_: FastAPI):
     yield
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, dependencies=[Depends(validate_token)] if mainframe_settings.production else [])
 
 
 @app.get("/")
