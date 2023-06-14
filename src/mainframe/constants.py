@@ -15,6 +15,8 @@ microsoft_settings = Microsoft()  # pyright: ignore
 
 
 class Mainframe(BaseSettings):
+    production: bool = True
+
     client_origin_url: str
     auth0_domain: str
     auth0_audience: str

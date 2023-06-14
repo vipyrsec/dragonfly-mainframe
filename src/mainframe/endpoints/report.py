@@ -11,7 +11,8 @@ from sqlalchemy.orm import selectinload
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
-from mainframe.dependencies import get_ms_graph_client
+from mainframe.dependencies import get_ms_graph_client, validate_token
+from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Package
 from mainframe.models.schemas import Error, PackageSpecifier
 from mainframe.utils.mailer import send_email
@@ -72,6 +73,7 @@ async def report_package(
     body: ReportPackageBody,
     session: Annotated[AsyncSession, Depends(get_db)],
     graph_client: Annotated[GraphClient, Depends(get_ms_graph_client)],
+    auth: Annotated[AuthenticationData, Depends(validate_token)],
     request: Request,
 ):
     """
@@ -181,5 +183,6 @@ async def report_package(
         rules_matched=rules_matched,
     )
 
-    row.reported_at = dt.datetime.utcnow()
+    row.reported_by = auth.subject
+    row.reported_at = dt.datetime.now(dt.timezone.utc)
     await session.commit()

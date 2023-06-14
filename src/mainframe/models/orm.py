@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import Column, FetchedValue, ForeignKey, Table
+from sqlalchemy import Column, DateTime, FetchedValue, ForeignKey, Table
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.associationproxy import AssociationProxy, association_proxy
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -60,13 +60,19 @@ class Package(Base):
     rule_names: AssociationProxy[list[str]] = association_proxy("rules", "name", creator=lambda name: Rule(name=name))
     download_urls: Mapped[list[DownloadURL]] = relationship()
 
-    queued_at: Mapped[Optional[datetime]] = mapped_column(server_default=FetchedValue(), default=datetime.utcnow)
-    pending_at: Mapped[Optional[datetime]]
-    finished_at: Mapped[Optional[datetime]]
+    queued_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=FetchedValue(), default=lambda: datetime.now(timezone.utc)
+    )
+    queued_by: Mapped[str]
 
-    client_id: Mapped[Optional[str]]
+    pending_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    pending_by: Mapped[Optional[str]]
 
-    reported_at: Mapped[Optional[datetime]]
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    finished_by: Mapped[Optional[str]]
+
+    reported_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    reported_by: Mapped[Optional[str]]
 
 
 class DownloadURL(Base):
