@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
@@ -38,7 +38,7 @@ async def get_job(
         .where(
             or_(
                 Package.status == Status.QUEUED,
-                Package.pending_at < datetime.utcnow() - timedelta(seconds=mainframe_settings.job_timeout),
+                Package.pending_at < datetime.now(timezone.utc) - timedelta(seconds=mainframe_settings.job_timeout),
             )
         )
         .order_by(Package.pending_at.nulls_first(), Package.queued_at)
@@ -51,7 +51,7 @@ async def get_job(
         return NoJob(detail="No available packages to scan. Try again later.")
 
     package.status = Status.PENDING
-    package.pending_at = datetime.utcnow()
+    package.pending_at = datetime.now(timezone.utc)
     package.pending_by = auth.subject
     await session.commit()
 

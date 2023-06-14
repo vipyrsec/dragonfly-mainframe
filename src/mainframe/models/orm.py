@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
@@ -60,7 +60,9 @@ class Package(Base):
     rule_names: AssociationProxy[list[str]] = association_proxy("rules", "name", creator=lambda name: Rule(name=name))
     download_urls: Mapped[list[DownloadURL]] = relationship()
 
-    queued_at: Mapped[Optional[datetime]] = mapped_column(server_default=FetchedValue(), default=datetime.utcnow)
+    queued_at: Mapped[Optional[datetime]] = mapped_column(
+        server_default=FetchedValue(), default=lambda: datetime.now(timezone.utc)
+    )
     queued_by: Mapped[str]
 
     pending_at: Mapped[Optional[datetime]]

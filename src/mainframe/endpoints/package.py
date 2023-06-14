@@ -50,7 +50,7 @@ async def submit_results(
         raise HTTPException(409, f"Package `{name}@{version}` is already in a FINISHED state.")
 
     row.status = Status.FINISHED
-    row.finished_at = dt.datetime.utcnow()
+    row.finished_at = dt.datetime.now(dt.timezone.utc)
     row.inspector_url = result.inspector_url
     row.score = result.score
     row.finished_by = auth.subject
@@ -107,7 +107,7 @@ async def lookup_package_info(
     if nn_version:
         query = query.where(Package.version == version)
     if nn_since:
-        query = query.where(Package.finished_at >= dt.datetime.utcfromtimestamp(since))
+        query = query.where(Package.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.timezone.utc))
 
     data = await session.scalars(query)
     return data.all()

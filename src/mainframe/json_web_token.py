@@ -25,7 +25,7 @@ class AuthenticationData:
     def from_dict(cls, data: dict[Any, Any]):
         return AuthenticationData(
             issuer=data["iss"],
-            subject=data["subject"],
+            subject=data["sub"],
             audience=data["aud"],
             issued_at=datetime.fromtimestamp(data["iat"]),
             expires_at=datetime.fromtimestamp(data["exp"]),
@@ -59,4 +59,4 @@ class JsonWebToken:
             raise UnableCredentialsException
         except jwt.exceptions.InvalidTokenError:
             raise BadCredentialsException
-        return payload
+        return AuthenticationData.from_dict(payload)

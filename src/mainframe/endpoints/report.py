@@ -184,5 +184,5 @@ async def report_package(
     )
 
     row.reported_by = auth.subject
-    row.reported_at = dt.datetime.utcnow()
+    row.reported_at = dt.datetime.now(dt.timezone.utc)
     await session.commit()
