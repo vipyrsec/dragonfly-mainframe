@@ -5,6 +5,7 @@ from typing import Annotated
 from unittest.mock import MagicMock
 
 import aiohttp
+import structlog
 from fastapi import Depends, FastAPI
 from letsbuilda.pypi import PyPIServices
 from sqlalchemy.exc import IntegrityError
@@ -29,6 +30,36 @@ async def sync_rules(*, http_session: aiohttp.ClientSession, session: AsyncSessi
         pass
 
 
+def configure_logger():
+    # Define the shared processors, regardless of whether API is running in prod or dev.
+    shared_processors: list[structlog.types.Processor] = [
+        structlog.contextvars.merge_contextvars,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.stdlib.ExtraAdder(),
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.CallsiteParameterAdder(
+            {
+                structlog.processors.CallsiteParameter.FILENAME,
+                structlog.processors.CallsiteParameter.FUNC_NAME,
+                structlog.processors.CallsiteParameter.MODULE,
+                structlog.processors.CallsiteParameter.LINENO,
+            }
+        ),
+    ]
+
+    if getenv("PRODUCTION"):
+        # If running in production, render logs with JSON.
+        processors = shared_processors + [structlog.processors.dict_tracebacks, structlog.processors.JSONRenderer()]
+    else:
+        # If running in a development environment, pretty print logs
+        processors = shared_processors + [structlog.dev.ConsoleRenderer()]
+
+    structlog.configure(processors)
+
+
 @asynccontextmanager
 async def lifespan(app_: FastAPI):
     """Load the state for the app"""
@@ -50,6 +81,8 @@ async def lifespan(app_: FastAPI):
     session = async_session()
     await sync_rules(http_session=http_session, session=session)
     await session.close()
+
+    configure_logger()
 
     yield
 

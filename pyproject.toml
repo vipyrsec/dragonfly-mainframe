@@ -19,6 +19,7 @@ dependencies = [
     "aiohttp>=3.8.4",
     "msgraph-core>=0.2.2",
     "azure-identity>=1.13.0",
+    "structlog>=23.1.0",
 ]
 
 [tool.pdm]

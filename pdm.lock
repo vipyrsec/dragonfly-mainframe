@@ -496,6 +496,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "structlog"
+version = "23.1.0"
+requires_python = ">=3.7"
+summary = "Structured Logging for Python"
+
+[[package]]
 name = "typing-extensions"
 version = "4.5.0"
 requires_python = ">=3.7"
@@ -586,7 +592,7 @@ dependencies = [
 lock_version = "4.2"
 cross_platform = true
 groups = ["default", "lint", "test"]
-content_hash = "sha256:4812ecb22a4f3b7ff84ddec85f50b725770ff568750fa925ad119a6bc68a14c9"
+content_hash = "sha256:124539cb5894d2343516eea3d4ad9600f9d12dbba2becfadc2924e768edd6b86"
 
 [metadata.files]
 "aiohttp 3.8.4" = [
@@ -1636,6 +1642,10 @@ content_hash = "sha256:4812ecb22a4f3b7ff84ddec85f50b725770ff568750fa925ad119a6bc
 "starlette 0.27.0" = [
     {url = "https://files.pythonhosted.org/packages/06/68/559bed5484e746f1ab2ebbe22312f2c25ec62e4b534916d41a8c21147bf8/starlette-0.27.0.tar.gz", hash = "sha256:6a6b0d042acb8d469a01eba54e9cda6cbd24ac602c4cd016723117d6a7e73b75"},
     {url = "https://files.pythonhosted.org/packages/58/f8/e2cca22387965584a409795913b774235752be4176d276714e15e1a58884/starlette-0.27.0-py3-none-any.whl", hash = "sha256:918416370e846586541235ccd38a474c08b80443ed31c578a418e2209b3eef91"},
+]
+"structlog 23.1.0" = [
+    {url = "https://files.pythonhosted.org/packages/0c/b2/0c0951c78f3f59ce44e93cb9b2140d305a00bb8262532041c702d4d4300a/structlog-23.1.0-py3-none-any.whl", hash = "sha256:79b9e68e48b54e373441e130fa447944e6f87a05b35de23138e475c05d0f7e0e"},
+    {url = "https://files.pythonhosted.org/packages/9e/c4/688d14600f3a8afa31816ac95220f2548648e292c3ff2262057aa51ac2fb/structlog-23.1.0.tar.gz", hash = "sha256:270d681dd7d163c11ba500bc914b2472d2b50a8ef00faa999ded5ff83a2f906b"},
 ]
 "typing-extensions 4.5.0" = [
     {url = "https://files.pythonhosted.org/packages/31/25/5abcd82372d3d4a3932e1fa8c3dbf9efac10cc7c0d16e78467460571b404/typing_extensions-4.5.0-py3-none-any.whl", hash = "sha256:fb33085c39dd998ac16d1431ebc293a8b3eedd00fd4a32de0ff79002c19511b4"},
