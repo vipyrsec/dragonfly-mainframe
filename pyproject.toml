@@ -20,6 +20,7 @@ dependencies = [
     "msgraph-core>=0.2.2",
     "azure-identity>=1.13.0",
     "structlog>=23.1.0",
+    "asgi-correlation-id>=4.2.0",
 ]
 
 [tool.pdm]
@@ -35,6 +36,9 @@ test = [
     "pytest>=7.3.1",
     "requests>=2.30.0",
     "psycopg2-binary>=2.9.6",
+]
+logs = [
+    "rich>=13.4.2",
 ]
 
 [tool.pdm.scripts]

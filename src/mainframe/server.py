@@ -1,4 +1,6 @@
 import asyncio
+import logging
+import time
 from contextlib import asynccontextmanager
 from os import getenv
 from typing import Annotated
@@ -6,7 +8,10 @@ from unittest.mock import MagicMock
 
 import aiohttp
 import structlog
-from fastapi import Depends, FastAPI
+from asgi_correlation_id import CorrelationIdMiddleware
+from asgi_correlation_id.context import correlation_id
+from fastapi import Depends, FastAPI, Response
+from h11 import Request
 from letsbuilda.pypi import PyPIServices
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,10 +39,10 @@ def configure_logger():
     # Define the shared processors, regardless of whether API is running in prod or dev.
     shared_processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
-        structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
         structlog.stdlib.PositionalArgumentsFormatter(),
         structlog.stdlib.ExtraAdder(),
+        structlog.processors.format_exc_info,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.CallsiteParameterAdder(
@@ -50,14 +55,19 @@ def configure_logger():
         ),
     ]
 
-    if getenv("PRODUCTION"):
+    if getenv("PRODUCTION") == "true":
         # If running in production, render logs with JSON.
         processors = shared_processors + [structlog.processors.dict_tracebacks, structlog.processors.JSONRenderer()]
     else:
         # If running in a development environment, pretty print logs
         processors = shared_processors + [structlog.dev.ConsoleRenderer()]
 
-    structlog.configure(processors)
+    # Disable uvicorn's logging
+    for _log in ["uvicorn", "uvicorn.error", "uvicorn.access"]:
+        logging.getLogger(_log).handlers.clear()
+        logging.getLogger(_log).propagate = True
+
+    structlog.configure(processors=processors)
 
 
 @asynccontextmanager
@@ -83,14 +93,62 @@ async def lifespan(app_: FastAPI):
     await session.close()
 
     configure_logger()
+    logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+    logger.info("Application started up")
 
     yield
+
+    logger.info("Application shut down")
 
 
 app = FastAPI(lifespan=lifespan)
 
 if mainframe_settings.production is False:
     app.dependency_overrides[validate_token] = validate_token_override
+
+
+@app.middleware("http")
+async def logging_middleware(request: Request, call_next) -> Response:
+    structlog.contextvars.clear_contextvars()
+
+    request_id = correlation_id.get()
+    structlog.contextvars.bind_contextvars(request_id=request_id)
+
+    start_time = time.perf_counter_ns()
+    logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+    response: Response = Response(status_code=500)
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception("Uncaught exception")
+        raise
+    finally:
+        process_time = time.perf_counter_ns() - start_time
+        status_code = response.status_code
+        url = request.url
+        client_host = request.client.host
+        client_port = request.client.port
+        http_method = request.method
+        http_version = request.scope["http_version"]
+
+        await logger.ainfo(
+            f'{client_host}:{client_port} - "{http_method} {url} HTTP/{http_version}" {status_code}',
+            http={
+                "url": str(url),
+                "status_code": status_code,
+                "method": http_method,
+                "request_id": request_id,
+                "version": http_version,
+            },
+            network={"client": {"ip": client_host, "port": client_port}},
+            duration=process_time,
+        )
+
+        return response
+
+
+app.add_middleware(CorrelationIdMiddleware)
 
 
 @app.get("/")

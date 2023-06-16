@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
+import structlog
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +15,7 @@ from mainframe.models.orm import Package, Status
 from mainframe.models.schemas import JobResult, NoJob
 
 router = APIRouter()
+logger = structlog.get_logger()
 
 
 @router.post("/job")
