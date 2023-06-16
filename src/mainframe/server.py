@@ -55,19 +55,37 @@ def configure_logger():
         ),
     ]
 
+    structlog.configure(
+        processors=shared_processors + [structlog.stdlib.ProcessorFormatter.wrap_for_formatter],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+    log_renderer: structlog.types.Processor
+    # If running in production, render logs with JSON.
     if getenv("PRODUCTION") == "true":
-        # If running in production, render logs with JSON.
-        processors = shared_processors + [structlog.processors.dict_tracebacks, structlog.processors.JSONRenderer()]
+        log_renderer = structlog.processors.JSONRenderer()
     else:
         # If running in a development environment, pretty print logs
-        processors = shared_processors + [structlog.dev.ConsoleRenderer()]
+        log_renderer = structlog.dev.ConsoleRenderer()
+
+    formatter = structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=shared_processors,
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            log_renderer,
+        ],
+    )
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+    root_logger = logging.getLogger()
+    root_logger.addHandler(handler)
 
     # Disable uvicorn's logging
     for _log in ["uvicorn", "uvicorn.error", "uvicorn.access"]:
         logging.getLogger(_log).handlers.clear()
         logging.getLogger(_log).propagate = True
-
-    structlog.configure(processors=processors)
 
 
 @asynccontextmanager
@@ -112,7 +130,14 @@ async def logging_middleware(request: Request, call_next) -> Response:
     structlog.contextvars.clear_contextvars()
 
     request_id = correlation_id.get()
-    structlog.contextvars.bind_contextvars(request_id=request_id)
+    url = request.url
+    client_host = request.client.host
+    client_port = request.client.port
+    structlog.contextvars.bind_contextvars(
+        request_id=request_id,
+        url=url,
+        network={"client": {"ip": client_host, "port": client_port}},
+    )
 
     start_time = time.perf_counter_ns()
     logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -126,9 +151,6 @@ async def logging_middleware(request: Request, call_next) -> Response:
     finally:
         process_time = time.perf_counter_ns() - start_time
         status_code = response.status_code
-        url = request.url
-        client_host = request.client.host
-        client_port = request.client.port
         http_method = request.method
         http_version = request.scope["http_version"]
 
@@ -141,7 +163,6 @@ async def logging_middleware(request: Request, call_next) -> Response:
                 "request_id": request_id,
                 "version": http_version,
             },
-            network={"client": {"ip": client_host, "port": client_port}},
             duration=process_time,
         )
 
