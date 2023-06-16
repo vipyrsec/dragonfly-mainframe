@@ -15,7 +15,7 @@ from mainframe.models.orm import Package, Status
 from mainframe.models.schemas import JobResult, NoJob
 
 router = APIRouter()
-logger = structlog.get_logger()
+logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 @router.post("/job")

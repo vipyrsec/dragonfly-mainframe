@@ -81,11 +81,15 @@ def configure_logger():
     handler.setFormatter(formatter)
     root_logger = logging.getLogger()
     root_logger.addHandler(handler)
+    root_logger.setLevel(logging.DEBUG)
 
     # Disable uvicorn's logging
-    for _log in ["uvicorn", "uvicorn.error", "uvicorn.access"]:
+    for _log in ["uvicorn", "uvicorn.error"]:
         logging.getLogger(_log).handlers.clear()
         logging.getLogger(_log).propagate = True
+
+    logging.getLogger("uvicorn.access").handlers.clear()
+    logging.getLogger("uvicorn.access").propagate = False
 
 
 @asynccontextmanager
@@ -111,12 +115,8 @@ async def lifespan(app_: FastAPI):
     await session.close()
 
     configure_logger()
-    logger: structlog.stdlib.BoundLogger = structlog.get_logger()
-    logger.info("Application started up")
 
     yield
-
-    logger.info("Application shut down")
 
 
 app = FastAPI(lifespan=lifespan)
