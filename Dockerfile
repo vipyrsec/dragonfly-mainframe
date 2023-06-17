@@ -1,4 +1,4 @@
-FROM python:3.11-slim@sha256:1966141ab594e175852a033da2a38f0cb042b5b92896c22073f8477f96f43b06 as builder
+FROM python:3.11-slim@sha256:7ae02e72226c12a65361f7fcf4428ab53b402abcbfc377720b61314cc3bed266 as builder
 
 RUN pip install -U pip setuptools wheel
 RUN pip install pdm
@@ -18,7 +18,7 @@ ENV env=test
 
 CMD ["pdm", "run", "pytest", "tests", "-vv"]
 
-FROM python:3.11-slim@sha256:1966141ab594e175852a033da2a38f0cb042b5b92896c22073f8477f96f43b06 as prod
+FROM python:3.11-slim@sha256:7ae02e72226c12a65361f7fcf4428ab53b402abcbfc377720b61314cc3bed266 as prod
 
 ENV PYTHONPATH=/app/pkgs
 WORKDIR /app
