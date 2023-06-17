@@ -145,8 +145,8 @@ async def batch_queue_package(
 
     query = (
         select(Package)
-        .where(Package.name.in_(name for (name, _) in ok_packages.keys()))
-        .where(Package.version.in_(version for (_, version) in ok_packages.keys()))
+        .where(Package.name.in_(name for (name, _) in ok_packages))
+        .where(Package.version.in_(version for (_, version) in ok_packages))
     )
     rows = await session.scalars(query)
 
