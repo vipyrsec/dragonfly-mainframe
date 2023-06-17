@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
 from mainframe.dependencies import get_ms_graph_client, validate_token
-from mainframe.greylist import greylist_check
+from mainframe.greylist import greylist_scan
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Package
 from mainframe.models.schemas import Error, PackageSpecifier
@@ -150,16 +150,6 @@ async def report_package(
             404, detail=f"Package `{name}` has records in the database, but none with version `{version}`"
         )
 
-    if greylist_check(result, session) is True:
-        raise HTTPException(
-            409,
-            detail=(
-                f"A previous version ({row.version}) of this package matched "
-                f"all of the same rules. It is improbable that this new version "
-                f"has become malicious without deviations in rule flagging"
-            ),
-        )
-
     if body.inspector_url is None:
         if row.inspector_url is None:
             raise HTTPException(
@@ -182,6 +172,16 @@ async def report_package(
             )
 
         rules_matched.extend(rule.name for rule in row.rules)
+
+    if greylist_scan(name, list(map(str, row.rules)), session) is True:
+        raise HTTPException(
+            409,
+            detail=(
+                f"A previous version ({row.version}) of this package matched "
+                f"all of the same rules. It is improbable that this new version "
+                f"has become malicious without deviations in rule flagging"
+            ),
+        )
 
     additional_information = body.additional_information
 

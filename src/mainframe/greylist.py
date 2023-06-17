@@ -1,28 +1,30 @@
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
 
+from fastapi import Depends
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from mainframe.database import get_db
 from mainframe.models.orm import Package, Status
-from mainframe.models.schemas import PackageScanResult
 
 
 async def greylist_scan(
-    result: PackageScanResult,
+    package_name: str,
+    rules_matched: list[str],
     session: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Check if the rules we matched are the same as the last scan """
-    if results.rules == []
+) -> bool:
+    """Check if the rules we matched are the same as the last scan."""
+
+    if len(rules_matched) == 0:
         return False
 
-    row = await session.scalars(
-        select(Package.rules)
-        .where(Package.name == name)
-        .where(Package.status == Status.FINISHED)
-        .order_by(Package.finished_at.desc())
-        .first()
-    )
+    row = (
+        await session.scalars(
+            select(Package.rules)
+            .where(Package.name == package_name)
+            .where(Package.status == Status.FINISHED)
+            .order_by(Package.finished_at.desc())
+        )
+    ).first()
 
-    if row.rules == result.rules:
-        return True
-
-    return False
+    return row == rules_matched
