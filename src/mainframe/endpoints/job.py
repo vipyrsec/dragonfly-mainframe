@@ -50,7 +50,11 @@ async def get_job(
     package = scalars.first()
 
     if not package:
-        return NoJob(detail="No available packages to scan. Try again later.")
+        error = NoJob(detail="No available packages to scan. Try again later.")
+        await logger.aerror(
+            "No packages available to scan, job not given.", error_message=error.detail, tag="no_packages"
+        )
+        return error
 
     package.status = Status.PENDING
     package.pending_at = datetime.now(timezone.utc)
@@ -58,6 +62,19 @@ async def get_job(
     await session.commit()
 
     distribution_urls = [distribution.url for distribution in package.download_urls]
+
+    await logger.ainfo(
+        "Job given and status set to pending in database",
+        package={
+            "name": package.name,
+            "status": package.status,
+            "pending_at": package.pending_at,
+            "pending_by": auth.subject,
+            "version": package.version,
+        },
+        tag="job_given",
+    )
+
     return JobResult(
         name=package.name,
         version=package.version,

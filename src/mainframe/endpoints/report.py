@@ -2,6 +2,7 @@ import datetime as dt
 from textwrap import dedent
 from typing import Annotated, Optional
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from letsbuilda.pypi import PyPIServices
 from msgraph.core import GraphClient
@@ -17,6 +18,8 @@ from mainframe.models.orm import Package
 from mainframe.models.schemas import Error, PackageSpecifier
 from mainframe.utils.mailer import send_email
 from mainframe.utils.pypi import file_path_from_inspector_url
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 def send_report_email(
@@ -114,13 +117,20 @@ async def report_package(
     name = body.name
     version = body.version
 
+    log = logger.bind(package={"name": name, "version": version})
+
     pypi_client: PyPIServices = request.app.state.pypi_client
     try:
         package_metadata = await pypi_client.get_package_metadata(name, version)
     except KeyError:
-        raise HTTPException(404, detail=f"Package `{name}@{version}` was not found on PyPI")
+        error = HTTPException(404, detail=f"Package `{name}@{version}` was not found on PyPI")
+        await log.aerror(
+            f"Package {name}@{version} was not found on PyPI", error_message=error.detail, tag="package_not_found_pypi"
+        )
+        raise error
 
     version = package_metadata.info.version
+    log = logger.bind(package={"name": name, "version": version})
 
     query = select(Package).where(Package.name == name).options(selectinload(Package.rules))
 
@@ -131,30 +141,46 @@ async def report_package(
     rules_matched: list[str] = []
 
     if not rows:
-        raise HTTPException(404, detail=f"No records for package `{name}` were found in the database")
+        error = HTTPException(404, detail=f"No records for package `{name}` were found in the database")
+        await log.aerror(
+            f"No records for package {name} found in database", error_message=error.detail, tag="package_not_found_db"
+        )
+        raise error
 
     for row in rows:
         if row.reported_at is not None:
-            raise HTTPException(
+            error = HTTPException(
                 409,
                 detail=(
                     f"Only one version of a package may be reported at a time. "
                     f"(`{row.name}@{row.version}` was already reported)"
                 ),
             )
+            await log.aerror(
+                "Only one version of a package allowed to be imported at a time",
+                error_message=error.detail,
+                tag="multiple_versions_prohibited",
+            )
+            raise error
 
     row = await session.scalar(query.where(Package.version == version))
     if row is None:
-        raise HTTPException(
+        error = HTTPException(
             404, detail=f"Package `{name}` has records in the database, but none with version `{version}`"
         )
+        await log.aerror(
+            f"No version {version} for package {name} in database", error_message=error.detail, tag="invalid_version"
+        )
+        raise error
 
     if body.inspector_url is None:
         if row.inspector_url is None:
-            raise HTTPException(
+            error = HTTPException(
                 400,
                 detail=f"inspector_url is a required field as package `{name}@{version}` inspector_url column as null.",
             )
+            await log.aerror("Missing inspector_url field", error_message=error.detail, tag="missing_inspector_url")
+            raise error
 
         inspector_url = row.inspector_url
     else:
@@ -162,13 +188,17 @@ async def report_package(
 
     if body.additional_information is None:
         if len(row.rules) == 0:
-            raise HTTPException(
+            error = HTTPException(
                 400,
                 detail=(
                     f"additional_information is a required field as package "
                     f"`{name}@{version}` has no matched rules in the database"
                 ),
             )
+            await log.aerror(
+                "Missing additional_information field", error_message=error.detail, tag="missing_additional_information"
+            )
+            raise error
 
         rules_matched.extend(rule.name for rule in row.rules)
 
@@ -181,6 +211,18 @@ async def report_package(
         inspector_url=inspector_url,
         additional_information=additional_information,
         rules_matched=rules_matched,
+    )
+
+    await log.ainfo(
+        "Sent report",
+        email_data={
+            "package_name": name,
+            "package_version": version,
+            "inspector_url": inspector_url,
+            "additional_information": additional_information,
+            "rules_matched": rules_matched,
+        },
+        reported_by=auth.subject,
     )
 
     row.reported_by = auth.subject
