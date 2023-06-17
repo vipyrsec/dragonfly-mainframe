@@ -2,7 +2,7 @@ import datetime as dt
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from letsbuilda.pypi import PyPIServices
+from letsbuilda.pypi import PackageMetadata, PyPIServices
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -12,6 +12,7 @@ from mainframe.dependencies import validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import DownloadURL, Package, Rule, Status
 from mainframe.models.schemas import (
+    BatchPackageQueueErr,
     Error,
     PackageScanResult,
     PackageSpecifier,
@@ -111,6 +112,71 @@ async def lookup_package_info(
 
     data = await session.scalars(query)
     return data.all()
+
+
+@router.post(
+    "/batch/package",
+    responses={
+        409: {"model": Error},
+        404: {"model": Error},
+    },
+)
+async def batch_queue_package(
+    packages: set[PackageSpecifier],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    auth: Annotated[AuthenticationData, Depends(validate_token)],
+    request: Request,
+) -> list[BatchPackageQueueErr]:
+    ok_packages: dict[tuple[str, str], PackageMetadata] = {}
+    err_packages: dict[tuple[str, str | None], str] = {}
+
+    pypi_client: PyPIServices = request.app.state.pypi_client
+
+    # This step filters out packages that are not even on PyPI
+    for package in packages:
+        name = package.name
+        version = package.version
+
+        try:
+            package_metadata = await pypi_client.get_package_metadata(name, version)
+            ok_packages[(package_metadata.info.name, package_metadata.info.version)] = package_metadata
+        except KeyError:
+            err_packages[(name, version)] = f"Package {name}@{version} was not found on PyPI"
+
+    query = (
+        select(Package)
+        .where(Package.name.in_(name for (name, _) in ok_packages))
+        .where(Package.version.in_(version for (_, version) in ok_packages))
+    )
+    rows = await session.scalars(query)
+
+    # This step filters out packages that are already in the database
+    for row in rows:
+        name = row.name
+        version = row.version
+        t = (name, version)
+
+        ok_packages.pop(t)
+        err_packages[t] = f"Package {name}@{version} is already queued for scanning"
+
+    new_packages = [
+        Package(
+            name=metadata.info.name,
+            version=metadata.info.version,
+            status=Status.QUEUED,
+            queued_by=auth.subject,
+            download_urls=[DownloadURL(url=url.url) for url in metadata.urls],
+        )
+        for metadata in ok_packages.values()
+    ]
+
+    session.add_all(new_packages)
+    await session.commit()
+
+    return [
+        BatchPackageQueueErr(name=name, version=version, detail=detail)
+        for ((name, version), detail) in err_packages.items()
+    ]
 
 
 @router.post(

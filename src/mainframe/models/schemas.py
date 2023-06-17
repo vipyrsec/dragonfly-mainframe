@@ -27,6 +27,9 @@ class PackageSpecifier(BaseModel):
     name: str
     version: Optional[str]
 
+    class Config:
+        frozen = True
+
 
 class PackageScanResult(PackageSpecifier):
     """Client payload to server containing the results of a package scan"""
@@ -60,3 +63,7 @@ class QueuePackageResponse(BaseModel):
     """Returned after queueing a package. Contains the UUID"""
 
     id: str
+
+
+class BatchPackageQueueErr(PackageSpecifier, Error):
+    pass
