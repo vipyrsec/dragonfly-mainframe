@@ -19,7 +19,6 @@ class AuthenticationData:
     issued_at: datetime
     expires_at: datetime
     grant_type: str
-    permissions: list[str]
 
     @classmethod
     def from_dict(cls, data: dict[Any, Any]):
@@ -30,7 +29,6 @@ class AuthenticationData:
             issued_at=datetime.fromtimestamp(data["iat"]),
             expires_at=datetime.fromtimestamp(data["exp"]),
             grant_type=data["gty"],
-            permissions=data["permissions"],
         )
 
 
