@@ -499,6 +499,25 @@ requires_python = ">=3.7"
 summary = "An extremely fast Python linter, written in Rust."
 
 [[package]]
+name = "sentry-sdk"
+version = "1.25.1"
+summary = "Python client for Sentry (https://sentry.io)"
+dependencies = [
+    "certifi",
+    "urllib3>=1.26.11; python_version >= \"3.6\"",
+]
+
+[[package]]
+name = "sentry-sdk"
+version = "1.25.1"
+extras = ["fastapi"]
+summary = "Python client for Sentry (https://sentry.io)"
+dependencies = [
+    "fastapi>=0.79.0",
+    "sentry-sdk==1.25.1",
+]
+
+[[package]]
 name = "setuptools"
 version = "67.7.2"
 requires_python = ">=3.7"
@@ -632,7 +651,7 @@ dependencies = [
 lock_version = "4.2"
 cross_platform = true
 groups = ["default", "lint", "logs", "test"]
-content_hash = "sha256:2347e969994e70113074ce6a0a0adab8e892c522a83e6774b04aabf7668c50ea"
+content_hash = "sha256:0d2c09fbe9d5b95e4e9d778b67e76841e1668aef01ed79bc46883d2f465cbc6c"
 
 [metadata.files]
 "aiohttp 3.8.4" = [
@@ -1643,6 +1662,10 @@ content_hash = "sha256:2347e969994e70113074ce6a0a0adab8e892c522a83e6774b04aabf76
     {url = "https://files.pythonhosted.org/packages/f1/7a/08f4803d440ee8fac3f007ca41e1a061fa529833c90b3b8dd37662393bbf/ruff-0.0.267-py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:db33deef2a5e1cf528ca51cc59dd764122a48a19a6c776283b223d147041153f"},
     {url = "https://files.pythonhosted.org/packages/fa/25/cd00b70d749cff37dc567e7267926211ddfaeb8b4eb05aed43d0decfceea/ruff-0.0.267-py3-none-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:2972241065b1c911bce3db808837ed10f4f6f8a8e15520a4242d291083605ab6"},
     {url = "https://files.pythonhosted.org/packages/fb/09/6db9f4e8f5dbbe82a72abf2b89cc2bd5033ebee9767187428061e93b4e17/ruff-0.0.267-py3-none-macosx_10_7_x86_64.whl", hash = "sha256:4adbbbe314d8fcc539a245065bad89446a3cef2e0c9cf70bf7bb9ed6fe31856d"},
+]
+"sentry-sdk 1.25.1" = [
+    {url = "https://files.pythonhosted.org/packages/69/e5/e5f71d62c629b5667c38824ad150a86d77ab010adafc9ef20f71ba939e82/sentry-sdk-1.25.1.tar.gz", hash = "sha256:aa796423eb6a2f4a8cd7a5b02ba6558cb10aab4ccdc0537f63a47b038c520c38"},
+    {url = "https://files.pythonhosted.org/packages/ac/16/033c47a3e345e29d21970d3c8722056b5420685b26f98b72922d97ed03c6/sentry_sdk-1.25.1-py2.py3-none-any.whl", hash = "sha256:79afb7c896014038e358401ad1d36889f97a129dfa8031c49b3f238cd1aa3935"},
 ]
 "setuptools 67.7.2" = [
     {url = "https://files.pythonhosted.org/packages/2f/8c/f336a966d4097c7cef6fc699b2ecb83b5fb63fd698198c1b5c7905a74f0f/setuptools-67.7.2-py3-none-any.whl", hash = "sha256:23aaf86b85ca52ceb801d32703f12d77517b2556af839621c641fca11287952b"},

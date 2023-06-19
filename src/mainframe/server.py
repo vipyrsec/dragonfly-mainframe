@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from os import getenv
 from typing import Annotated
 from unittest.mock import MagicMock
-
+import sentry_sdk
 import aiohttp
 import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
@@ -90,6 +90,18 @@ def configure_logger():
 
     logging.getLogger("uvicorn.access").handlers.clear()
     logging.getLogger("uvicorn.access").propagate = False
+
+
+release_prefix = getenv("DRAGONFLY_SENTRY_RELEASE_PREFIX", "dragonfly")
+git_sha = getenv("GIT_SHA", "development")
+sentry_sdk.init(
+    dsn=getenv("DRAGONFLY_SENTRY_DSN"),
+    environment=getenv("DRAGONFLY_SENTRY_ENV"),
+    send_default_pii=True,
+    traces_sample_rate=0.0025,
+    profiles_sample_rate=0.0025,
+    release=f"{release_prefix}@{git_sha}",
+)
 
 
 @asynccontextmanager
