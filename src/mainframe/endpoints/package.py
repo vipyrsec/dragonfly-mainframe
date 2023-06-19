@@ -20,7 +20,7 @@ from mainframe.models.schemas import (
     QueuePackageResponse,
 )
 
-router = APIRouter()
+router = APIRouter(tags=["package"])
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 

@@ -62,7 +62,7 @@ class ReportPackageBody(PackageSpecifier):
     additional_information: Optional[str]
 
 
-router = APIRouter()
+router = APIRouter(tags=["report"])
 
 
 @router.post(
