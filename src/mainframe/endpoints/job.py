@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -38,7 +38,10 @@ async def get_job(
         .where(
             or_(
                 Package.status == Status.QUEUED,
-                Package.pending_at < datetime.now(timezone.utc) - timedelta(seconds=mainframe_settings.job_timeout),
+                and_(
+                    Package.pending_at < datetime.now(timezone.utc) - timedelta(seconds=mainframe_settings.job_timeout),
+                    Package.status == Status.PENDING,
+                ),
             )
         )
         .order_by(Package.pending_at.nulls_first(), Package.queued_at)
