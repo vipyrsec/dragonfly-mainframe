@@ -25,7 +25,9 @@ from mainframe.models.schemas import ServerMetadata
 from mainframe.rules import Rules, fetch_rules
 
 
-async def sync_rules(*, http_session: aiohttp.ClientSession, session: AsyncSession):
+async def sync_rules(*, http_session: aiohttp.ClientSession, session: AsyncSession) -> Rules:
+    """Sync the rules to the database using the given `session`, and return the new rules"""
+
     rules = await fetch_rules(http_session)
     session.add_all(Rule(name=rule_name) for rule_name in rules.rules)
     try:
@@ -33,6 +35,8 @@ async def sync_rules(*, http_session: aiohttp.ClientSession, session: AsyncSessi
     except IntegrityError:
         # Ignore rules that already exist in the database
         pass
+
+    return rules
 
 
 def configure_logger():
@@ -98,7 +102,9 @@ async def lifespan(app_: FastAPI):
 
     http_session = aiohttp.ClientSession()
     pypi_client = PyPIServices(http_session)
-    rules = await fetch_rules(http_session)
+    db_session = async_session()
+    rules = await sync_rules(http_session=http_session, session=db_session)
+    await db_session.close()
 
     if getenv("env") == "test":
         fut: asyncio.Future[MagicMock] = asyncio.Future()
@@ -109,10 +115,6 @@ async def lifespan(app_: FastAPI):
     app_.state.rules = rules
     app_.state.http_session = http_session
     app_.state.pypi_client = pypi_client
-
-    session = async_session()
-    await sync_rules(http_session=http_session, session=session)
-    await session.close()
 
     configure_logger()
 
