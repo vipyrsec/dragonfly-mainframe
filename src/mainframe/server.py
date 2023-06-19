@@ -63,7 +63,7 @@ def configure_logger():
 
     log_renderer: structlog.types.Processor
     # If running in production, render logs with JSON.
-    if getenv("PRODUCTION") == "true":
+    if mainframe_settings.production:
         log_renderer = structlog.processors.JSONRenderer()
     else:
         # If running in a development environment, pretty print logs
@@ -164,6 +164,7 @@ async def logging_middleware(request: Request, call_next) -> Response:
                 "version": http_version,
             },
             duration=process_time,
+            tag="request",
         )
 
         return response

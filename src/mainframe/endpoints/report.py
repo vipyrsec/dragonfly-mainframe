@@ -157,7 +157,7 @@ async def report_package(
                 ),
             )
             await log.aerror(
-                "Only one version of a package allowed to be imported at a time",
+                "Only one version of a package allowed to be reported at a time",
                 error_message=error.detail,
                 tag="multiple_versions_prohibited",
             )

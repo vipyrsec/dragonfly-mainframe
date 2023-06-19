@@ -207,11 +207,8 @@ async def queue_package(
     row = await session.scalar(query)
 
     if row is not None:
-        error = HTTPException(409, f"Package {name}@{version} is already queued for scanning")
-        await log.aerror(
-            f"Package {name}@{version} already queued for scanning.", error_message=error.detail, tag="already_queued"
-        )
-        raise error
+        await log.info(f"Package {name}@{version} already queued for scanning.", tag="already_queued")
+        raise HTTPException(409, f"Package {name}@{version} is already queued for scanning")
 
     new_package = Package(
         name=name,
