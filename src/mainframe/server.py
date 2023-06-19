@@ -1,11 +1,17 @@
 import asyncio
+import logging
+import time
 from contextlib import asynccontextmanager
 from os import getenv
 from typing import Annotated
 from unittest.mock import MagicMock
 
 import aiohttp
-from fastapi import Depends, FastAPI
+import structlog
+from asgi_correlation_id import CorrelationIdMiddleware
+from asgi_correlation_id.context import correlation_id
+from fastapi import Depends, FastAPI, Response
+from h11 import Request
 from letsbuilda.pypi import PyPIServices
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +33,63 @@ async def sync_rules(*, http_session: aiohttp.ClientSession, session: AsyncSessi
     except IntegrityError:
         # Ignore rules that already exist in the database
         pass
+
+
+def configure_logger():
+    # Define the shared processors, regardless of whether API is running in prod or dev.
+    shared_processors: list[structlog.types.Processor] = [
+        structlog.contextvars.merge_contextvars,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.stdlib.ExtraAdder(),
+        structlog.processors.format_exc_info,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.CallsiteParameterAdder(
+            {
+                structlog.processors.CallsiteParameter.FILENAME,
+                structlog.processors.CallsiteParameter.FUNC_NAME,
+                structlog.processors.CallsiteParameter.MODULE,
+                structlog.processors.CallsiteParameter.LINENO,
+            }
+        ),
+    ]
+
+    structlog.configure(
+        processors=shared_processors + [structlog.stdlib.ProcessorFormatter.wrap_for_formatter],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+    log_renderer: structlog.types.Processor
+    # If running in production, render logs with JSON.
+    if mainframe_settings.production:
+        log_renderer = structlog.processors.JSONRenderer()
+    else:
+        # If running in a development environment, pretty print logs
+        log_renderer = structlog.dev.ConsoleRenderer()
+
+    formatter = structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=shared_processors,
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            log_renderer,
+        ],
+    )
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+    root_logger = logging.getLogger()
+    root_logger.addHandler(handler)
+    root_logger.setLevel(logging.DEBUG)
+
+    # Disable uvicorn's logging
+    for _log in ["uvicorn", "uvicorn.error"]:
+        logging.getLogger(_log).handlers.clear()
+        logging.getLogger(_log).propagate = True
+
+    logging.getLogger("uvicorn.access").handlers.clear()
+    logging.getLogger("uvicorn.access").propagate = False
 
 
 @asynccontextmanager
@@ -51,6 +114,8 @@ async def lifespan(app_: FastAPI):
     await sync_rules(http_session=http_session, session=session)
     await session.close()
 
+    configure_logger()
+
     yield
 
 
@@ -58,6 +123,54 @@ app = FastAPI(lifespan=lifespan)
 
 if mainframe_settings.production is False:
     app.dependency_overrides[validate_token] = validate_token_override
+
+
+@app.middleware("http")
+async def logging_middleware(request: Request, call_next) -> Response:
+    structlog.contextvars.clear_contextvars()
+
+    request_id = correlation_id.get()
+    url = request.url
+    client_host = request.client.host
+    client_port = request.client.port
+    structlog.contextvars.bind_contextvars(
+        request_id=request_id,
+        url=url,
+        network={"client": {"ip": client_host, "port": client_port}},
+    )
+
+    start_time = time.perf_counter_ns()
+    logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+    response: Response = Response(status_code=500)
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception("Uncaught exception")
+        raise
+    finally:
+        process_time = time.perf_counter_ns() - start_time
+        status_code = response.status_code
+        http_method = request.method
+        http_version = request.scope["http_version"]
+
+        await logger.ainfo(
+            f'{client_host}:{client_port} - "{http_method} {url} HTTP/{http_version}" {status_code}',
+            http={
+                "url": str(url),
+                "status_code": status_code,
+                "method": http_method,
+                "request_id": request_id,
+                "version": http_version,
+            },
+            duration=process_time,
+            tag="request",
+        )
+
+        return response
+
+
+app.add_middleware(CorrelationIdMiddleware)
 
 
 @app.get("/")

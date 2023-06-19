@@ -1,6 +1,7 @@
 import datetime as dt
 from typing import Annotated, Optional
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from letsbuilda.pypi import PackageMetadata, PyPIServices
 from sqlalchemy import select
@@ -20,6 +21,7 @@ from mainframe.models.schemas import (
 )
 
 router = APIRouter()
+logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 @router.put(
@@ -44,11 +46,21 @@ async def submit_results(
         .options(selectinload(Package.rules))
     )
 
+    log = logger.bind(package={"name": name, "version": version})
+
     if row is None:
-        raise HTTPException(404, f"Package `{name}@{version}` not found in database.")
+        error = HTTPException(404, f"Package `{name}@{version}` not found in database.")
+        await log.aerror(
+            f"Package {name}@{version} not found in database", error_message=error.detail, tag="package_not_found_db"
+        )
+        raise error
 
     if row.status == Status.FINISHED:
-        raise HTTPException(409, f"Package `{name}@{version}` is already in a FINISHED state.")
+        error = HTTPException(409, f"Package `{name}@{version}` is already in a FINISHED state.")
+        await log.aerror(
+            f"Package {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
+        )
+        raise error
 
     row.status = Status.FINISHED
     row.finished_at = dt.datetime.now(dt.timezone.utc)
@@ -59,9 +71,30 @@ async def submit_results(
     for rule_name in result.rules_matched:
         rule = await session.scalar(select(Rule).where(Rule.name == rule_name))
         if rule is None:
-            raise HTTPException(400, f"Rule '{rule_name}' is not a valid rule for package `{name}@{version}`")
+            error = HTTPException(400, f"Rule '{rule_name}' is not a valid rule for package `{name}@{version}`")
+            await log.aerror(
+                f"Rule {rule_name} not a valid rule for package",
+                rule_name=rule_name,
+                error_message=error.detail,
+                tag="invalid_rule",
+            )
+            raise error
 
         row.rules.append(rule)
+
+    await log.ainfo(
+        "Scan results submitted",
+        package={
+            "name": name,
+            "version": version,
+            "status": row.status,
+            "finished_at": row.finished_at,
+            "inspector_url": result.inspector_url,
+            "score": result.score,
+            "finished_by": auth.subject,
+        },
+        tag="scan_submitted",
+    )
 
     await session.commit()
 
@@ -99,7 +132,20 @@ async def lookup_package_info(
     nn_version = version is not None
     nn_since = since is not None
 
+    log = logger.bind(
+        parameters={
+            "name": name,
+            "version": version,
+            "since": since,
+        }
+    )
+
     if (not nn_name and not nn_since) or (nn_version and nn_since):
+        await log.aerror(
+            "Invalid parameter combination",
+            error_message="Invalid parameter combination.",
+            tag="invalid_parameter_combination",
+        )
         raise HTTPException(status_code=400)
 
     query = select(Package).options(selectinload(Package.rules))
@@ -111,6 +157,8 @@ async def lookup_package_info(
         query = query.where(Package.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.timezone.utc))
 
     data = await session.scalars(query)
+
+    await log.ainfo("Package information queried")
     return data.all()
 
 
@@ -206,18 +254,26 @@ async def queue_package(
     name = package.name
     version = package.version
 
+    log = logger.bind(package={"name": name, "version": version})
+
     pypi_client: PyPIServices = request.app.state.pypi_client
     try:
         package_metadata = await pypi_client.get_package_metadata(name, version)
     except KeyError:
-        raise HTTPException(404, detail=f"Package {name}@{version} was not found on PyPI")
+        error = HTTPException(404, detail=f"Package {name}@{version} was not found on PyPI")
+        await log.aerror(
+            f"Package {name}@{version} was not found on PyPI", error_message=error.detail, tag="package_not_found_pypi"
+        )
+        raise error
 
     version = package_metadata.info.version  # Use latest version if not provided
+    log = logger.bind(package={"name": name, "version": version})
 
     query = select(Package).where(Package.name == name).where(Package.version == version)
     row = await session.scalar(query)
 
     if row is not None:
+        await log.info(f"Package {name}@{version} already queued for scanning.", tag="already_queued")
         raise HTTPException(409, f"Package {name}@{version} is already queued for scanning")
 
     new_package = Package(
@@ -230,5 +286,17 @@ async def queue_package(
 
     session.add(new_package)
     await session.commit()
+
+    await log.ainfo(
+        "Added new package",
+        package={
+            "name": name,
+            "version": version,
+            "status": new_package.status,
+            "queued_by": auth.subject,
+            "download_urls": new_package.download_urls,
+        },
+        tag="package_added",
+    )
 
     return QueuePackageResponse(id=str(new_package.package_id))
