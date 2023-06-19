@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
+import structlog
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +15,7 @@ from mainframe.models.orm import Package, Status
 from mainframe.models.schemas import JobResult, NoJob
 
 router = APIRouter()
+logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 @router.post("/job")
@@ -51,6 +53,7 @@ async def get_job(
     package = scalars.first()
 
     if not package:
+        await logger.info("No packages available to scan, job not given.", tag="no_packages")
         return NoJob(detail="No available packages to scan. Try again later.")
 
     package.status = Status.PENDING
@@ -59,6 +62,19 @@ async def get_job(
     await session.commit()
 
     distribution_urls = [distribution.url for distribution in package.download_urls]
+
+    await logger.ainfo(
+        "Job given and status set to pending in database",
+        package={
+            "name": package.name,
+            "status": package.status,
+            "pending_at": package.pending_at,
+            "pending_by": auth.subject,
+            "version": package.version,
+        },
+        tag="job_given",
+    )
+
     return JobResult(
         name=package.name,
         version=package.version,
