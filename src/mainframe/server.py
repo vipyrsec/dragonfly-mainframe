@@ -5,8 +5,9 @@ from contextlib import asynccontextmanager
 from os import getenv
 from typing import Annotated
 from unittest.mock import MagicMock
-import sentry_sdk
+
 import aiohttp
+import sentry_sdk
 import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
 from asgi_correlation_id.context import correlation_id
