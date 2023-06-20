@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Request
 from mainframe.dependencies import validate_token
 from mainframe.models.schemas import GetRules
 
-router = APIRouter()
+router = APIRouter(tags=["rules"])
 
 
 @router.get("/rules", dependencies=[Depends(validate_token)])

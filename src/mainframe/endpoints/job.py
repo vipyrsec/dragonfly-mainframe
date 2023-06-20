@@ -14,7 +14,7 @@ from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Package, Status
 from mainframe.models.schemas import JobResult, NoJob
 
-router = APIRouter()
+router = APIRouter(tags=["job"])
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 

@@ -1,6 +1,5 @@
 [project]
 name = "dragonfly-mainframe"
-version = "0.2.0"
 description = "Distributes tasks to dragonfly-clients and handles package status updates."
 authors = [
     {name = "jz9", email = "69145546+jonathan-d-zhang@users.noreply.github.com"},
@@ -22,8 +21,11 @@ dependencies = [
     "structlog>=23.1.0",
     "asgi-correlation-id>=4.2.0",
 ]
+dynamic = ["version"]
 
 [tool.pdm]
+version = { source = "file", path = "mypackage/__init__.py" }
+
 [tool.pdm.dev-dependencies]
 lint = [
     "pre-commit>=3.3.1",

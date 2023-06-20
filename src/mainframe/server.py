@@ -24,6 +24,8 @@ from mainframe.models.orm import Rule
 from mainframe.models.schemas import ServerMetadata
 from mainframe.rules import Rules, fetch_rules
 
+from . import __version__
+
 
 async def sync_rules(*, http_session: aiohttp.ClientSession, session: AsyncSession) -> Rules:
     """Sync the rules to the database using the given `session`, and return the new rules"""
@@ -121,7 +123,12 @@ async def lifespan(app_: FastAPI):
     yield
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    lifespan=lifespan,
+    title="Mainframe",
+    description="A service that provides a REST API for managing rules.",
+    version=__version__,
+)
 
 if mainframe_settings.production is False:
     app.dependency_overrides[validate_token] = validate_token_override
@@ -175,8 +182,9 @@ async def logging_middleware(request: Request, call_next) -> Response:
 app.add_middleware(CorrelationIdMiddleware)
 
 
-@app.get("/")
-async def root_route() -> ServerMetadata:
+@app.get("/", tags=["metadata"])
+async def metadata() -> ServerMetadata:
+    """Get server metadata"""
     rules: Rules = app.state.rules
     return ServerMetadata(
         server_commit=getenv("GIT_SHA", "development"),
@@ -184,7 +192,7 @@ async def root_route() -> ServerMetadata:
     )
 
 
-@app.post("/update-rules/")
+@app.post("/update-rules/", tags=["rules"])
 async def update_rules(session: Annotated[AsyncSession, Depends(get_db)]):
     """Update the rules"""
     rules = await fetch_rules(app.state.http_session)
