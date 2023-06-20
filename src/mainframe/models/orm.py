@@ -38,10 +38,10 @@ package_rules = Table(
 )
 
 
-class Package(Base):
-    """The packages."""
+class Scans(Base):
+    """The scans."""
 
-    __tablename__: str = "packages"
+    __tablename__: str = "scans"
 
     package_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
