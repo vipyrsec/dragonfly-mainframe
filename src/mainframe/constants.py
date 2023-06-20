@@ -1,20 +1,10 @@
 from pydantic import BaseSettings
 
 
-class Microsoft(BaseSettings):
-    tenant_id: str
-    client_id: str
-    client_secret: str
-
+class Mainframe(BaseSettings):
     class Config(BaseSettings.Config):
-        env_prefix = "microsoft_"
         env_file = ".env"
 
-
-microsoft_settings = Microsoft()  # pyright: ignore
-
-
-class Mainframe(BaseSettings):
     production: bool = True
 
     client_origin_url: str = ""
@@ -30,8 +20,18 @@ class Mainframe(BaseSettings):
 
     job_timeout: int = 60 * 2
 
-    class Config(BaseSettings.Config):
-        env_file = ".env"
-
 
 mainframe_settings = Mainframe()  # pyright: ignore
+
+
+class Microsoft(BaseSettings):
+    class Config(BaseSettings.Config):
+        env_prefix = "microsoft_"
+        env_file = ".env"
+
+    tenant_id: str
+    client_id: str
+    client_secret: str
+
+
+microsoft_settings = Microsoft()  # pyright: ignore
