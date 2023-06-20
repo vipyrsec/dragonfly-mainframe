@@ -1,20 +1,15 @@
+from os import getenv
+
 from pydantic import BaseSettings
 
-
-class Microsoft(BaseSettings):
-    tenant_id: str
-    client_id: str
-    client_secret: str
-
-    class Config(BaseSettings.Config):
-        env_prefix = "microsoft_"
-        env_file = ".env"
-
-
-microsoft_settings = Microsoft()  # pyright: ignore
+# Git SHA for Sentry
+GIT_SHA = getenv("GIT_SHA", "development")
 
 
 class Mainframe(BaseSettings):
+    class Config(BaseSettings.Config):
+        env_file = ".env"
+
     production: bool = True
 
     client_origin_url: str = ""
@@ -30,8 +25,31 @@ class Mainframe(BaseSettings):
 
     job_timeout: int = 60 * 2
 
-    class Config(BaseSettings.Config):
-        env_file = ".env"
-
 
 mainframe_settings = Mainframe()  # pyright: ignore
+
+
+class _Sentry(BaseSettings):
+    class Config(BaseSettings.Config):
+        env_prefix = "sentry_"
+        env_file = ".env"
+
+    dsn: str = ""
+    environment: str = ""
+    release_prefix: str = ""
+
+
+Sentry = _Sentry()  # pyright: ignore
+
+
+class Microsoft(BaseSettings):
+    class Config(BaseSettings.Config):
+        env_prefix = "microsoft_"
+        env_file = ".env"
+
+    tenant_id: str
+    client_id: str
+    client_secret: str
+
+
+microsoft_settings = Microsoft()  # pyright: ignore

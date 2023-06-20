@@ -20,6 +20,7 @@ dependencies = [
     "azure-identity>=1.13.0",
     "structlog>=23.1.0",
     "asgi-correlation-id>=4.2.0",
+    "sentry-sdk[fastapi]>=1.25.1",
 ]
 dynamic = ["version"]
 

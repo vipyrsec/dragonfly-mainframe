@@ -7,6 +7,7 @@ from typing import Annotated
 from unittest.mock import MagicMock
 
 import aiohttp
+import sentry_sdk
 import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
 from asgi_correlation_id.context import correlation_id
@@ -16,7 +17,7 @@ from letsbuilda.pypi import PyPIServices
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mainframe.constants import mainframe_settings
+from mainframe.constants import GIT_SHA, Sentry, mainframe_settings
 from mainframe.database import async_session, get_db
 from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
@@ -96,6 +97,16 @@ def configure_logger():
 
     logging.getLogger("uvicorn.access").handlers.clear()
     logging.getLogger("uvicorn.access").propagate = False
+
+
+sentry_sdk.init(
+    dsn=Sentry.dsn,
+    environment=Sentry.environment,
+    send_default_pii=True,
+    traces_sample_rate=0.0025,
+    profiles_sample_rate=0.0025,
+    release=f"{Sentry.release_prefix}@{GIT_SHA}",
+)
 
 
 @asynccontextmanager
