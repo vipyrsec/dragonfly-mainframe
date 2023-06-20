@@ -17,7 +17,7 @@ from letsbuilda.pypi import PyPIServices
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mainframe.constants import mainframe_settings
+from mainframe.constants import GIT_SHA, Sentry, mainframe_settings
 from mainframe.database import async_session, get_db
 from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
@@ -93,15 +93,13 @@ def configure_logger():
     logging.getLogger("uvicorn.access").propagate = False
 
 
-release_prefix = getenv("DRAGONFLY_SENTRY_RELEASE_PREFIX", "dragonfly")
-git_sha = getenv("GIT_SHA", "development")
 sentry_sdk.init(
-    dsn=getenv("DRAGONFLY_SENTRY_DSN"),
-    environment=getenv("DRAGONFLY_SENTRY_ENV"),
+    dsn=Sentry.dsn,
+    environment=Sentry.environment,
     send_default_pii=True,
     traces_sample_rate=0.0025,
     profiles_sample_rate=0.0025,
-    release=f"{release_prefix}@{git_sha}",
+    release=f"{Sentry.release_prefix}@{GIT_SHA}",
 )
 
 
