@@ -14,7 +14,7 @@ from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
 from mainframe.dependencies import get_ms_graph_client, validate_token
 from mainframe.json_web_token import AuthenticationData
-from mainframe.models.orm import Package
+from mainframe.models.orm import Scans
 from mainframe.models.schemas import Error, PackageSpecifier
 from mainframe.utils.mailer import send_email
 from mainframe.utils.pypi import file_path_from_inspector_url
@@ -132,7 +132,7 @@ async def report_package(
     version = package_metadata.info.version
     log = logger.bind(package={"name": name, "version": version})
 
-    query = select(Package).where(Package.name == name).options(selectinload(Package.rules))
+    query = select(Scans).where(Scans.name == name).options(selectinload(Scans.rules))
 
     rows = (await session.scalars(query)).fetchall()
 
@@ -163,7 +163,7 @@ async def report_package(
             )
             raise error
 
-    row = await session.scalar(query.where(Package.version == version))
+    row = await session.scalar(query.where(Scans.version == version))
     if row is None:
         error = HTTPException(
             404, detail=f"Package `{name}` has records in the database, but none with version `{version}`"
