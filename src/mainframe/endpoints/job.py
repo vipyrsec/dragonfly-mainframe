@@ -53,7 +53,7 @@ async def get_job(
     package = scalars.first()
 
     if not package:
-        await logger.info("No packages available to scan, job not given.", tag="no_packages")
+        logger.info("No packages available to scan, job not given.", tag="no_packages")
         return NoJob(detail="No available packages to scan. Try again later.")
 
     package.status = Status.PENDING
