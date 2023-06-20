@@ -4,7 +4,7 @@ from typing import Annotated, Optional
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from letsbuilda.pypi import PackageMetadata, PyPIServices
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -191,11 +191,7 @@ async def batch_queue_package(
         except KeyError:
             err_packages[(name, version)] = f"Package {name}@{version} was not found on PyPI"
 
-    query = (
-        select(Package)
-        .where(Package.name.in_(name for (name, _) in ok_packages))
-        .where(Package.version.in_(version for (_, version) in ok_packages))
-    )
+    query = select(Package).where(tuple_(Package.name, Package.version).in_(ok_packages))
     rows = await session.scalars(query)
 
     # This step filters out packages that are already in the database
