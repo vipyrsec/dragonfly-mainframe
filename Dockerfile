@@ -20,6 +20,10 @@ CMD ["pdm", "run", "pytest", "tests", "-vv"]
 
 FROM python:3.11-slim@sha256:53a67c012da3b807905559fa59fac48a3a68600d73c5da10c2f0d8adc96dbd01 as prod
 
+# Define Git SHA build argument for sentry
+ARG git_sha="development"
+ENV GIT_SHA=$git_sha
+
 ENV PYTHONPATH=/app/pkgs
 WORKDIR /app
 COPY --from=builder /app/__pypackages__/3.11/lib pkgs/
