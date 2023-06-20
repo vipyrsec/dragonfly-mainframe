@@ -11,7 +11,7 @@ from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
 from mainframe.dependencies import validate_token
 from mainframe.json_web_token import AuthenticationData
-from mainframe.models.orm import Scans, Status
+from mainframe.models.orm import Scan, Status
 from mainframe.models.schemas import JobResult, NoJob
 
 router = APIRouter(tags=["job"])
@@ -36,18 +36,18 @@ async def get_job(
     """
 
     scalars = await session.scalars(
-        select(Scans)
+        select(Scan)
         .where(
             or_(
-                Scans.status == Status.QUEUED,
+                Scan.status == Status.QUEUED,
                 and_(
-                    Scans.pending_at < datetime.now(timezone.utc) - timedelta(seconds=mainframe_settings.job_timeout),
-                    Scans.status == Status.PENDING,
+                    Scan.pending_at < datetime.now(timezone.utc) - timedelta(seconds=mainframe_settings.job_timeout),
+                    Scan.status == Status.PENDING,
                 ),
             )
         )
-        .order_by(Scans.pending_at.nulls_first(), Scans.queued_at)
-        .options(selectinload(Scans.download_urls))
+        .order_by(Scan.pending_at.nulls_first(), Scan.queued_at)
+        .options(selectinload(Scan.download_urls))
         .with_for_update()
     )
     package = scalars.first()

@@ -6,11 +6,11 @@ import requests
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from mainframe.models.orm import Scans, Status
+from mainframe.models.orm import Scan, Status
 
 
 def oldest_queued_package(db_session: Session):
-    return db_session.scalar(select(func.min(Scans.queued_at)).where(Scans.status == Status.QUEUED))
+    return db_session.scalar(select(func.min(Scan.queued_at)).where(Scan.status == Status.QUEUED))
 
 
 def test_min_queue_date_of_queued_rows(test_data: list[dict], db_session: Session):
@@ -24,7 +24,7 @@ def test_min_queue_date_of_queued_rows(test_data: list[dict], db_session: Sessio
 
 def fetch_pid_and_queue_time(name: str, version: str, db_session: Session) -> tuple[uuid.UUID, dt.datetime]:
     t = db_session.execute(
-        select(Scans.package_id, Scans.queued_at).where((Scans.name == name) & (Scans.version == version))
+        select(Scan.package_id, Scan.queued_at).where((Scan.name == name) & (Scan.version == version))
     ).first()
     return typing.cast(tuple[uuid.UUID, dt.datetime], t)
 

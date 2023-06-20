@@ -38,7 +38,7 @@ package_rules = Table(
 )
 
 
-class Scans(Base):
+class Scan(Base):
     """The scans."""
 
     __tablename__: str = "scans"
