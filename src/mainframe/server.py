@@ -78,7 +78,7 @@ def configure_logger():
 
     # TODO: Once infra for log aggregation is up and running, remove this and go back to
     # TODO: JSON logging in production.
-    log_renderer = structlog.dev.ConsoleRenderer()
+    log_renderer = structlog.dev.ConsoleRenderer(colors=False)
 
     formatter = structlog.stdlib.ProcessorFormatter(
         foreign_pre_chain=shared_processors,
