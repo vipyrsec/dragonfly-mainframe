@@ -68,13 +68,17 @@ def configure_logger():
         cache_logger_on_first_use=True,
     )
 
-    log_renderer: structlog.types.Processor
-    # If running in production, render logs with JSON.
-    if mainframe_settings.production:
-        log_renderer = structlog.processors.JSONRenderer()
-    else:
-        # If running in a development environment, pretty print logs
-        log_renderer = structlog.dev.ConsoleRenderer()
+    # log_renderer: structlog.types.Processor
+    # # If running in production, render logs with JSON.
+    # if mainframe_settings.production:
+    #     log_renderer = structlog.processors.JSONRenderer()
+    # else:
+    #     # If running in a development environment, pretty print logs
+    #     log_renderer = structlog.dev.ConsoleRenderer()
+
+    # TODO: Once infra for log aggregation is up and running, remove this and go back to
+    # TODO: JSON logging in production.
+    log_renderer = structlog.dev.ConsoleRenderer()
 
     formatter = structlog.stdlib.ProcessorFormatter(
         foreign_pre_chain=shared_processors,
