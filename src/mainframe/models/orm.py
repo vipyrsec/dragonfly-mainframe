@@ -33,7 +33,7 @@ class Status(Enum):
 package_rules = Table(
     "package_rules",
     Base.metadata,
-    Column("package_id", ForeignKey("packages.package_id"), primary_key=True),
+    Column("scan_id", ForeignKey("packages.scan_id"), primary_key=True),
     Column("rule_name", ForeignKey("rules.name"), primary_key=True),
 )
 
@@ -43,7 +43,7 @@ class Scan(Base):
 
     __tablename__: str = "scans"
 
-    package_id: Mapped[uuid.UUID] = mapped_column(
+    scan_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
         server_default=FetchedValue(),
@@ -87,7 +87,7 @@ class DownloadURL(Base):
         default=uuid.uuid4,
     )
 
-    package_id: Mapped[str] = mapped_column(ForeignKey("packages.package_id"))
+    scan_id: Mapped[str] = mapped_column(ForeignKey("packages.scan_id"))
 
     url: Mapped[str]
 

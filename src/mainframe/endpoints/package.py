@@ -295,4 +295,4 @@ async def queue_package(
         tag="package_added",
     )
 
-    return QueuePackageResponse(id=str(new_package.package_id))
+    return QueuePackageResponse(id=str(new_package.scan_id))
