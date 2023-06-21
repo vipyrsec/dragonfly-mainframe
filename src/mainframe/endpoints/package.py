@@ -39,7 +39,7 @@ async def submit_results(
     name = result.name
     version = result.version
 
-    row = await session.scalar(
+    scan = await session.scalar(
         select(Scan)
         .where(Scan.name == name)
         .where(Scan.version == version)
@@ -48,25 +48,25 @@ async def submit_results(
 
     log = logger.bind(package={"name": name, "version": version})
 
-    if row is None:
+    if scan is None:
         error = HTTPException(404, f"Package `{name}@{version}` not found in database.")
         await log.aerror(
             f"Package {name}@{version} not found in database", error_message=error.detail, tag="package_not_found_db"
         )
         raise error
 
-    if row.status == Status.FINISHED:
+    if scan.status == Status.FINISHED:
         error = HTTPException(409, f"Package `{name}@{version}` is already in a FINISHED state.")
         await log.aerror(
             f"Package {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
         )
         raise error
 
-    row.status = Status.FINISHED
-    row.finished_at = dt.datetime.now(dt.timezone.utc)
-    row.inspector_url = result.inspector_url
-    row.score = result.score
-    row.finished_by = auth.subject
+    scan.status = Status.FINISHED
+    scan.finished_at = dt.datetime.now(dt.timezone.utc)
+    scan.inspector_url = result.inspector_url
+    scan.score = result.score
+    scan.finished_by = auth.subject
 
     for rule_name in result.rules_matched:
         rule = await session.scalar(select(Rule).where(Rule.name == rule_name))
@@ -80,15 +80,15 @@ async def submit_results(
             )
             raise error
 
-        row.rules.append(rule)
+        scan.rules.append(rule)
 
     await log.ainfo(
         "Scan results submitted",
         package={
             "name": name,
             "version": version,
-            "status": row.status,
-            "finished_at": row.finished_at,
+            "status": scan.status,
+            "finished_at": scan.finished_at,
             "inspector_url": result.inspector_url,
             "score": result.score,
             "finished_by": auth.subject,
