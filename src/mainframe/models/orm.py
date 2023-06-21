@@ -33,7 +33,7 @@ class Status(Enum):
 package_rules = Table(
     "package_rules",
     Base.metadata,
-    Column("scan_id", ForeignKey("packages.scan_id"), primary_key=True),
+    Column("scan_id", ForeignKey("scan.scan_id"), primary_key=True),
     Column("rule_name", ForeignKey("rules.name"), primary_key=True),
 )
 
@@ -87,7 +87,7 @@ class DownloadURL(Base):
         default=uuid.uuid4,
     )
 
-    scan_id: Mapped[str] = mapped_column(ForeignKey("packages.scan_id"))
+    scan_id: Mapped[str] = mapped_column(ForeignKey("scan.scan_id"))
 
     url: Mapped[str]
 
