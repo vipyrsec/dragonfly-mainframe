@@ -80,4 +80,6 @@ The following table illustrates configuration options in the form of environment
 | `MICROSOFT_CLIENT_ID`     | str  |                                                         | Microsoft client ID for automated emails                                                                                                                    |
 | `MICROSOFT_CLIENT_SECRET` | str  |                                                         | Microsoft client secret for automated emails                                                                                                                |
 
+**NOTE**: Environment variables where the `default` column is empty are required for the application to startup
+
 **NOTE**: Environment variables with type `str` and `default` `""` are not required for the application to startup but may cause the application to function incorrectly
