@@ -34,6 +34,7 @@ class PackageSpecifier(BaseModel):
 class PackageScanResult(PackageSpecifier):
     """Client payload to server containing the results of a package scan"""
 
+    commit: str
     score: int = 0
     inspector_url: Optional[str] = None
     rules_matched: list[str] = []
