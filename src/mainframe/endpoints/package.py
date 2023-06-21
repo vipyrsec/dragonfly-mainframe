@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from mainframe.database import get_db
 from mainframe.dependencies import validate_token
 from mainframe.json_web_token import AuthenticationData
-from mainframe.models.orm import DownloadURL, Scan, Rule, Status
+from mainframe.models.orm import DownloadURL, Rule, Scan, Status
 from mainframe.models.schemas import (
     BatchPackageQueueErr,
     Error,
@@ -40,10 +40,7 @@ async def submit_results(
     version = result.version
 
     scan = await session.scalar(
-        select(Scan)
-        .where(Scan.name == name)
-        .where(Scan.version == version)
-        .options(selectinload(Scan.rules))
+        select(Scan).where(Scan.name == name).where(Scan.version == version).options(selectinload(Scan.rules))
     )
 
     log = logger.bind(package={"name": name, "version": version})
