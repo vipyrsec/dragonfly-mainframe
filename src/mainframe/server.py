@@ -3,7 +3,6 @@ import logging
 import time
 from contextlib import asynccontextmanager
 from os import getenv
-from typing import Annotated
 from unittest.mock import MagicMock
 
 import aiohttp
@@ -11,35 +10,18 @@ import sentry_sdk
 import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
 from asgi_correlation_id.context import correlation_id
-from fastapi import Depends, FastAPI, Response
+from fastapi import FastAPI, Response
 from h11 import Request
 from letsbuilda.pypi import PyPIServices
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from mainframe.constants import GIT_SHA, Sentry, mainframe_settings
-from mainframe.database import async_session, get_db
+from mainframe.database import async_session
 from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
-from mainframe.models.orm import Rule
 from mainframe.models.schemas import ServerMetadata
 from mainframe.rules import Rules, fetch_rules
 
 from . import __version__
-
-
-async def sync_rules(*, http_session: aiohttp.ClientSession, session: AsyncSession) -> Rules:
-    """Sync the rules to the database using the given `session`, and return the new rules"""
-
-    rules = await fetch_rules(http_session)
-    session.add_all(Rule(name=rule_name) for rule_name in rules.rules)
-    try:
-        await session.commit()
-    except IntegrityError:
-        # Ignore rules that already exist in the database
-        pass
-
-    return rules
 
 
 def configure_logger():
@@ -120,7 +102,7 @@ async def lifespan(app_: FastAPI):
     http_session = aiohttp.ClientSession()
     pypi_client = PyPIServices(http_session)
     db_session = async_session()
-    rules = await sync_rules(http_session=http_session, session=db_session)
+    rules = await fetch_rules(http_session=http_session)
     await db_session.close()
 
     if getenv("env") == "test":
@@ -177,7 +159,6 @@ async def logging_middleware(request: Request, call_next) -> Response:
         status_code = response.status_code
         http_method = request.method
         http_version = request.scope["http_version"]
-
         await logger.ainfo(
             f'{client_host}:{client_port} - "{http_method} {url} HTTP/{http_version}" {status_code}',
             http={
@@ -208,12 +189,10 @@ async def metadata() -> ServerMetadata:
 
 
 @app.post("/update-rules/", tags=["rules"])
-async def update_rules(session: Annotated[AsyncSession, Depends(get_db)]):
+async def update_rules():
     """Update the rules"""
     rules = await fetch_rules(app.state.http_session)
     app.state.rules = rules
-
-    await sync_rules(http_session=app.state.http_session, session=session)
 
 
 for router in routers:
