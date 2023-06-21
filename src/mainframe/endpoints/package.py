@@ -38,7 +38,6 @@ async def submit_results(
 ):
     name = result.name
     version = result.version
-
     row = await session.scalar(
         select(Package)
         .where(Package.name == name)
@@ -67,18 +66,12 @@ async def submit_results(
     row.inspector_url = result.inspector_url
     row.score = result.score
     row.finished_by = auth.subject
+    row.commit_hash = result.commit
 
     for rule_name in result.rules_matched:
         rule = await session.scalar(select(Rule).where(Rule.name == rule_name))
-        if rule is None:
-            error = HTTPException(400, f"Rule '{rule_name}' is not a valid rule for package `{name}@{version}`")
-            await log.aerror(
-                f"Rule {rule_name} not a valid rule for package",
-                rule_name=rule_name,
-                error_message=error.detail,
-                tag="invalid_rule",
-            )
-            raise error
+        if not rule:
+            rule = Rule(name=rule_name)
 
         row.rules.append(rule)
 
