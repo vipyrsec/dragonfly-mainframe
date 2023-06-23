@@ -105,4 +105,5 @@ class Rule(Base):
         server_default=FetchedValue(),
         default=uuid.uuid4,
     )
-    name: Mapped[str]
+
+    name: Mapped[str] = mapped_column(unique=True)

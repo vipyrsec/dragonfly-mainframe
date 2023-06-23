@@ -26,7 +26,10 @@ def upgrade() -> None:
     op.add_column("package_rules", sa.Column("rule_id", sa.UUID(), server_default=sa.FetchedValue(), nullable=False))
 
     # Drop the primary key constraint on rules.name
-    op.drop_constraint("rules_pkey", "rules", type_="foreignkey")
+    op.drop_constraint("rules_pkey", "rules", type_="primary")
+
+    # Add a UNIQUE constraint to rules.name
+    op.create_unique_constraint("rules_pkey", "rules", ["name"])
 
     # Add the "id" column to the rules table, make it the new primary key
     op.add_column(
