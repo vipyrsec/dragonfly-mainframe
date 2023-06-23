@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import Engine, create_engine, insert
 from sqlalchemy.orm import Session, sessionmaker
 
-from mainframe.models.orm import Base, Package, Status
+from mainframe.models.orm import Base, Scan, Status
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__file__)
@@ -105,7 +105,7 @@ def test_data(request) -> list[dict]:
 def db_setup(engine: Engine, sm: sessionmaker, test_data: list[dict]) -> Generator[None, None, None]:
     Base.metadata.create_all(engine)
     with sm() as sess:
-        sess.execute(insert(Package), test_data)
+        sess.execute(insert(Scan), test_data)
         sess.commit()
         yield
     Base.metadata.drop_all(engine)

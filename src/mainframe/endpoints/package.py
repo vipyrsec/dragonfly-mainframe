@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from mainframe.database import get_db
 from mainframe.dependencies import validate_token
 from mainframe.json_web_token import AuthenticationData
-from mainframe.models.orm import DownloadURL, Package, Rule, Status
+from mainframe.models.orm import DownloadURL, Rule, Scan, Status
 from mainframe.models.schemas import (
     BatchPackageQueueErr,
     Error,
@@ -39,34 +39,31 @@ async def submit_results(
     name = result.name
     version = result.version
 
-    row = await session.scalar(
-        select(Package)
-        .where(Package.name == name)
-        .where(Package.version == version)
-        .options(selectinload(Package.rules))
+    scan = await session.scalar(
+        select(Scan).where(Scan.name == name).where(Scan.version == version).options(selectinload(Scan.rules))
     )
 
     log = logger.bind(package={"name": name, "version": version})
 
-    if row is None:
+    if scan is None:
         error = HTTPException(404, f"Package `{name}@{version}` not found in database.")
         await log.aerror(
             f"Package {name}@{version} not found in database", error_message=error.detail, tag="package_not_found_db"
         )
         raise error
 
-    if row.status == Status.FINISHED:
+    if scan.status == Status.FINISHED:
         error = HTTPException(409, f"Package `{name}@{version}` is already in a FINISHED state.")
         await log.aerror(
             f"Package {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
         )
         raise error
 
-    row.status = Status.FINISHED
-    row.finished_at = dt.datetime.now(dt.timezone.utc)
-    row.inspector_url = result.inspector_url
-    row.score = result.score
-    row.finished_by = auth.subject
+    scan.status = Status.FINISHED
+    scan.finished_at = dt.datetime.now(dt.timezone.utc)
+    scan.inspector_url = result.inspector_url
+    scan.score = result.score
+    scan.finished_by = auth.subject
 
     for rule_name in result.rules_matched:
         rule = await session.scalar(select(Rule).where(Rule.name == rule_name))
@@ -80,15 +77,15 @@ async def submit_results(
             )
             raise error
 
-        row.rules.append(rule)
+        scan.rules.append(rule)
 
     await log.ainfo(
         "Scan results submitted",
         package={
             "name": name,
             "version": version,
-            "status": row.status,
-            "finished_at": row.finished_at,
+            "status": scan.status,
+            "finished_at": scan.finished_at,
             "inspector_url": result.inspector_url,
             "score": result.score,
             "finished_by": auth.subject,
@@ -148,13 +145,13 @@ async def lookup_package_info(
         )
         raise HTTPException(status_code=400)
 
-    query = select(Package).options(selectinload(Package.rules))
+    query = select(Scan).options(selectinload(Scan.rules))
     if nn_name:
-        query = query.where(Package.name == name)
+        query = query.where(Scan.name == name)
     if nn_version:
-        query = query.where(Package.version == version)
+        query = query.where(Scan.version == version)
     if nn_since:
-        query = query.where(Package.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.timezone.utc))
+        query = query.where(Scan.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.timezone.utc))
 
     data = await session.scalars(query)
 
@@ -191,7 +188,7 @@ async def batch_queue_package(
         except KeyError:
             err_packages[(name, version)] = f"Package {name}@{version} was not found on PyPI"
 
-    query = select(Package).where(tuple_(Package.name, Package.version).in_(ok_packages))
+    query = select(Scan).where(tuple_(Scan.name, Scan.version).in_(ok_packages))
     rows = await session.scalars(query)
 
     # This step filters out packages that are already in the database
@@ -204,7 +201,7 @@ async def batch_queue_package(
         err_packages[t] = f"Package {name}@{version} is already queued for scanning"
 
     new_packages = [
-        Package(
+        Scan(
             name=metadata.info.name,
             version=metadata.info.version,
             status=Status.QUEUED,
@@ -265,14 +262,14 @@ async def queue_package(
     version = package_metadata.info.version  # Use latest version if not provided
     log = logger.bind(package={"name": name, "version": version})
 
-    query = select(Package).where(Package.name == name).where(Package.version == version)
+    query = select(Scan).where(Scan.name == name).where(Scan.version == version)
     row = await session.scalar(query)
 
     if row is not None:
         await log.info(f"Package {name}@{version} already queued for scanning.", tag="already_queued")
         raise HTTPException(409, f"Package {name}@{version} is already queued for scanning")
 
-    new_package = Package(
+    new_package = Scan(
         name=name,
         version=version,
         status=Status.QUEUED,
@@ -295,4 +292,4 @@ async def queue_package(
         tag="package_added",
     )
 
-    return QueuePackageResponse(id=str(new_package.package_id))
+    return QueuePackageResponse(id=str(new_package.scan_id))
