@@ -1,7 +1,7 @@
 """Store commit hash in scan
 
 Revision ID: 2745a5bf4c97
-Revises: 5e46ee8ec64f
+Revises: 883af2539440
 Create Date: 2023-06-20 16:56:21.809460
 
 """
@@ -13,7 +13,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "2745a5bf4c97"
-down_revision = "5e46ee8ec64f"
+down_revision = "883af2539440"
 branch_labels = None
 depends_on = None
 
@@ -52,7 +52,7 @@ def upgrade() -> None:
     op.create_foreign_key("package_rules_rule_id_fkey", "package_rules", "rules", ["rule_id"], ["id"])
 
     # Add the "commit_hash" column to the packages table
-    op.add_column("packages", sa.Column("commit_hash", sa.String(), nullable=True))
+    op.add_column("scans", sa.Column("commit_hash", sa.String(), nullable=True))
 
 
 def downgrade() -> None:
