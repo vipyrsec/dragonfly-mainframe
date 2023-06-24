@@ -22,6 +22,7 @@ class Status(Enum):
     QUEUED - waiting to be sent to a worker
     PENDING - waiting for a response from a worker
     FINISHED - verdict received from worker
+    FAILED - Something went wrong with the client when scanning this package
     """
 
     QUEUED = "queued"
