@@ -84,8 +84,8 @@ async def submit_results(
             "inspector_url": result.inspector_url,
             "score": result.score,
             "finished_by": auth.subject,
-            "existing_rules": ", ".join(rule_names),
-            "created_rules": ", ".join(rule.name for rule in new_rules),
+            "existing_rules": rule_names,
+            "created_rules": [rule.name for rule in new_rules],
         },
         tag="scan_submitted",
     )
