@@ -39,10 +39,7 @@ async def submit_results(
     name = result.name
     version = result.version
     scan = await session.scalar(
-        select(Scan)
-        .where(Scan.name == name)
-        .where(Scan.version == version)
-        .options(selectinload(Scan.rules))
+        select(Scan).where(Scan.name == name).where(Scan.version == version).options(selectinload(Scan.rules))
     )
 
     log = logger.bind(package={"name": name, "version": version})
@@ -60,7 +57,7 @@ async def submit_results(
             f"Package {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
         )
         raise error
-        
+
     scan.status = Status.FINISHED
     scan.finished_at = dt.datetime.now(dt.timezone.utc)
     scan.inspector_url = result.inspector_url
@@ -69,12 +66,12 @@ async def submit_results(
     scan.commit_hash = result.commit
 
     # These are the rules that already have an entry in the database
-    rules = await session.scalars(select(Scan).where(Rule.name.in_(result.rules_matched)))
+    rules = await session.scalars(select(Rule).where(Rule.name.in_(result.rules_matched)))
     rule_names = {rule.name for rule in rules}
-    row.rules.extend(rules)
+    scan.rules.extend(rules)
 
     # These are the rules that had to be created
-    row.rules.extend(Rule(name=rule_name) for rule_name in result.rules_matched if rule_name not in rule_names)
+    scan.rules.extend(Rule(name=rule_name) for rule_name in result.rules_matched if rule_name not in rule_names)
 
     await log.ainfo(
         "Scan results submitted",
