@@ -34,7 +34,7 @@ package_rules = Table(
     "package_rules",
     Base.metadata,
     Column("scan_id", ForeignKey("scans.scan_id"), primary_key=True),
-    Column("rule_name", ForeignKey("rules.name"), primary_key=True),
+    Column("rule_id", ForeignKey("rules.id"), primary_key=True),
 )
 
 
@@ -74,6 +74,8 @@ class Scan(Base):
     reported_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     reported_by: Mapped[Optional[str]]
 
+    commit_hash: Mapped[Optional[str]]
+
 
 class DownloadURL(Base):
     """Download URLs"""
@@ -97,4 +99,11 @@ class Rule(Base):
 
     __tablename__: str = "rules"
 
-    name: Mapped[str] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=FetchedValue(),
+        default=uuid.uuid4,
+    )
+
+    name: Mapped[str] = mapped_column(unique=True)

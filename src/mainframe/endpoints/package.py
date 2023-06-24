@@ -38,7 +38,6 @@ async def submit_results(
 ):
     name = result.name
     version = result.version
-
     scan = await session.scalar(
         select(Scan).where(Scan.name == name).where(Scan.version == version).options(selectinload(Scan.rules))
     )
@@ -55,7 +54,7 @@ async def submit_results(
     if scan.status == Status.FINISHED:
         error = HTTPException(409, f"Package `{name}@{version}` is already in a FINISHED state.")
         await log.aerror(
-            f"Package {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
+            f"Scan {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
         )
         raise error
 
@@ -64,20 +63,16 @@ async def submit_results(
     scan.inspector_url = result.inspector_url
     scan.score = result.score
     scan.finished_by = auth.subject
+    scan.commit_hash = result.commit
 
-    for rule_name in result.rules_matched:
-        rule = await session.scalar(select(Rule).where(Rule.name == rule_name))
-        if rule is None:
-            error = HTTPException(400, f"Rule '{rule_name}' is not a valid rule for package `{name}@{version}`")
-            await log.aerror(
-                f"Rule {rule_name} not a valid rule for package",
-                rule_name=rule_name,
-                error_message=error.detail,
-                tag="invalid_rule",
-            )
-            raise error
+    # These are the rules that already have an entry in the database
+    rules = await session.scalars(select(Rule).where(Rule.name.in_(result.rules_matched)))
+    rule_names = {rule.name for rule in rules}
+    scan.rules.extend(rules)
 
-        scan.rules.append(rule)
+    # These are the rules that had to be created
+    new_rules = [Rule(name=rule_name) for rule_name in result.rules_matched if rule_name not in rule_names]
+    scan.rules.extend(new_rules)
 
     await log.ainfo(
         "Scan results submitted",
@@ -89,6 +84,8 @@ async def submit_results(
             "inspector_url": result.inspector_url,
             "score": result.score,
             "finished_by": auth.subject,
+            "existing_rules": rule_names,
+            "created_rules": [rule.name for rule in new_rules],
         },
         tag="scan_submitted",
     )
