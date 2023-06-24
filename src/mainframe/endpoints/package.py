@@ -54,7 +54,7 @@ async def submit_results(
     if scan.status == Status.FINISHED:
         error = HTTPException(409, f"Package `{name}@{version}` is already in a FINISHED state.")
         await log.aerror(
-            f"Package {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
+            f"Scan {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
         )
         raise error
 
