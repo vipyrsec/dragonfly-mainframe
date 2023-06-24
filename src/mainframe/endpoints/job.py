@@ -11,7 +11,7 @@ from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
 from mainframe.dependencies import validate_token
 from mainframe.json_web_token import AuthenticationData
-from mainframe.models.orm import Package, Status
+from mainframe.models.orm import Scan, Status
 from mainframe.models.schemas import JobResult, NoJob
 
 router = APIRouter(tags=["job"])
@@ -36,48 +36,48 @@ async def get_job(
     """
 
     scalars = await session.scalars(
-        select(Package)
+        select(Scan)
         .where(
             or_(
-                Package.status == Status.QUEUED,
+                Scan.status == Status.QUEUED,
                 and_(
-                    Package.pending_at < datetime.now(timezone.utc) - timedelta(seconds=mainframe_settings.job_timeout),
-                    Package.status == Status.PENDING,
+                    Scan.pending_at < datetime.now(timezone.utc) - timedelta(seconds=mainframe_settings.job_timeout),
+                    Scan.status == Status.PENDING,
                 ),
             )
         )
-        .order_by(Package.pending_at.nulls_first(), Package.queued_at)
-        .options(selectinload(Package.download_urls))
+        .order_by(Scan.pending_at.nulls_first(), Scan.queued_at)
+        .options(selectinload(Scan.download_urls))
         .with_for_update()
     )
-    package = scalars.first()
+    scan = scalars.first()
 
-    if not package:
-        logger.info("No packages available to scan, job not given.", tag="no_packages")
-        return NoJob(detail="No available packages to scan. Try again later.")
+    if not scan:
+        logger.info("No scans available, job not given.", tag="no_packages")
+        return NoJob(detail="No scans available. Try again later.")
 
-    package.status = Status.PENDING
-    package.pending_at = datetime.now(timezone.utc)
-    package.pending_by = auth.subject
+    scan.status = Status.PENDING
+    scan.pending_at = datetime.now(timezone.utc)
+    scan.pending_by = auth.subject
     await session.commit()
 
-    distribution_urls = [distribution.url for distribution in package.download_urls]
+    distribution_urls = [distribution.url for distribution in scan.download_urls]
 
     await logger.ainfo(
         "Job given and status set to pending in database",
         package={
-            "name": package.name,
-            "status": package.status,
-            "pending_at": package.pending_at,
+            "name": scan.name,
+            "status": scan.status,
+            "pending_at": scan.pending_at,
             "pending_by": auth.subject,
-            "version": package.version,
+            "version": scan.version,
         },
         tag="job_given",
     )
 
     return JobResult(
-        name=package.name,
-        version=package.version,
+        name=scan.name,
+        version=scan.version,
         distributions=distribution_urls,
         hash=request.app.state.rules.rules_commit,
     )
