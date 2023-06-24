@@ -71,7 +71,8 @@ async def submit_results(
     scan.rules.extend(rules)
 
     # These are the rules that had to be created
-    scan.rules.extend(Rule(name=rule_name) for rule_name in result.rules_matched if rule_name not in rule_names)
+    new_rules = [Rule(name=rule_name) for rule_name in result.rules_matched if rule_name not in rule_names]
+    scan.rules.extend(new_rules)
 
     await log.ainfo(
         "Scan results submitted",
@@ -83,6 +84,8 @@ async def submit_results(
             "inspector_url": result.inspector_url,
             "score": result.score,
             "finished_by": auth.subject,
+            "existing_rules": ", ".join(rule_names),
+            "created_rules": ", ".join(rule.name for rule in new_rules),
         },
         tag="scan_submitted",
     )
