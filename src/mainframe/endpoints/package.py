@@ -68,12 +68,13 @@ async def submit_results(
     row.finished_by = auth.subject
     row.commit_hash = result.commit
 
-    for rule_name in result.rules_matched:
-        rule = await session.scalar(select(Rule).where(Rule.name == rule_name))
-        if not rule:
-            rule = Rule(name=rule_name)
+    # These are the rules that already have an entry in the database
+    rules = await session.scalars(select(Rule).where(Rule.name.in_(result.rules_matched)))
+    rule_names = {rule.name for rule in rules}
+    row.rules.extend(rules)
 
-        row.rules.append(rule)
+    # These are the rules that had to be created
+    row.rules.extend(Rule(name=rule_name) for rule_name in result.rules_matched if rule_name not in rule_names)
 
     await log.ainfo(
         "Scan results submitted",
