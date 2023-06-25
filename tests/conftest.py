@@ -85,7 +85,7 @@ def decode(L) -> list[dict]:
             elif key in ["queued_at", "pending_at", "finished_at", "reported_at"]:
                 if value is not None:
                     new_d[key] = dt.datetime.fromisoformat(value)
-            elif key == "package_id":
+            elif key == "scan_id":
                 new_d[key] = uuid.UUID(f"{{{value}}}")
 
         out.append(new_d)
