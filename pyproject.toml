@@ -47,7 +47,7 @@ logs = [
 [tool.pdm.scripts]
 format = { shell = "black . && isort ." }
 lint = { shell = "pyright; ruff ." }
-test = {shell = "docker compose up --build --abort-on-container-exit; docker compose down" }
+test = { shell = "docker compose up --build --exit-code-from mainframe; EXIT_CODE=$?; docker compose down; exit $EXIT_CODE" }
 precommit = { shell = "pre-commit run --all-files" }
 all = { composite = ["format", "lint", "test"] }
 
