@@ -19,9 +19,9 @@ class Status(Enum):
     """
     Package status.
 
-    QUEUED - waiting to be sent to a worker
-    PENDING - waiting for a response from a worker
-    FINISHED - verdict received from worker
+    QUEUED - Waiting to be sent to a worker
+    PENDING - Waiting for a response from a worker
+    FINISHED - Verdict received from worker
     FAILED - Something went wrong with the client when scanning this package
     """
 
