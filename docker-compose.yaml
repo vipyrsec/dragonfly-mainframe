@@ -5,6 +5,8 @@ services:
     build:
       target: test
       context: .
+      args:
+        GIT_SHA: testing
     ports:
       - "8000:8000"
     depends_on:
