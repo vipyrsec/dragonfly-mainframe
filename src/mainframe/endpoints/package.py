@@ -66,7 +66,7 @@ async def submit_results(
     scan.commit_hash = result.commit
 
     # These are the rules that already have an entry in the database
-    rules = await session.scalars(select(Rule).where(Rule.name.in_(result.rules_matched)))
+    rules = (await session.scalars(select(Rule).where(Rule.name.in_(result.rules_matched)))).all()
     rule_names = {rule.name for rule in rules}
     scan.rules.extend(rules)
 

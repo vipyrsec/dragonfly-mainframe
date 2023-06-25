@@ -2,7 +2,6 @@ import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
-from os import getenv
 from unittest.mock import MagicMock
 
 import aiohttp
@@ -14,7 +13,7 @@ from fastapi import FastAPI, Response
 from h11 import Request
 from letsbuilda.pypi import PyPIServices
 
-from mainframe.constants import GIT_SHA, Sentry, mainframe_settings
+from mainframe.constants import GIT_SHA, Sentry
 from mainframe.database import async_session
 from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
@@ -105,7 +104,7 @@ async def lifespan(app_: FastAPI):
     rules = await fetch_rules(http_session=http_session)
     await db_session.close()
 
-    if getenv("env") == "test":
+    if GIT_SHA == "testing":
         fut: asyncio.Future[MagicMock] = asyncio.Future()
         fut.set_result(MagicMock(return_value=MagicMock()))
         pypi_client.get_package_metadata = MagicMock(return_value=fut)
@@ -127,7 +126,7 @@ app = FastAPI(
     version=__version__,
 )
 
-if mainframe_settings.production is False:
+if GIT_SHA in ("development", "testing"):
     app.dependency_overrides[validate_token] = validate_token_override
 
 
@@ -183,7 +182,7 @@ async def metadata() -> ServerMetadata:
     """Get server metadata"""
     rules: Rules = app.state.rules
     return ServerMetadata(
-        server_commit=getenv("GIT_SHA", "development"),
+        server_commit=GIT_SHA,
         rules_commit=rules.rules_commit,
     )
 

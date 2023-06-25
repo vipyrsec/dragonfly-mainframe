@@ -10,8 +10,6 @@ class Mainframe(BaseSettings):
     class Config(BaseSettings.Config):
         env_file = ".env"
 
-    production: bool = True
-
     client_origin_url: str = ""
     auth0_domain: str = ""
     auth0_audience: str = ""
