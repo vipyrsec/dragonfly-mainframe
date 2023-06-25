@@ -86,6 +86,6 @@ def test_package_lookup(
     print(repr(r.text))
 
     def key(d):
-        return d["package_id"]
+        return d["scan_id"]
 
     assert sorted(r.json(), key=key) == sorted(jsonable_encoder(exp), key=key)

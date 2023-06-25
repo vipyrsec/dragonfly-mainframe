@@ -31,7 +31,7 @@ def fetch_pid_and_queue_time(name: str, version: str, db_session: Session) -> tu
 
 def test_fetch_pid_and_queue_time(test_data: list[dict], db_session: Session):
     for d in test_data:
-        assert (d["package_id"], d["queued_at"]) == fetch_pid_and_queue_time(d["name"], d["version"], db_session)
+        assert (d["scan_id"], d["queued_at"]) == fetch_pid_and_queue_time(d["name"], d["version"], db_session)
 
 
 def test_job(api_url: str, test_data: list[dict], db_session: Session):
