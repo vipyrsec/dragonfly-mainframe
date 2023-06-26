@@ -16,6 +16,7 @@ from mainframe.models.schemas import (
     BatchPackageQueueErr,
     Error,
     PackageScanResult,
+    PackageScanResultFail,
     PackageSpecifier,
     QueuePackageResponse,
 )
@@ -32,12 +33,13 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
     },
 )
 async def submit_results(
-    result: PackageScanResult,
+    result: PackageScanResult | PackageScanResultFail,
     session: Annotated[AsyncSession, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
 ):
     name = result.name
     version = result.version
+
     scan = await session.scalar(
         select(Scan).where(Scan.name == name).where(Scan.version == version).options(selectinload(Scan.rules))
     )
@@ -57,6 +59,11 @@ async def submit_results(
             f"Scan {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
         )
         raise error
+
+    if isinstance(result, PackageScanResultFail):
+        scan.status = Status.FAILED
+        scan.fail_reason = result.reason
+        return
 
     scan.status = Status.FINISHED
     scan.finished_at = dt.datetime.now(dt.timezone.utc)

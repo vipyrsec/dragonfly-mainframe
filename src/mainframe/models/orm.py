@@ -75,6 +75,8 @@ class Scan(Base):
     reported_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     reported_by: Mapped[Optional[str]]
 
+    fail_reason: Mapped[Optional[str]]
+
     commit_hash: Mapped[Optional[str]]
 
 

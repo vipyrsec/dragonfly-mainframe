@@ -40,6 +40,12 @@ class PackageScanResult(PackageSpecifier):
     rules_matched: list[str] = []
 
 
+class PackageScanResultFail(PackageSpecifier):
+    """The client's reason as to why scanning a package failed"""
+
+    reason: str
+
+
 class JobResult(BaseModel):
     """Package information of a requested job."""
 
