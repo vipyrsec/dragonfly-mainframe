@@ -15,7 +15,8 @@
         "rules": [],
         "reported_at": null,
         "reported_by": null,
-        "commit_hash": null
+        "commit_hash": null,
+        "fail_reason": null
     },
     {
         "scan_id": "13e22275-9053-4490-ab80-1800789d37da",
@@ -33,6 +34,7 @@
         "rules": [],
         "reported_at": null,
         "reported_by": null,
-        "commit_hash": null
+        "commit_hash": null,
+        "fail_reason": null
     }
 ]
