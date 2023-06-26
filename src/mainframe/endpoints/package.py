@@ -63,6 +63,8 @@ async def submit_results(
     if isinstance(result, PackageScanResultFail):
         scan.status = Status.FAILED
         scan.fail_reason = result.reason
+
+        await session.commit()
         return
 
     scan.status = Status.FINISHED
