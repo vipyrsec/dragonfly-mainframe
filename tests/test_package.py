@@ -3,6 +3,10 @@ from typing import Optional
 import pytest
 import requests
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from mainframe.models.orm import Scan, Status
 
 
 def build_query_string(since: Optional[int], name: Optional[str], version: Optional[str]) -> str:
@@ -89,3 +93,28 @@ def test_package_lookup(
         return d["scan_id"]
 
     assert sorted(r.json(), key=key) == sorted(jsonable_encoder(exp), key=key)
+
+
+def test_handle_fail(api_url: str, db_session: Session, test_data: list[dict]):
+    r = requests.post(f"{api_url}/job")
+    r.raise_for_status()
+    j = r.json()
+
+    if "name" in j:
+        name = j["name"]
+        version = j["version"]
+        reason = "Package too large"
+
+        requests.put(f"{api_url}/package", json=dict(name=name, version=version, reason=reason))
+
+        record = db_session.scalar(
+            select(Scan)
+            .where(Scan.name == name)
+            .where(Scan.version == version)
+            .where(Scan.status == Status.FAILED)
+            .where(Scan.fail_reason == reason)
+        )
+
+        assert record is not None
+    else:
+        assert all(d["status"] != "queued" for d in test_data)
