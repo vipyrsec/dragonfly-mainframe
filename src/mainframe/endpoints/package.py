@@ -264,7 +264,7 @@ async def queue_package(
     try:
         await session.commit()
     except IntegrityError:
-        await log.info(f"Package {name}@{version} already queued for scanning.", tag="already_queued")
+        await log.warn(f"Package {name}@{version} already queued for scanning.", tag="already_queued")
         raise HTTPException(409, f"Package {name}@{version} is already queued for scanning")
 
     await log.ainfo(
