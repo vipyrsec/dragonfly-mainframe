@@ -200,12 +200,13 @@ async def batch_queue_package(
 
         rows.append(scan)
 
-    session.add_all(rows)
-
-    try:
-        await session.commit()
-    except IntegrityError:
-        pass
+    async with session.begin():
+        for row in rows:
+            try:
+                async with session.begin_nested():
+                    session.add(row)
+            except IntegrityError:
+                pass
 
 
 @router.post(
