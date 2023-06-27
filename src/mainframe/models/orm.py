@@ -5,7 +5,14 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, FetchedValue, ForeignKey, Table
+from sqlalchemy import (
+    Column,
+    DateTime,
+    FetchedValue,
+    ForeignKey,
+    Table,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.associationproxy import AssociationProxy, association_proxy
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -43,6 +50,7 @@ class Scan(Base):
     """The scans."""
 
     __tablename__: str = "scans"
+    __table_args__ = (UniqueConstraint("name", "version"),)
 
     scan_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
