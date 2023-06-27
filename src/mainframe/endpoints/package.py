@@ -251,13 +251,6 @@ async def queue_package(
     version = package_metadata.info.version  # Use latest version if not provided
     log = logger.bind(package={"name": name, "version": version})
 
-    query = select(Scan).where(Scan.name == name).where(Scan.version == version)
-    row = await session.scalar(query)
-
-    if row is not None:
-        await log.info(f"Package {name}@{version} already queued for scanning.", tag="already_queued")
-        raise HTTPException(409, f"Package {name}@{version} is already queued for scanning")
-
     new_package = Scan(
         name=name,
         version=version,
@@ -267,7 +260,12 @@ async def queue_package(
     )
 
     session.add(new_package)
-    await session.commit()
+
+    try:
+        await session.commit()
+    except IntegrityError:
+        await log.info(f"Package {name}@{version} already queued for scanning.", tag="already_queued")
+        raise HTTPException(409, f"Package {name}@{version} is already queued for scanning")
 
     await log.ainfo(
         "Added new package",
