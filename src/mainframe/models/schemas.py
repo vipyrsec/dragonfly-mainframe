@@ -70,7 +70,3 @@ class QueuePackageResponse(BaseModel):
     """Returned after queueing a package. Contains the UUID"""
 
     id: str
-
-
-class BatchPackageQueueErr(PackageSpecifier, Error):
-    pass

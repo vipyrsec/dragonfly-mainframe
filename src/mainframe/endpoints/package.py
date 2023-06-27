@@ -3,8 +3,9 @@ from typing import Annotated, Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
-from letsbuilda.pypi import PackageMetadata, PyPIServices
-from sqlalchemy import select, tuple_
+from letsbuilda.pypi import PyPIServices
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -13,7 +14,6 @@ from mainframe.dependencies import validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import DownloadURL, Rule, Scan, Status
 from mainframe.models.schemas import (
-    BatchPackageQueueErr,
     Error,
     PackageScanResult,
     PackageScanResultFail,
@@ -173,57 +173,40 @@ async def lookup_package_info(
     },
 )
 async def batch_queue_package(
-    packages: set[PackageSpecifier],
+    packages: list[PackageSpecifier],
     session: Annotated[AsyncSession, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     request: Request,
-) -> list[BatchPackageQueueErr]:
-    ok_packages: dict[tuple[str, str], PackageMetadata] = {}
-    err_packages: dict[tuple[str, str | None], str] = {}
-
+):
     pypi_client: PyPIServices = request.app.state.pypi_client
+    rows: list[Scan] = []
 
-    # This step filters out packages that are not even on PyPI
     for package in packages:
         name = package.name
         version = package.version
 
         try:
             package_metadata = await pypi_client.get_package_metadata(name, version)
-            ok_packages[(package_metadata.info.name, package_metadata.info.version)] = package_metadata
         except KeyError:
-            err_packages[(name, version)] = f"Package {name}@{version} was not found on PyPI"
+            continue
 
-    query = select(Scan).where(tuple_(Scan.name, Scan.version).in_(ok_packages))
-    rows = await session.scalars(query)
-
-    # This step filters out packages that are already in the database
-    for row in rows:
-        name = row.name
-        version = row.version
-        t = (name, version)
-
-        ok_packages.pop(t)
-        err_packages[t] = f"Package {name}@{version} is already queued for scanning"
-
-    new_packages = [
-        Scan(
-            name=metadata.info.name,
-            version=metadata.info.version,
+        scan = Scan(
+            name=package_metadata.info.name,
+            version=package_metadata.info.version,
             status=Status.QUEUED,
             queued_by=auth.subject,
-            download_urls=[DownloadURL(url=url.url) for url in metadata.urls],
+            download_urls=[DownloadURL(url=url.url) for url in package_metadata.urls],
         )
-        for metadata in ok_packages.values()
-    ]
 
-    session.add_all(new_packages)
-    await session.commit()
+        rows.append(scan)
 
-    return [
-        BatchPackageQueueErr(name=name, version=version, detail=detail)
-        for ((name, version), detail) in err_packages.items()
-    ]
+    async with session.begin():
+        for row in rows:
+            try:
+                async with session.begin_nested():
+                    session.add(row)
+            except IntegrityError:
+                pass
 
 
 @router.post(
@@ -268,13 +251,6 @@ async def queue_package(
     version = package_metadata.info.version  # Use latest version if not provided
     log = logger.bind(package={"name": name, "version": version})
 
-    query = select(Scan).where(Scan.name == name).where(Scan.version == version)
-    row = await session.scalar(query)
-
-    if row is not None:
-        await log.info(f"Package {name}@{version} already queued for scanning.", tag="already_queued")
-        raise HTTPException(409, f"Package {name}@{version} is already queued for scanning")
-
     new_package = Scan(
         name=name,
         version=version,
@@ -284,7 +260,12 @@ async def queue_package(
     )
 
     session.add(new_package)
-    await session.commit()
+
+    try:
+        await session.commit()
+    except IntegrityError:
+        await log.warn(f"Package {name}@{version} already queued for scanning.", tag="already_queued")
+        raise HTTPException(409, f"Package {name}@{version} is already queued for scanning")
 
     await log.ainfo(
         "Added new package",
