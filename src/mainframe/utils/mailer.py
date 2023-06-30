@@ -1,6 +1,6 @@
 """Sending emails"""
 
-from msgraph.core import GraphClient
+from msgraph.core import GraphClient  # type: ignore
 
 
 def _build_recipients_list_ms(
@@ -13,7 +13,7 @@ def _build_recipients_list_ms(
 
 
 def send_email(
-    graph_client: GraphClient,
+    graph_client: GraphClient,  # type: ignore
     sender: str,
     subject: str,
     content: str,
@@ -32,4 +32,4 @@ def send_email(
         },
     }
 
-    graph_client.post(url=f"/users/{sender}/sendMail", json=data)
+    graph_client.post(url=f"/users/{sender}/sendMail", json=data)  # type: ignore

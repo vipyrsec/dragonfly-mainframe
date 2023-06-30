@@ -2,6 +2,7 @@ import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
+from typing import Awaitable, Callable
 from unittest.mock import MagicMock
 
 import aiohttp
@@ -9,9 +10,8 @@ import sentry_sdk
 import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
 from asgi_correlation_id.context import correlation_id
-from fastapi import FastAPI, Response
-from h11 import Request
-from letsbuilda.pypi import PyPIServices
+from fastapi import FastAPI, Request, Response
+from letsbuilda.pypi import PyPIServices  # type: ignore
 
 from mainframe.constants import GIT_SHA, Sentry
 from mainframe.database import async_session
@@ -131,13 +131,13 @@ if GIT_SHA in ("development", "testing"):
 
 
 @app.middleware("http")
-async def logging_middleware(request: Request, call_next) -> Response:
+async def logging_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     structlog.contextvars.clear_contextvars()
 
-    request_id = correlation_id.get()
+    request_id = correlation_id.get() or ""
     url = request.url
-    client_host = request.client.host
-    client_port = request.client.port
+    client_host = request.client.host if request.client else ""
+    client_port = request.client.port if request.client else ""
     structlog.contextvars.bind_contextvars(
         request_id=request_id,
         url=url,

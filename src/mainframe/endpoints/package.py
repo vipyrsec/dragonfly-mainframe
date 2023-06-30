@@ -3,7 +3,7 @@ from typing import Annotated, Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
-from letsbuilda.pypi import PyPIServices
+from letsbuilda.pypi import PyPIServices  # type: ignore
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -75,7 +75,7 @@ async def submit_results(
     scan.commit_hash = result.commit
 
     # These are the rules that already have an entry in the database
-    rules = (await session.scalars(select(Rule).where(Rule.name.in_(result.rules_matched)))).all()
+    rules = (await session.scalars(select(Rule).where(Rule.name.in_(result.rules_matched)))).all()  # type: ignore
     rule_names = {rule.name for rule in rules}
     scan.rules.extend(rules)
 
