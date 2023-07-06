@@ -1,6 +1,6 @@
 """Sending emails"""
 
-from msgraph.core import GraphClient  # type: ignore
+from msgraph.core import GraphClient
 
 
 def _build_recipients_list_ms(

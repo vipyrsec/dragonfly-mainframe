@@ -1,7 +1,7 @@
 """Microsoft auth integration"""
 
 from azure.identity import ClientSecretCredential
-from msgraph.core import GraphClient  # type: ignore
+from msgraph.core import GraphClient
 
 from mainframe.constants import microsoft_settings
 

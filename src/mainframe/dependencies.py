@@ -3,12 +3,12 @@ from functools import cache
 from typing import Annotated
 
 from fastapi import Depends
-from msgraph.core import GraphClient  # type: ignore
+from msgraph.core import GraphClient
 
 from mainframe.authorization_header_elements import get_bearer_token
 from mainframe.custom_exceptions import PermissionDeniedException
 from mainframe.json_web_token import AuthenticationData, JsonWebToken
-from mainframe.utils.microsoft import build_ms_graph_client  # type: ignore
+from mainframe.utils.microsoft import build_ms_graph_client
 
 
 @cache

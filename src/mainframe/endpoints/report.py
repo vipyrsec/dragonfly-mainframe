@@ -4,19 +4,19 @@ from typing import Annotated, Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
-from letsbuilda.pypi import PyPIServices  # type: ignore
-from msgraph.core import GraphClient  # type: ignore
+from letsbuilda.pypi import PyPIServices
+from msgraph.core import GraphClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
-from mainframe.dependencies import get_ms_graph_client, validate_token  # type: ignore
+from mainframe.dependencies import get_ms_graph_client, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan
 from mainframe.models.schemas import Error, PackageSpecifier
-from mainframe.utils.mailer import send_email  # type: ignore
+from mainframe.utils.mailer import send_email
 from mainframe.utils.pypi import file_path_from_inspector_url
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()

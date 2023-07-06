@@ -11,7 +11,7 @@ import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
 from asgi_correlation_id.context import correlation_id
 from fastapi import FastAPI, Request, Response
-from letsbuilda.pypi import PyPIServices  # type: ignore
+from letsbuilda.pypi import PyPIServices
 
 from mainframe.constants import GIT_SHA, Sentry
 from mainframe.database import async_session
