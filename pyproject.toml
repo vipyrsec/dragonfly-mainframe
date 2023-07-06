@@ -66,7 +66,7 @@ venvPath = "."
 venv = ".venv"
 
 
-strictListInferece = true
+strictListInference = true
 strictDictionaryInference = true
 strictSetInference = true
 analyzeUnannotatedFunctions = true
