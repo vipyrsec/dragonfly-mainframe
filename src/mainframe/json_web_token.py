@@ -49,7 +49,7 @@ class JsonWebToken:
             payload = jwt.decode(
                 self.jwt_access_token,
                 jwt_signing_key,
-                algorithms=self.algorithm,
+                algorithms=self.algorithm,  # type: ignore
                 audience=self.auth0_audience,
                 issuer=self.auth0_issuer_url,
             )

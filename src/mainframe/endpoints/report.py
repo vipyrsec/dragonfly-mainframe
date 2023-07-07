@@ -23,7 +23,7 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 def send_report_email(
-    graph_client: GraphClient,
+    graph_client: GraphClient,  # type: ignore
     *,
     package_name: str,
     package_version: str,
@@ -47,7 +47,7 @@ def send_report_email(
     content = dedent(content)
 
     send_email(
-        graph_client,
+        graph_client,  # type: ignore
         sender="system@mantissecurity.org",
         subject=f"Automated PyPI Malware Report: {package_name}@{package_version}",
         content=content,
@@ -75,7 +75,7 @@ router = APIRouter(tags=["report"])
 async def report_package(
     body: ReportPackageBody,
     session: Annotated[AsyncSession, Depends(get_db)],
-    graph_client: Annotated[GraphClient, Depends(get_ms_graph_client)],
+    graph_client: Annotated[GraphClient, Depends(get_ms_graph_client)],  # type: ignore
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     request: Request,
 ):
@@ -205,7 +205,7 @@ async def report_package(
     additional_information = body.additional_information
 
     send_report_email(
-        graph_client,
+        graph_client,  # type: ignore
         package_name=name,
         package_version=version,
         inspector_url=inspector_url,
