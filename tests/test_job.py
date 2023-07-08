@@ -59,10 +59,13 @@ def test_batch_job(api_url: str, test_data: list[dict], db_session: Session):
     # check if each returned job should have actually been returned
     for p in j:
         original_data = next(d for d in test_data if (d["name"], d["version"]) == (p["name"], p["version"]))
-        if original_data["status"] == "queued":
+        print(p)
+        print(original_data)
+        print("*" * 30)
+        if original_data["status"] == Status.QUEUED:
             assert True
-        elif original_data["status"] == "pending":
-            assert dt.datetime.now() - dt.datetime.fromisoformat(p["pending_at"]) > dt.timedelta(minutes=2)
+        elif original_data["status"] == Status.PENDING:
+            assert dt.datetime.now(tz=dt.timezone.utc) - original_data["pending_at"] > dt.timedelta(minutes=2)
         else:
             assert False
 
