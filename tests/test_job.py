@@ -49,3 +49,28 @@ def test_job(api_url: str, test_data: list[dict], db_session: Session):
     else:
         # if no job, there must be no queued packages
         assert all(d["status"] != "queued" for d in test_data)
+
+
+def test_batch_job(api_url: str, test_data: list[dict], db_session: Session):
+    r = requests.get(f"{api_url}/batch/job", params=dict(n_jobs=len(test_data)))
+    r.raise_for_status()
+    j = r.json()
+
+    # check if each returned job should have actually been returned
+    for p in j:
+        original_data = next(d for d in test_data if (d["name"], d["version"]) == (p["name"], p["version"]))
+        if original_data["status"] == "queued":
+            assert True
+        elif original_data["status"] == "pending":
+            assert dt.datetime.now() - dt.datetime.fromisoformat(p["pending_at"]) > dt.timedelta(minutes=2)
+        else:
+            assert False
+
+    # check if the database was accurately updated
+    for p in j:
+        row = db_session.scalar(select(Scan).where(Scan.name == p["name"]).where(Scan.version == p["version"]))
+
+        assert row is not None
+        assert row.status == Status.PENDING
+        assert row.pending_by is not None
+        assert row.pending_at is not None
