@@ -96,11 +96,12 @@ def test_package_lookup(
 
 
 def test_handle_fail(api_url: str, db_session: Session, test_data: list[dict]):
-    r = requests.post(f"{api_url}/job")
+    r = requests.post(f"{api_url}/jobs")
     r.raise_for_status()
     j = r.json()
 
-    if "name" in j:
+    if j:
+        j = j[0]
         name = j["name"]
         version = j["version"]
         reason = "Package too large"
