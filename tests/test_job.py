@@ -24,7 +24,7 @@ def fetch_queue_time(name: str, version: str, db_session: Session) -> dt.datetim
     return db_session.scalar(select(Scan.queued_at).where(Scan.name == name).where(Scan.version == version))
 
 
-def test_fetch_pid_and_queue_time(test_data: list[dict], db_session: Session):
+def test_fetch_queue_time(test_data: list[dict], db_session: Session):
     for d in test_data:
         assert d["queued_at"] == fetch_queue_time(d["name"], d["version"], db_session)
 
@@ -46,7 +46,7 @@ def test_job(api_url: str, test_data: list[dict], db_session: Session):
 
 
 def test_batch_job(api_url: str, test_data: list[dict], db_session: Session):
-    r = requests.post(f"{api_url}/jobs", params=dict(n_jobs=len(test_data)))
+    r = requests.post(f"{api_url}/jobs", params=dict(batch=len(test_data)))
     r.raise_for_status()
     j = r.json()
 

@@ -23,13 +23,13 @@ async def get_jobs(
     session: Annotated[AsyncSession, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     request: Request,
-    n_jobs: int = 1,
+    batch: int = 1,
 ) -> list[JobResult]:
     """
     Request one or more releases to work on.
 
     Clients can specify the number of jobs they want to be given
-    using the `n_jobs` query string parameter. If ommited, it defaults
+    using the `batch` query string parameter. If omitted, it defaults
     to `1`.
 
     Clients are assigned the oldest release in the queue, i.e., the release
@@ -52,13 +52,14 @@ async def get_jobs(
             )
         )
         .order_by(Scan.pending_at.nulls_first(), Scan.queued_at)
-        .limit(n_jobs)
+        .limit(batch)
         .options(selectinload(Scan.download_urls))
         .with_for_update()
     )
 
     scans = scalars.all()
 
+    response_body: list[JobResult] = []
     for scan in scans:
         scan.status = Status.PENDING
         scan.pending_at = datetime.now(timezone.utc)
@@ -76,14 +77,15 @@ async def get_jobs(
             tag="job_given",
         )
 
-    await session.commit()
-
-    return [
-        JobResult(
+        job_result = JobResult(
             name=scan.name,
             version=scan.version,
             distributions=[dist.url for dist in scan.download_urls],
             hash=request.app.state.rules.rules_commit,
         )
-        for scan in scans
-    ]
+
+        response_body.append(job_result)
+
+    await session.commit()
+
+    return response_body
