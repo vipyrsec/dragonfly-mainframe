@@ -3,10 +3,7 @@ version: "3.9"
 services:
   mainframe:
     build:
-      target: test
       context: .
-      args:
-        GIT_SHA: testing
     ports:
       - "8000:8000"
     depends_on:

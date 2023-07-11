@@ -1,0 +1,8 @@
+version: "3.9"
+
+services:
+  mainframe:
+    build:
+      target: test
+      args:
+        GIT_SHA: testing
