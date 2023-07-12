@@ -26,3 +26,7 @@ repos:
     rev: "v0.0.267"
     hooks:
       - id: ruff
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.316
+    hooks:
+    - id: pyright

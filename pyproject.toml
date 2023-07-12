@@ -1,12 +1,11 @@
 [project]
 name = "dragonfly-mainframe"
-version = "0.2.0"
 description = "Distributes tasks to dragonfly-clients and handles package status updates."
 authors = [
-    {name = "jz9", email = "69145546+jonathan-d-zhang@users.noreply.github.com"},
+    { name = "jz9", email = "69145546+jonathan-d-zhang@users.noreply.github.com" },
 ]
 requires-python = ">=3.11"
-license = {text = "MIT"}
+license = { text = "MIT" }
 
 dependencies = [
     "fastapi>=0.95.1",
@@ -19,9 +18,15 @@ dependencies = [
     "aiohttp>=3.8.4",
     "msgraph-core>=0.2.2",
     "azure-identity>=1.13.0",
+    "structlog>=23.1.0",
+    "asgi-correlation-id>=4.2.0",
+    "sentry-sdk[fastapi]>=1.25.1",
 ]
+dynamic = ["version"]
 
 [tool.pdm]
+version = { source = "file", path = "mypackage/__init__.py" }
+
 [tool.pdm.dev-dependencies]
 lint = [
     "pre-commit>=3.3.1",
@@ -30,16 +35,13 @@ lint = [
     "isort>=5.12.0",
     "pyright>=1.1.306",
 ]
-test = [
-    "pytest>=7.3.1",
-    "requests>=2.30.0",
-    "psycopg2-binary>=2.9.6",
-]
+test = ["pytest>=7.3.1", "requests>=2.30.0", "psycopg2-binary>=2.9.6"]
+logs = ["rich>=13.4.2"]
 
 [tool.pdm.scripts]
 format = { shell = "black . && isort ." }
 lint = { shell = "pyright; ruff ." }
-test = {shell = "docker compose up --build --abort-on-container-exit; docker compose down" }
+test = { shell = "docker compose up --build --exit-code-from mainframe" }
 precommit = { shell = "pre-commit run --all-files" }
 all = { composite = ["format", "lint", "test"] }
 
@@ -58,4 +60,69 @@ line-length = 120
 
 [tool.pyright]
 include = ["src/**/*.py"]
-strict = ["src/**/*.py"]
+ignore = ["alembic/", "tests/"]
+
+venvPath = "."
+venv = ".venv"
+
+
+strictListInference = true
+strictDictionaryInference = true
+strictSetInference = true
+analyzeUnannotatedFunctions = true
+strictParameterNoneValue = true
+enableTypeIgnoreComments = true
+reportMissingModuleSource = "warning"
+reportMissingImports = "error"
+reportUndefinedVariable = "error"
+reportAssertAlwaysTrue = "error"
+reportInvalidStringEscapeSequence = "error"
+reportInvalidTypeVarUse = "error"
+reportMissingTypeStubs = "warning"
+reportSelfClsParameterName = "error"
+reportUnsupportedDunderAll = "error"
+reportUnusedExpression = "error"
+reportWildcardImportFromLibrary = "error"
+reportGeneralTypeIssues = "error"
+reportOptionalSubscript = "error"
+reportOptionalMemberAccess = "error"
+reportOptionalCall = "error"
+reportOptionalIterable = "error"
+reportOptionalContextManager = "error"
+reportOptionalOperand = "error"
+reportTypedDictNotRequiredAccess = "error"
+reportPrivateImportUsage = "error"
+reportUnboundVariable = "error"
+reportUnusedCoroutine = "error"
+reportConstantRedefinition = "error"
+reportDeprecated = "error"
+reportDuplicateImport = "error"
+reportFunctionMemberAccess = "error"
+reportIncompatibleMethodOverride = "error"
+reportIncompatibleVariableOverride = "error"
+reportIncompleteStub = "error"
+reportInconsistentConstructor = "error"
+reportInvalidStubStatement = "error"
+reportMatchNotExhaustive = "error"
+reportMissingParameterType = "error"
+reportMissingTypeArgument = "error"
+reportOverlappingOverload = "error"
+reportPrivateUsage = "error"
+reportTypeCommentUsage = "error"
+reportUnknownArgumentType = "error"
+reportUnknownLambdaType = "error"
+reportUnknownMemberType = "error"
+reportUnknownParameterType = "error"
+reportUnknownVariableType = "error"
+reportUnnecessaryCast = "error"
+reportUnnecessaryComparison = "error"
+reportUnnecessaryContains = "error"
+reportUnnecessaryIsInstance = "error"
+reportUnusedClass = "error"
+reportUnusedImport = "error"
+reportUnusedFunction = "error"
+reportUnusedVariable = "error"
+reportUntypedBaseClass = "error"
+reportUntypedClassDecorator = "error"
+reportUntypedFunctionDecorator = "error"
+reportUntypedNamedTuple = "error"

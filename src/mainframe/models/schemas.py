@@ -27,13 +27,23 @@ class PackageSpecifier(BaseModel):
     name: str
     version: Optional[str]
 
+    class Config:
+        frozen = True
+
 
 class PackageScanResult(PackageSpecifier):
     """Client payload to server containing the results of a package scan"""
 
+    commit: str
     score: int = 0
     inspector_url: Optional[str] = None
     rules_matched: list[str] = []
+
+
+class PackageScanResultFail(PackageSpecifier):
+    """The client's reason as to why scanning a package failed"""
+
+    reason: str
 
 
 class JobResult(BaseModel):

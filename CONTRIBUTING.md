@@ -55,3 +55,30 @@ For each schema change, you should create a revision file using `pdm run alembic
 
 ## Running migrations
 For manual testing, run `pdm run alembic upgrade head` in order to set up the database. If you get an error along the lines of `relation "packages" does not exist`, then you probably did not run the migration.
+
+## Environment Variables
+The following table illustrates configuration options in the form of environment variables that may be set.
+
+
+| Environment Variable      | Type | Default                                                 | Description                                                                                                                                                 |
+|---------------------------|------|---------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `AUTH0_DOMAIN`            | str  | "vipyrsec.us.auth0.com"                                 | Authentication domain for Auth0                                                                                                                             |
+| `AUTH0_AUDIENCE`          | str  | "dragonfly.vipyrsec.com"                                | Audience field for Auth0                                                                                                                                    |
+| `DRAGONFLY_GITHUB_TOKEN`  | str  |                                                         | Github PAT for accessing YARA rules in the security-intelligence repository                                                                                 |
+| `JOB_TIMEOUT`             | int  | 60 * 2                                                  | The maximum time to wait for clients to respond with job results. After this time has elapsed, the server will begin distributing this job to other clients |
+|                           |      |                                                         |                                                                                                                                                             |
+| `EMAIL_RECIPIENT`         | str  | "security@pypi.org"                                     | The recipient address of report emails                                                                                                                      |
+| `BCC_RECIPIENTS`          | set  | set()                                                   | Additional addresses that should be BCC'd in email reports. Defaults to an empty set.                                                                       |
+| `DB_URL`                  | str  | "postgresql+asyncpg://postgres:postgres@localhost:5432" | PostgreSQL database connection string                                                                                                                       |
+|                           |      |                                                         |                                                                                                                                                             |
+| `SENTRY_DSN`              | str  | ""                                                      | Sentry Data Source Name (DSN)                                                                                                                               |
+| `SENTRY_ENVIRONMENT`      | str  | ""                                                      | Sentry environment                                                                                                                                          |
+| `SENTRY_RELEASE_PREFIX`   | str  | ""                                                      | Sentry release prefix                                                                                                                                       |
+|                           |      |                                                         |                                                                                                                                                             |
+| `MICROSOFT_TENANT_ID`     | str  |                                                         | Microsoft tenant ID for automated emails                                                                                                                    |
+| `MICROSOFT_CLIENT_ID`     | str  |                                                         | Microsoft client ID for automated emails                                                                                                                    |
+| `MICROSOFT_CLIENT_SECRET` | str  |                                                         | Microsoft client secret for automated emails                                                                                                                |
+
+**NOTE**: Environment variables where the `default` column is empty are required for the application to startup
+
+**NOTE**: Environment variables with type `str` and `default` `""` are not required for the application to startup but may cause the application to function incorrectly

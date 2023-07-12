@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import Engine, create_engine, insert
 from sqlalchemy.orm import Session, sessionmaker
 
-from mainframe.models.orm import Base, Package, Status
+from mainframe.models.orm import Base, Scan, Status
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__file__)
@@ -85,7 +85,7 @@ def decode(L) -> list[dict]:
             elif key in ["queued_at", "pending_at", "finished_at", "reported_at"]:
                 if value is not None:
                     new_d[key] = dt.datetime.fromisoformat(value)
-            elif key == "package_id":
+            elif key == "scan_id":
                 new_d[key] = uuid.UUID(f"{{{value}}}")
 
         out.append(new_d)
@@ -103,9 +103,10 @@ def test_data(request) -> list[dict]:
 
 @pytest.fixture(autouse=True)
 def db_setup(engine: Engine, sm: sessionmaker, test_data: list[dict]) -> Generator[None, None, None]:
+    Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     with sm() as sess:
-        sess.execute(insert(Package), test_data)
+        sess.execute(insert(Scan), test_data)
         sess.commit()
         yield
     Base.metadata.drop_all(engine)

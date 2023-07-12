@@ -12,8 +12,8 @@ from mainframe.utils.microsoft import build_ms_graph_client
 
 
 @cache
-def get_ms_graph_client() -> GraphClient:
-    return build_ms_graph_client()
+def get_ms_graph_client() -> GraphClient:  # type: ignore
+    return build_ms_graph_client()  # type: ignore
 
 
 def validate_token(token: Annotated[str, Depends(get_bearer_token)]) -> AuthenticationData:
@@ -28,7 +28,6 @@ def validate_token_override():
         issued_at=datetime.now() - timedelta(seconds=10),
         expires_at=datetime.now() + timedelta(seconds=10),
         grant_type="DEVELOPMENT GRANT TYPE",
-        permissions=[],
     )
 
 
@@ -37,9 +36,9 @@ class PermissionsValidator:
         self.required_permissions = required_permissions
 
     def __call__(self, data: Annotated[AuthenticationData, Depends(validate_token)]):
-        token_permissions = data.permissions
-        token_permissions_set = set(token_permissions)
+        token_permissions = data.permissions  # type: ignore
+        token_permissions_set = set(token_permissions)  # type: ignore
         required_permissions_set = set(self.required_permissions)
 
-        if not required_permissions_set.issubset(token_permissions_set):
+        if not required_permissions_set.issubset(token_permissions_set):  # type: ignore
             raise PermissionDeniedException
