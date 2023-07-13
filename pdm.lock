@@ -167,12 +167,13 @@ summary = "Distribution utilities"
 
 [[package]]
 name = "fastapi"
-version = "0.95.1"
+version = "0.100.0"
 requires_python = ">=3.7"
 summary = "FastAPI framework, high performance, easy to learn, fast to code, ready for production"
 dependencies = [
-    "pydantic!=1.7,!=1.7.1,!=1.7.2,!=1.7.3,!=1.8,!=1.8.1,<2.0.0,>=1.6.2",
-    "starlette<0.27.0,>=0.26.1",
+    "pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,<3.0.0,>=1.7.4",
+    "starlette<0.28.0,>=0.27.0",
+    "typing-extensions>=4.5.0",
 ]
 
 [[package]]
@@ -547,7 +548,7 @@ dependencies = [
 
 [[package]]
 name = "starlette"
-version = "0.26.1"
+version = "0.27.0"
 requires_python = ">=3.7"
 summary = "The little ASGI library that shines."
 dependencies = [
@@ -1029,9 +1030,9 @@ content_hash = "sha256:dec651173ee167482209b0594fd2fb5f702c38d2b80a0b7724b55d053
     {url = "https://files.pythonhosted.org/packages/58/07/815476ae605bcc5f95c87a62b95e74a1bce0878bc7a3119bc2bf4178f175/distlib-0.3.6.tar.gz", hash = "sha256:14bad2d9b04d3a36127ac97f30b12a19268f211063d8f8ee4f47108896e11b46"},
     {url = "https://files.pythonhosted.org/packages/76/cb/6bbd2b10170ed991cf64e8c8b85e01f2fb38f95d1bc77617569e0b0b26ac/distlib-0.3.6-py2.py3-none-any.whl", hash = "sha256:f35c4b692542ca110de7ef0bea44d73981caeb34ca0b9b6b2e6d7790dda8f80e"},
 ]
-"fastapi 0.95.1" = [
-    {url = "https://files.pythonhosted.org/packages/2e/84/d289e941ffec2f107d9097c8f7c2dbc874b0fc3fab9776aa3cc366d45ab2/fastapi-0.95.1-py3-none-any.whl", hash = "sha256:a870d443e5405982e1667dfe372663abf10754f246866056336d7f01c21dab07"},
-    {url = "https://files.pythonhosted.org/packages/a9/7b/ec011cf46d78627159ab869556f246b5f823a6df8d94f7577e043a63fffd/fastapi-0.95.1.tar.gz", hash = "sha256:9569f0a381f8a457ec479d90fa01005cfddaae07546eb1f3fa035bc4797ae7d5"},
+"fastapi 0.100.0" = [
+    {url = "https://files.pythonhosted.org/packages/49/f5/048206823aae9b3a4a61ba6b7a1dd1de36bd4c0a0283f2efb1f1f2289c8a/fastapi-0.100.0-py3-none-any.whl", hash = "sha256:271662daf986da8fa98dc2b7c7f61c4abdfdccfb4786d79ed8b2878f172c6d5f"},
+    {url = "https://files.pythonhosted.org/packages/65/e0/f9d77b3a1569e2217abf260b0b1462401736973d1c5d3d335f6f2009daa2/fastapi-0.100.0.tar.gz", hash = "sha256:acb5f941ea8215663283c10018323ba7ea737c571b67fc7e88e9469c7eb1d12e"},
 ]
 "filelock 3.12.2" = [
     {url = "https://files.pythonhosted.org/packages/00/0b/c506e9e44e4c4b6c89fcecda23dc115bf8e7ff7eb127e0cb9c114cbc9a15/filelock-3.12.2.tar.gz", hash = "sha256:002740518d8aa59a26b0c76e10fb8c6e15eae825d34b6fdf670333fd7b938d81"},
@@ -1708,9 +1709,9 @@ content_hash = "sha256:dec651173ee167482209b0594fd2fb5f702c38d2b80a0b7724b55d053
     {url = "https://files.pythonhosted.org/packages/ee/1f/a988a629817c3cebcfeb86276b8a1c3c02cdd8279f98d8074c71ebb0574d/SQLAlchemy-2.0.18-cp37-cp37m-win32.whl", hash = "sha256:67fbb40db3985c0cfb942fe8853ad94a5e9702d2987dec03abadc2f3b6a24afb"},
     {url = "https://files.pythonhosted.org/packages/f2/08/3d87d8b1b23368fa899dc7889fdbd7d9ef282ca114ef1448f9becb1625fe/SQLAlchemy-2.0.18-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:908c850b98cac1e203ababd4ba76868d19ae0d7172cdc75d3f1b7829b16837d2"},
 ]
-"starlette 0.26.1" = [
-    {url = "https://files.pythonhosted.org/packages/12/48/f9c1ec6bee313aba264fbc2483d9070f4e4526f2538e2b55b1e4a391d938/starlette-0.26.1-py3-none-any.whl", hash = "sha256:e87fce5d7cbdde34b76f0ac69013fd9d190d581d80681493016666e6f96c6d5e"},
-    {url = "https://files.pythonhosted.org/packages/52/55/98746af96f57a0ff4f108c5ac84c130af3c4e291272acf446afc67d5d5d8/starlette-0.26.1.tar.gz", hash = "sha256:41da799057ea8620e4667a3e69a5b1923ebd32b1819c8fa75634bbe8d8bea9bd"},
+"starlette 0.27.0" = [
+    {url = "https://files.pythonhosted.org/packages/06/68/559bed5484e746f1ab2ebbe22312f2c25ec62e4b534916d41a8c21147bf8/starlette-0.27.0.tar.gz", hash = "sha256:6a6b0d042acb8d469a01eba54e9cda6cbd24ac602c4cd016723117d6a7e73b75"},
+    {url = "https://files.pythonhosted.org/packages/58/f8/e2cca22387965584a409795913b774235752be4176d276714e15e1a58884/starlette-0.27.0-py3-none-any.whl", hash = "sha256:918416370e846586541235ccd38a474c08b80443ed31c578a418e2209b3eef91"},
 ]
 "structlog 23.1.0" = [
     {url = "https://files.pythonhosted.org/packages/0c/b2/0c0951c78f3f59ce44e93cb9b2140d305a00bb8262532041c702d4d4300a/structlog-23.1.0-py3-none-any.whl", hash = "sha256:79b9e68e48b54e373441e130fa447944e6f87a05b35de23138e475c05d0f7e0e"},
