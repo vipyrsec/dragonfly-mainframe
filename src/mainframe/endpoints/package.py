@@ -3,7 +3,8 @@ from typing import Annotated, Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
-from letsbuilda.pypi import PyPIServices  # type: ignore
+from letsbuilda.pypi.async_client import PyPIServices  # type: ignore
+from letsbuilda.pypi.exceptions import PackageNotFoundError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -187,15 +188,17 @@ async def batch_queue_package(
 
         try:
             package_metadata = await pypi_client.get_package_metadata(name, version)
-        except KeyError:
+        except PackageNotFoundError:
             continue
 
         scan = Scan(
-            name=package_metadata.info.name,
-            version=package_metadata.info.version,
+            name=package_metadata.title,
+            version=package_metadata.releases[0].version,
             status=Status.QUEUED,
             queued_by=auth.subject,
-            download_urls=[DownloadURL(url=url.url) for url in package_metadata.urls],
+            download_urls=[
+                DownloadURL(url=distribution.url) for distribution in package_metadata.releases[0].distributions
+            ],
         )
 
         rows.append(scan)
@@ -241,14 +244,14 @@ async def queue_package(
     pypi_client: PyPIServices = request.app.state.pypi_client
     try:
         package_metadata = await pypi_client.get_package_metadata(name, version)
-    except KeyError:
+    except PackageNotFoundError:
         error = HTTPException(404, detail=f"Package {name}@{version} was not found on PyPI")
         await log.aerror(
             f"Package {name}@{version} was not found on PyPI", error_message=error.detail, tag="package_not_found_pypi"
         )
         raise error
 
-    version = package_metadata.info.version  # Use latest version if not provided
+    version = package_metadata.releases[0].version  # Use latest version if not provided
     log = logger.bind(package={"name": name, "version": version})
 
     new_package = Scan(
@@ -256,7 +259,9 @@ async def queue_package(
         version=version,
         status=Status.QUEUED,
         queued_by=auth.subject,
-        download_urls=[DownloadURL(url=url.url) for url in package_metadata.urls],
+        download_urls=[
+            DownloadURL(url=distribution.url) for distribution in package_metadata.releases[0].distributions
+        ],
     )
 
     session.add(new_package)
