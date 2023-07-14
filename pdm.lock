@@ -232,7 +232,7 @@ summary = "A Python utility / library to sort Python imports."
 
 [[package]]
 name = "letsbuilda-pypi"
-version = "5.0.0b1"
+version = "5.0.0b2"
 requires_python = ">=3.11.4"
 summary = "A wrapper for PyPI's API and RSS feed"
 dependencies = [
@@ -242,13 +242,13 @@ dependencies = [
 
 [[package]]
 name = "letsbuilda-pypi"
-version = "5.0.0b1"
+version = "5.0.0b2"
 extras = ["async"]
 requires_python = ">=3.11.4"
 summary = "A wrapper for PyPI's API and RSS feed"
 dependencies = [
     "aiohttp",
-    "letsbuilda-pypi==5.0.0b1",
+    "letsbuilda-pypi==5.0.0b2",
 ]
 
 [[package]]
@@ -637,7 +637,7 @@ dependencies = [
 lock_version = "4.2"
 cross_platform = true
 groups = ["default", "lint", "logs", "test"]
-content_hash = "sha256:f5bb4fde7c3c72eb26ac45bb2d7825f67723976b13393333549908cb28c5e132"
+content_hash = "sha256:94e86a56fc6bd0f8fe96176abcf7bde0d955572a371c340ed53014c9cac8a769"
 
 [metadata.files]
 "aiohttp 3.8.4" = [
@@ -1205,9 +1205,9 @@ content_hash = "sha256:f5bb4fde7c3c72eb26ac45bb2d7825f67723976b13393333549908cb2
     {url = "https://files.pythonhosted.org/packages/0a/63/4036ae70eea279c63e2304b91ee0ac182f467f24f86394ecfe726092340b/isort-5.12.0-py3-none-any.whl", hash = "sha256:f84c2818376e66cf843d497486ea8fed8700b340f308f076c6fb1229dff318b6"},
     {url = "https://files.pythonhosted.org/packages/a9/c4/dc00e42c158fc4dda2afebe57d2e948805c06d5169007f1724f0683010a9/isort-5.12.0.tar.gz", hash = "sha256:8bef7dde241278824a6d83f44a544709b065191b95b6e50894bdc722fcba0504"},
 ]
-"letsbuilda-pypi 5.0.0b1" = [
-    {url = "https://files.pythonhosted.org/packages/3d/3d/ed6c1d771a34406597614bc208b67cd57b489a63d1876a59907ae86df100/letsbuilda_pypi-5.0.0b1-py3-none-any.whl", hash = "sha256:1ed47bd83283d8209c3e01fea44ea15ea23b4f403e3e520466b985e4e8be5e1f"},
-    {url = "https://files.pythonhosted.org/packages/b1/83/24480c240b0dfc1e33cd319d03895572e5b00c66d5beb3840cc5724b4dc1/letsbuilda-pypi-5.0.0b1.tar.gz", hash = "sha256:da9a0997ff82ecd8a0e2d1fa04873626ed0fb630205a824823a548e93c1b5aa2"},
+"letsbuilda-pypi 5.0.0b2" = [
+    {url = "https://files.pythonhosted.org/packages/0d/03/7aa04b6fda87541da49be63235c14fbcb3cc8298dfd09281dc8f2ee0d811/letsbuilda-pypi-5.0.0b2.tar.gz", hash = "sha256:4669e491b14d3188178a2b64ca403836ca5658ed100e9fd051fbcbd717ab977b"},
+    {url = "https://files.pythonhosted.org/packages/c0/7f/02d1a6e7a666a14a7ec285cd2599fd3bab55f54850c660983fe45e95d274/letsbuilda_pypi-5.0.0b2-py3-none-any.whl", hash = "sha256:96d8311b0788830abd888e8a1c9959a3462da84f7755b9c89547dd1e87fb438f"},
 ]
 "mako 1.2.4" = [
     {url = "https://files.pythonhosted.org/packages/03/3b/68690a035ba7347860f1b8c0cde853230ba69ff41df5884ea7d89fe68cd3/Mako-1.2.4-py3-none-any.whl", hash = "sha256:c97c79c018b9165ac9922ae4f32da095ffd3c4e6872b45eded42926deea46818"},
