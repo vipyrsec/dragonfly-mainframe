@@ -4,7 +4,7 @@ description = "Distributes tasks to dragonfly-clients and handles package status
 authors = [
     { name = "jz9", email = "69145546+jonathan-d-zhang@users.noreply.github.com" },
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.11.4"
 license = { text = "MIT" }
 
 dependencies = [
@@ -15,7 +15,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "alembic>=1.10.4",
     "asyncpg>=0.27.0",
-    "letsbuilda-pypi>=4.0.0",
+    "letsbuilda-pypi[async]==5.0.0b1",
     "aiohttp>=3.8.4",
     "msgraph-core>=0.2.2",
     "azure-identity>=1.13.0",

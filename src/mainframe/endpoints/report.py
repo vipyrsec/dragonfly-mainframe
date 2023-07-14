@@ -4,7 +4,8 @@ from typing import Annotated, Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
-from letsbuilda.pypi import PyPIServices
+from letsbuilda.pypi.async_client import PyPIServices
+from letsbuilda.pypi.exceptions import PackageNotFoundError
 from msgraph.core import GraphClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -122,14 +123,14 @@ async def report_package(
     pypi_client: PyPIServices = request.app.state.pypi_client
     try:
         package_metadata = await pypi_client.get_package_metadata(name, version)
-    except KeyError:
+    except PackageNotFoundError:
         error = HTTPException(404, detail=f"Package `{name}@{version}` was not found on PyPI")
         await log.aerror(
             f"Package {name}@{version} was not found on PyPI", error_message=error.detail, tag="package_not_found_pypi"
         )
         raise error
 
-    version = package_metadata.info.version
+    version = package_metadata.releases[0].version
     log = logger.bind(package={"name": name, "version": version})
 
     query = select(Scan).where(Scan.name == name).options(selectinload(Scan.rules))
