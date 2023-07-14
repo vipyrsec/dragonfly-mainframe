@@ -679,7 +679,7 @@ dependencies = [
 lock_version = "4.2"
 cross_platform = true
 groups = ["default", "lint", "logs", "test"]
-content_hash = "sha256:9dbc43be99310f1b15d8d7ffd48c1d0a2fa9141a230eb20fc976f3d0530fb8ea"
+content_hash = "sha256:d9bfb2a99421d0cd7ee7fbb1a003c3527cdf14cb4401781d53c6372c98027d1d"
 
 [metadata.files]
 "aiohttp 3.8.4" = [
