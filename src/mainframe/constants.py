@@ -1,14 +1,13 @@
 from os import getenv
 
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Git SHA for Sentry
 GIT_SHA = getenv("GIT_SHA", "development")
 
 
 class Mainframe(BaseSettings):
-    class Config(BaseSettings.Config):
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_file=".env")
 
     client_origin_url: str = ""
     auth0_domain: str = ""
@@ -28,9 +27,7 @@ mainframe_settings = Mainframe()  # pyright: ignore
 
 
 class _Sentry(BaseSettings):
-    class Config(BaseSettings.Config):
-        env_prefix = "sentry_"
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="sentry_")
 
     dsn: str = ""
     environment: str = ""
@@ -41,9 +38,7 @@ Sentry = _Sentry()  # pyright: ignore
 
 
 class Microsoft(BaseSettings):
-    class Config(BaseSettings.Config):
-        env_prefix = "microsoft_"
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="microsoft_")
 
     tenant_id: str
     client_id: str
