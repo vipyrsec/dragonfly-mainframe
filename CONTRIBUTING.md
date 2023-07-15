@@ -1,84 +1,225 @@
 # Contributing Guide
 
-welcome, or something
+Requirements:
 
-# Setting up the dev environment
-## PDM
-We use `pdm` to manage dev dependencies.
-You can install `pdm` here [https://pdm.fming.dev/latest/#recommended-installation-method](https://pdm.fming.dev/latest/#recommended-installation-method).
+-   Python 3.11
+-   [Git](https://git-scm.com/downloads)
+-   [PDM](https://pdm.fming.dev/latest/#recommended-installation-method)
+-   [Docker](https://docs.docker.com/engine/install/)
 
-Once installed, use `pdm install -d` to install dev dependencies.
+# Getting Started
 
-## Tests
+To get started with making your contribution, you'll need to get your hands on the code. You can do this one of two ways ~ if you're a member of the organization, since you'll have push permissions, you can clone mainframe's repository itself with the following command.
+
+```sh
+git clone git@github.com:vipyrsec/dragonfly-mainframe.git
+```
+
+Otherwise, you'll have to fork the repository and make your changes on that fork. To do so, navigate to [https://github.com/vipyrsec/dragonfly-mainframe](), and near the top of the page where it says `Fork`, hit the dropdown and select the `Create a new fork` button.
+
+Once you've forked the repository, go ahead and clone that fork with the following command.
+
+```sh
+git clone git@github.com:<YourUsernameHere>/dragonfly-mainframe.git
+```
+
+making sure to replace `<YourUsernameHere>` with your GitHub username.
+
+Now that you have your hands on the code, you can run
+
+```sh
+cd dragonfly-mainframe
+```
+
+in the directory which you cloned your repository into.
+
+Next, you'll want to install the project dependencies, with `pdm`. You can do so with the following command.
+
+```sh
+pdm install
+```
+
+You can activate the virtual environment with one of the following commands.
+
+```sh
+eval $(pdm venv activate for-test)  # If you're using bash/csh/zsh
+eval (pdm venv activate for-test)  # If you're using fish
+Invoke-Expression (pdm venv activate for-test)  # If you're using powershell
+```
+
+We use `pre-commit` to manage this project's pre-commit hooks, which are run before each commit you make to ensure your code follows linting and style rules. You can view the configuration in `.pre-commit-config.yaml`. You'll want to install the hooks with the following command.
+
+```sh
+pdm run pre-commit install
+```
+
+We recommend using `Docker` and `docker compose` for running the API, as that handles most of the setup in regards to environment variables and such for you. You can run the API with
+
+```sh
+pdm start
+```
+
+which will invoke `docker compose` for you.
+
+# Making Changes
+
+If you're _not_ using a fork, before you make any changes, make sure to create a new `git` branch to make those changes in. You can do so with the following.
+
+```sh
+git checkout -b <branch-name>
+```
+
+where the `<branch-name>` would be something that reflects the changes/additions you're making.
+
+To make your changes, go ahead and open the project in your editor of choice. Make your changes and save the files. You'll then want to run `git add` to stage all the files that you've made changes to. For example, if you made a change to `README.md`, you'd run
+
+```sh
+git add README.md
+```
+
+If you made changes to multiple files, you'd run `git add` followed by each of the filenames, separated by spaces.
+
+```sh
+git add file1.py file2.py file3.py
+```
+
+You can also add the contents of a folder.
+
+```sh
+git add src/
+```
+
+Or all the files in the current directory
+
+```sh
+git add .
+```
+
+Once you've staged your changes with `git add`, you'll want to commit them with a meaningful _commit message_ describing the changes you made, using `git commit`. If, going back to our README.md change example, you had fixed a typo, your command would look like the following.
+
+```sh
+git commit -m "Fixed typo in README.md"
+```
+
+Short and sweet is fine, but make sure to keep your messages descriptive.
+
+Running `git commit` will also trigger our pre-commit hooks, which are a number of checks and formatters which are run before any code is committed, to ensure that the code follows all our stylistic and linting rules. If precommit failed, the commit won't have gone through, and you'll want to go back and fix your code. You can run the pre-commit hooks at any time to ensure your code abides by our standards by running the following.
+
+```sh
+pdm run precommit
+```
+
+For a brief overview, this project runs `black` and `isort` to format code files, and `ruff` and `pyright` to lint and type-check everything.
+
+Now, once you've committed your changes, you can push them back to the remote, or github repository that you cloned earlier. Run the following command to do so.
+
+```sh
+git push origin <branch-name>
+```
+
+Where `<branch-name>` should be the name of the branch in which you made your changes in.
+
+Once you've finished making all your changes, open a pull request at https://github.com/vipyrsec/dragonfly-mainframe/pulls.
+
+# Tests
+
 ### Writing tests
+
 We use `pytest` to run our tests. Tests go in the `tests/` directory.
 The tests for each python module should go in a separate tests file.
 
 We use `requests` for making requests to the API. Use the fixture `api_url` for the URL to make requests to.
 For example:
+
 ```py
 def test_root(api_url: str):
     r = requests.get(api_url)
     assert r.status_code == 200
 ```
+
 Additionally, we can connect to the database to check if our request had the desired effect.
 The `db_session` fixture gives a `sqlalchemy.orm.Session` that you can use to make queries.
 The database is preloaded with some test data.
 For example:
+
 ```py
 def test_query(api_url: str, db_session: Session):
     r = requests.get(api_url + "/package?name=a&version=0.1.0")
     data = r.json()
     assert r["name"] == "a"
 ```
+
 All database changes are rolled back after each test, so you are given a fresh database with the original test data every time.
 
 ### Running the tests
+
 #### Method 1 - Recommended
+
 Use `pdm test`. This should be the go-to method.
 
 #### Method 2
+
 Alternatively you can run Postgresql locally or in a container, then run the server using `pdm run python -m uvicorn src.mainframe.server:app`.
 To run the tests, use `pdm run pytest`.
 If you choose to use this method, be sure to set the environment variable `DB_URL` to the appropriate value, so that the tests can connect to the database.
 You can also use manual testing via a browser, or `curl`, for example, but this requires some additional setup, described in the Database Migrations section below.
 
+# Running the API
+
+## Method 1 - Recommended
+
+Use `docker` and `docker compose` to run the API, as that handles most of the setup in regards to environment variables and such for you. You can do so through running
+
+```sh
+pdm start
+```
+
+which is an alias for `docker compose up --build`.
+
+## Method 2 - Manual setup
+
+Alternatively, you'll want to run PostgreSQL locally or in a container, and run the API manually by invoking `entrypoint.sh`.
+
+```sh
+./entrypoint.sh
+```
+
+You'll need to have the following environment variables set.
+| Environment Variable | Type | Default | Description |
+|---------------------------|------|---------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `AUTH0_DOMAIN` | str | "vipyrsec.us.auth0.com" | Authentication domain for Auth0 |
+| `AUTH0_AUDIENCE` | str | "dragonfly.vipyrsec.com" | Audience field for Auth0 |
+| `DRAGONFLY_GITHUB_TOKEN` | str | | Github PAT for accessing YARA rules in the security-intelligence repository |
+| `JOB_TIMEOUT` | int | 60 \* 2 | The maximum time to wait for clients to respond with job results. After this time has elapsed, the server will begin distributing this job to other clients |
+| | | | |
+| `EMAIL_RECIPIENT` | str | "security@pypi.org" | The recipient address of report emails |
+| `BCC_RECIPIENTS` | set | set() | Additional addresses that should be BCC'd in email reports. Defaults to an empty set. |
+| `DB_URL` | str | "postgresql+asyncpg://postgres:postgres@localhost:5432" | PostgreSQL database connection string |
+| | | | |
+| `SENTRY_DSN` | str | "" | Sentry Data Source Name (DSN) |
+| `SENTRY_ENVIRONMENT` | str | "" | Sentry environment |
+| `SENTRY_RELEASE_PREFIX` | str | "" | Sentry release prefix |
+| | | | |
+| `MICROSOFT_TENANT_ID` | str | | Microsoft tenant ID for automated emails |
+| `MICROSOFT_CLIENT_ID` | str | | Microsoft client ID for automated emails |
+| `MICROSOFT_CLIENT_SECRET` | str | | Microsoft client secret for automated emails |
+
+**NOTE**: Environment variables where the `default` column is empty are required for the application to startup
+
+**NOTE**: Environment variables with type `str` and `default` `""` are not required for the application to startup but may cause the application to function incorrectly
+
 # Database Migrations
+
 We use `Alembic` to manage database migrations.
 Migrations handle changes between versions of a database schema.
 You only need to worry about this if you want to run manual tests, or you have made changes to the database schema.
 
 ## Generating revisions
+
 For each schema change, you should create a revision file using `pdm run alembic revision --autogenerate -m "<short change message>"`.
 
 **Important**: You must then edit the created file and make sure it is correct.
 
 ## Running migrations
+
 For manual testing, run `pdm run alembic upgrade head` in order to set up the database. If you get an error along the lines of `relation "packages" does not exist`, then you probably did not run the migration.
-
-## Environment Variables
-The following table illustrates configuration options in the form of environment variables that may be set.
-
-
-| Environment Variable      | Type | Default                                                 | Description                                                                                                                                                 |
-|---------------------------|------|---------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `AUTH0_DOMAIN`            | str  | "vipyrsec.us.auth0.com"                                 | Authentication domain for Auth0                                                                                                                             |
-| `AUTH0_AUDIENCE`          | str  | "dragonfly.vipyrsec.com"                                | Audience field for Auth0                                                                                                                                    |
-| `DRAGONFLY_GITHUB_TOKEN`  | str  |                                                         | Github PAT for accessing YARA rules in the security-intelligence repository                                                                                 |
-| `JOB_TIMEOUT`             | int  | 60 * 2                                                  | The maximum time to wait for clients to respond with job results. After this time has elapsed, the server will begin distributing this job to other clients |
-|                           |      |                                                         |                                                                                                                                                             |
-| `EMAIL_RECIPIENT`         | str  | "security@pypi.org"                                     | The recipient address of report emails                                                                                                                      |
-| `BCC_RECIPIENTS`          | set  | set()                                                   | Additional addresses that should be BCC'd in email reports. Defaults to an empty set.                                                                       |
-| `DB_URL`                  | str  | "postgresql+asyncpg://postgres:postgres@localhost:5432" | PostgreSQL database connection string                                                                                                                       |
-|                           |      |                                                         |                                                                                                                                                             |
-| `SENTRY_DSN`              | str  | ""                                                      | Sentry Data Source Name (DSN)                                                                                                                               |
-| `SENTRY_ENVIRONMENT`      | str  | ""                                                      | Sentry environment                                                                                                                                          |
-| `SENTRY_RELEASE_PREFIX`   | str  | ""                                                      | Sentry release prefix                                                                                                                                       |
-|                           |      |                                                         |                                                                                                                                                             |
-| `MICROSOFT_TENANT_ID`     | str  |                                                         | Microsoft tenant ID for automated emails                                                                                                                    |
-| `MICROSOFT_CLIENT_ID`     | str  |                                                         | Microsoft client ID for automated emails                                                                                                                    |
-| `MICROSOFT_CLIENT_SECRET` | str  |                                                         | Microsoft client secret for automated emails                                                                                                                |
-
-**NOTE**: Environment variables where the `default` column is empty are required for the application to startup
-
-**NOTE**: Environment variables with type `str` and `default` `""` are not required for the application to startup but may cause the application to function incorrectly
