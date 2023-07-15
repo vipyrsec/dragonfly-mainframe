@@ -32,8 +32,10 @@ COPY alembic/ alembic/
 COPY alembic.ini ./
 COPY src/ src/
 COPY entrypoint.sh ./
+COPY entrypoint_dev.sh ./
 RUN chmod +x entrypoint.sh
+RUN chmod +x entrypoint_dev.sh
 
-CMD ["./entrypoint.sh"]
+CMD ["sh", "./entrypoint.sh"]
 
 EXPOSE 8000

@@ -10,6 +10,7 @@ services:
       db:
         condition: service_healthy
     tty: true
+    restart: always
     environment:
       # disable prepared statement cache because we want to be able to create and destroy tables for each test
       # when enabled, any schema change will invalidate the cache, causing an error
@@ -20,6 +21,8 @@ services:
       MICROSOFT_CLIENT_SECRET: client_secret
       EMAIL_RECIPIENT: email_recipient
       DRAGONFLY_GITHUB_TOKEN: test
+    volumes:
+      - "./src:/app/src"
 
   db:
     image: postgres
