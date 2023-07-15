@@ -6,9 +6,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 GIT_SHA = getenv("GIT_SHA", "development")
 
 
-class Mainframe(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env")
+class EnvConfig(BaseSettings):
+    """Our default configuration for models that should load from .env files."""
 
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_nested_delimiter="__",
+        extra="ignore",
+    )
+
+
+class Mainframe(EnvConfig):
     client_origin_url: str = ""
     auth0_domain: str = ""
     auth0_audience: str = ""
@@ -26,8 +35,8 @@ class Mainframe(BaseSettings):
 mainframe_settings = Mainframe()  # pyright: ignore
 
 
-class _Sentry(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="sentry_")
+class _Sentry(EnvConfig):
+    EnvConfig.model_config["env_prefix"] = "sentry_"
 
     dsn: str = ""
     environment: str = ""
@@ -37,8 +46,8 @@ class _Sentry(BaseSettings):
 Sentry = _Sentry()  # pyright: ignore
 
 
-class Microsoft(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="microsoft_")
+class Microsoft(EnvConfig):
+    EnvConfig.model_config["env_prefix"] = "microsoft_"
 
     tenant_id: str
     client_id: str
