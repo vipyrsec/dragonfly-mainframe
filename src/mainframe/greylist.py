@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mainframe.database import get_db
-from mainframe.models.orm import Package, Status
+from mainframe.models.orm import Scan, Status
 
 
 async def greylist_scan(
@@ -20,10 +20,10 @@ async def greylist_scan(
 
     row = (
         await session.scalars(
-            select(Package.rules)
-            .where(Package.name == package_name)
-            .where(Package.status == Status.FINISHED)
-            .order_by(Package.finished_at.desc())
+            select(Scan.rules)
+            .where(Scan.name == package_name)
+            .where(Scan.status == Status.FINISHED)
+            .order_by(Scan.finished_at.desc())
         )
     ).first()
 
