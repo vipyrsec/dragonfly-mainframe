@@ -203,7 +203,7 @@ async def report_package(
 
         rules_matched.extend(rule.name for rule in row.rules)
 
-    if greylist_scan(name, list(map(str, row.rules)), session) is True:
+    if greylist_scan(name, row.rule_names, session) is True:
         raise HTTPException(
             409,
             detail=(
