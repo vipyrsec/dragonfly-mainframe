@@ -13,7 +13,7 @@ from sqlalchemy.orm import selectinload
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
 from mainframe.dependencies import get_ms_graph_client, validate_token
-from mainframe.greylist import greylist_scan
+from mainframe.greylist import in_greylist
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan
 from mainframe.models.schemas import Error, PackageSpecifier
@@ -203,7 +203,7 @@ async def report_package(
 
         rules_matched.extend(rule.name for rule in row.rules)
 
-    if greylist_scan(name, row.rule_names, session):
+    if in_greylist(name, row.rule_names, session):
         raise HTTPException(
             409,
             detail=(

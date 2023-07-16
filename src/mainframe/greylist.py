@@ -8,12 +8,16 @@ from mainframe.database import get_db
 from mainframe.models.orm import Scan, Status
 
 
-async def greylist_scan(
+async def in_greylist(
     package_name: str,
     rules_matched: list[str],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> bool:
-    """Check if the rules we matched are the same as the last scan."""
+    """
+    Check if the rules we matched are the same as the last scan.
+
+    If this package is the first release we scanned, returns `False`.
+    """
 
     if len(rules_matched) == 0:
         return False
