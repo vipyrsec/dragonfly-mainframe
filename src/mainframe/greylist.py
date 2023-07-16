@@ -27,4 +27,7 @@ async def greylist_scan(
         )
     ).first()
 
-    return row == rules_matched
+    if row is None:
+        return False
+
+    return set(r.name for r in row) == set(rules_matched)
