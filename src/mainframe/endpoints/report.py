@@ -153,7 +153,7 @@ async def report_package(
             error = HTTPException(
                 409,
                 detail=(
-                    f"Only one version of a package may be reported at a time. "
+                    "Only one version of a package may be reported at a time. "
                     f"(`{row.name}@{row.version}` was already reported)"
                 ),
             )
@@ -192,7 +192,7 @@ async def report_package(
             error = HTTPException(
                 400,
                 detail=(
-                    f"additional_information is a required field as package "
+                    "additional_information is a required field as package "
                     f"`{name}@{version}` has no matched rules in the database"
                 ),
             )
@@ -203,13 +203,13 @@ async def report_package(
 
         rules_matched.extend(rule.name for rule in row.rules)
 
-    if greylist_scan(name, row.rule_names, session) is True:
+    if greylist_scan(name, row.rule_names, session):
         raise HTTPException(
             409,
             detail=(
                 f"A previous version ({row.version}) of this package matched "
-                f"all of the same rules. It is improbable that this new version "
-                f"has become malicious without deviations in rule flagging"
+                "all of the same rules. It is improbable that this new version "
+                "has become malicious without deviations in rule flagging"
             ),
         )
 
