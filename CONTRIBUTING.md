@@ -2,7 +2,7 @@
 
 Requirements:
 
--   Python 3.11
+-   [Python 3.11](https://www.python.org/downloads/)
 -   [Git](https://git-scm.com/downloads)
 -   [PDM](https://pdm.fming.dev/latest/#recommended-installation-method)
 -   [Docker](https://docs.docker.com/engine/install/)
@@ -12,7 +12,7 @@ Requirements:
 To get started with making your contribution, you'll need to get your hands on the code. You can do this one of two ways ~ if you're a member of the organization, since you'll have push permissions, you can clone mainframe's repository itself with the following command.
 
 ```sh
-git clone git@github.com:vipyrsec/dragonfly-mainframe.git
+git clone https://github.com/vipyrsec/dragonfly-mainframe.git
 ```
 
 Otherwise, you'll have to fork the repository and make your changes on that fork. To do so, navigate to [https://github.com/vipyrsec/dragonfly-mainframe](), and near the top of the page where it says `Fork`, hit the dropdown and select the `Create a new fork` button.
@@ -20,7 +20,7 @@ Otherwise, you'll have to fork the repository and make your changes on that fork
 Once you've forked the repository, go ahead and clone that fork with the following command.
 
 ```sh
-git clone git@github.com:<YourUsernameHere>/dragonfly-mainframe.git
+git clone https://github.com/<YourUsernameHere>/dragonfly-mainframe.git
 ```
 
 making sure to replace `<YourUsernameHere>` with your GitHub username.
