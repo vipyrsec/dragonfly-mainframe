@@ -53,6 +53,14 @@ We use `pre-commit` to manage this project's pre-commit hooks, which are run bef
 pdm run pre-commit install
 ```
 
+You can run
+
+```sh
+pdm run precommit
+```
+
+to have the pre-commit hooks run at any time.
+
 We recommend using `Docker` and `docker compose` for running the API, as that handles most of the setup in regards to environment variables and such for you. You can run the API with
 
 ```sh
@@ -60,66 +68,6 @@ pdm start
 ```
 
 which will invoke `docker compose` for you.
-
-# Making Changes
-
-If you're _not_ using a fork, before you make any changes, make sure to create a new `git` branch to make those changes in. You can do so with the following.
-
-```sh
-git checkout -b <branch-name>
-```
-
-where the `<branch-name>` would be something that reflects the changes/additions you're making.
-
-To make your changes, go ahead and open the project in your editor of choice. Make your changes and save the files. You'll then want to run `git add` to stage all the files that you've made changes to. For example, if you made a change to `README.md`, you'd run
-
-```sh
-git add README.md
-```
-
-If you made changes to multiple files, you'd run `git add` followed by each of the filenames, separated by spaces.
-
-```sh
-git add file1.py file2.py file3.py
-```
-
-You can also add the contents of a folder.
-
-```sh
-git add src/
-```
-
-Or all the files in the current directory
-
-```sh
-git add .
-```
-
-Once you've staged your changes with `git add`, you'll want to commit them with a meaningful _commit message_ describing the changes you made, using `git commit`. If, going back to our README.md change example, you had fixed a typo, your command would look like the following.
-
-```sh
-git commit -m "Fixed typo in README.md"
-```
-
-Short and sweet is fine, but make sure to keep your messages descriptive.
-
-Running `git commit` will also trigger our pre-commit hooks, which are a number of checks and formatters which are run before any code is committed, to ensure that the code follows all our stylistic and linting rules. If precommit failed, the commit won't have gone through, and you'll want to go back and fix your code. You can run the pre-commit hooks at any time to ensure your code abides by our standards by running the following.
-
-```sh
-pdm run precommit
-```
-
-For a brief overview, this project runs `black` and `isort` to format code files, and `ruff` and `pyright` to lint and type-check everything.
-
-Now, once you've committed your changes, you can push them back to the remote, or github repository that you cloned earlier. Run the following command to do so.
-
-```sh
-git push origin <branch-name>
-```
-
-Where `<branch-name>` should be the name of the branch in which you made your changes in.
-
-Once you've finished making all your changes, open a pull request at https://github.com/vipyrsec/dragonfly-mainframe/pulls.
 
 # Tests
 
