@@ -1,4 +1,5 @@
 import datetime as dt
+import itertools
 from typing import Annotated, Optional
 
 import structlog
@@ -55,9 +56,39 @@ async def submit_results(
         raise error
 
     if scan.status == Status.FINISHED:
-        error = HTTPException(409, f"Package `{name}@{version}` is already in a FINISHED state.")
+        if isinstance(result, PackageScanResultFail):
+            error = HTTPException(
+                409,
+                f"Scan {name}@{version} is already in a FINISHED state, "
+                f"but a new client failed with reason: {result.reason}",
+            )
+            await log.ainfo(error.detail, tag="already_finished")
+            raise error
+
+        if all(
+            r1 == r2
+            for r1, r2 in itertools.zip_longest(
+                [rule.name for rule in scan.rules], result.rules_matched, fillvalue=None
+            )
+        ):
+            error = HTTPException(
+                409, f"Scan {name}@{version} is already in a FINISHED state, but a client responded with same rules"
+            )
+            await log.ainfo(
+                error.detail,
+                tag="already_finished",
+            )
+            raise error
+
+        error = HTTPException(
+            409, f"Package `{name}@{version}` is already in a FINISHED state, but client responded with different rules"
+        )
         await log.aerror(
-            f"Scan {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
+            f"Scan {name}@{version} already in a FINISHED state, but client responded with different rules",
+            existing_rules=[rule.name for rule in scan.rules],
+            new_rules=result.rules_matched,
+            error_message=error.detail,
+            tag="already_finished",
         )
         raise error
 
