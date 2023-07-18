@@ -106,7 +106,7 @@ Use `pdm test`. This should be the go-to method.
 
 ### Method 2
 
-Alternatively you can run Postgresql locally or in a container, then run the server using `pdm run python -m uvicorn src.mainframe.server:app`.
+Alternatively you can run PostgreSQL locally or in a container, then run the server using `pdm run python -m uvicorn src.mainframe.server:app`.
 To run the tests, use `pdm run pytest`.
 If you choose to use this method, be sure to set the environment variable `DB_URL` to the appropriate value, so that the tests can connect to the database.
 You can also use manual testing via a browser, or `curl`, for example, but this requires some additional setup, described in the Database Migrations section below.
@@ -165,7 +165,7 @@ You only need to worry about this if you want to run manual tests, or you have m
 
 For each schema change, you should create a revision file using `pdm run alembic revision --autogenerate -m "<short change message>"`.
 
-**Always** check the generated migrations to see if they are accurate. There are many situations where alembic is unable to generate them correctly (link to page talking about it)
+**Always** check the generated migrations to see if they are accurate. There are many situations where alembic is unable to generate them correctly. You can refer to [this page](https://alembic.sqlalchemy.org/en/latest/autogenerate.html#what-does-autogenerate-detect-and-what-does-it-not-detect) for more details.
 
 ## Running migrations
 
