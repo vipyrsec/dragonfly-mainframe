@@ -9,14 +9,13 @@ Requirements:
 
 # Getting Started
 
-To get started with making your contribution, you'll need to get your hands on the code. You can do this one of two ways ~ if you're a member of the organization, since you'll have push permissions, you can clone mainframe's repository itself with the following command.
+If you are a member of the organization, create a branch and a pull request when you are finished.
 
 ```sh
 git clone https://github.com/vipyrsec/dragonfly-mainframe.git
 ```
 
-Otherwise, you'll have to fork the repository and make your changes on that fork. To do so, navigate to [https://github.com/vipyrsec/dragonfly-mainframe](), and near the top of the page where it says `Fork`, hit the dropdown and select the `Create a new fork` button.
-
+Otherwise, work from a fork of the repository and create a pull request when you're done.
 Once you've forked the repository, go ahead and clone that fork with the following command.
 
 ```sh
@@ -166,8 +165,8 @@ You only need to worry about this if you want to run manual tests, or you have m
 
 For each schema change, you should create a revision file using `pdm run alembic revision --autogenerate -m "<short change message>"`.
 
-**Important**: You must then edit the created file and make sure it is correct.
+**Always** check the generated migrations to see if they are accurate. There are many situations where alembic is unable to generate them correctly (link to page talking about it)
 
 ## Running migrations
 
-For manual testing, run `pdm run alembic upgrade head` in order to set up the database. If you get an error along the lines of `relation "packages" does not exist`, then you probably did not run the migration.
+For manual testing, run `pdm run alembic upgrade head` in order to set up the database.
