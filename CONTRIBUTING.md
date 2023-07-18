@@ -70,7 +70,7 @@ which will invoke `docker compose` for you.
 
 # Tests
 
-### Writing tests
+## Writing tests
 
 We use `pytest` to run our tests. Tests go in the `tests/` directory.
 The tests for each python module should go in a separate tests file.
@@ -98,13 +98,13 @@ def test_query(api_url: str, db_session: Session):
 
 All database changes are rolled back after each test, so you are given a fresh database with the original test data every time.
 
-### Running the tests
+## Running the tests
 
-#### Method 1 - Recommended
+### Method 1 - Recommended
 
 Use `pdm test`. This should be the go-to method.
 
-#### Method 2
+### Method 2
 
 Alternatively you can run Postgresql locally or in a container, then run the server using `pdm run python -m uvicorn src.mainframe.server:app`.
 To run the tests, use `pdm run pytest`.
