@@ -381,6 +381,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "prometheus-client"
+version = "0.17.1"
+requires_python = ">=3.6"
+summary = "Python client for the Prometheus monitoring system."
+
+[[package]]
 name = "psycopg2-binary"
 version = "2.9.6"
 requires_python = ">=3.6"
@@ -664,7 +670,7 @@ dependencies = [
 lock_version = "4.2"
 cross_platform = true
 groups = ["default", "lint", "logs", "test"]
-content_hash = "sha256:d714eab3ce0331be3dd53b3aa44a2320bd6460a9aefecf2b4b764655cf61ff6a"
+content_hash = "sha256:b3c073bf34f470603dd9c9388674736dc6544a2102d51d1ee72720501303f44b"
 
 [metadata.files]
 "aiohttp 3.8.4" = [
@@ -1423,6 +1429,10 @@ content_hash = "sha256:d714eab3ce0331be3dd53b3aa44a2320bd6460a9aefecf2b4b764655c
 "pre-commit 3.3.3" = [
     {url = "https://files.pythonhosted.org/packages/35/0e/564c71fe3cdf59a4acaaccaea354d066e5d9044eba564dac070bb2075432/pre_commit-3.3.3.tar.gz", hash = "sha256:a2256f489cd913d575c145132ae196fe335da32d91a8294b7afe6622335dd023"},
     {url = "https://files.pythonhosted.org/packages/e3/b7/1d145c985d8be9729672a45b8b8113030ad60dff45dec592efc4e5f5897a/pre_commit-3.3.3-py2.py3-none-any.whl", hash = "sha256:10badb65d6a38caff29703362271d7dca483d01da88f9d7e05d0b97171c136cb"},
+]
+"prometheus-client 0.17.1" = [
+    {url = "https://files.pythonhosted.org/packages/ad/b3/6e18c89bf6bd120590ea538a62cae16dc763ff2745b18377c4be5495c4aa/prometheus_client-0.17.1-py3-none-any.whl", hash = "sha256:e537f37160f6807b8202a6fc4764cdd19bac5480ddd3e0d463c3002b34462101"},
+    {url = "https://files.pythonhosted.org/packages/f5/05/aee33352594522c56eb4a4382b5acd9a706a030db9ba2fc3dc38a283e75c/prometheus_client-0.17.1.tar.gz", hash = "sha256:21e674f39831ae3f8acde238afd9a27a37d0d2fb5a28ea094f0ce25d2cbf2091"},
 ]
 "psycopg2-binary 2.9.6" = [
     {url = "https://files.pythonhosted.org/packages/01/76/512f0a878dd900902ed818156baccaf94c05d0450534f7b4f714932e3d7e/psycopg2_binary-2.9.6-cp311-cp311-win32.whl", hash = "sha256:1876843d8e31c89c399e31b97d4b9725a3575bb9c2af92038464231ec40f9edb"},

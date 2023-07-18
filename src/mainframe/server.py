@@ -126,6 +126,16 @@ app = FastAPI(
     version=__version__,
 )
 
+from prometheus_client import Counter, make_asgi_app
+
+c = Counter("app_failures", "Test app failures counter")
+
+c.inc()
+c.inc(1.6)
+
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
+
 if GIT_SHA in ("development", "testing"):
     app.dependency_overrides[validate_token] = validate_token_override
 
