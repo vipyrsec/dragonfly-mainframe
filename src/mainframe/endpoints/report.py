@@ -201,7 +201,7 @@ async def report_package(
             )
             raise error
 
-        rules_matched.extend(rule.name for rule in row.rules)
+    rules_matched.extend(rule.name for rule in row.rules)
 
     additional_information = body.additional_information
 
