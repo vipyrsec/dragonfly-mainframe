@@ -22,7 +22,7 @@ class Mainframe(EnvConfig):
     auth0_domain: str = ""
     auth0_audience: str = ""
 
-    email_recipient: str
+    email_recipient: str = "security@pypi.org"
     bcc_recipients: set[str] = set()
 
     db_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432"
