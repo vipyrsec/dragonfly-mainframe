@@ -204,7 +204,17 @@ async def batch_queue_package(
 
         rows.append(scan)
 
-    await session.execute(insert(Scan).values(rows).on_conflict_do_nothing())
+    params = [
+        dict(
+            name=row.name,
+            version=row.version,
+            status=row.status,
+            queued_by=row.queued_by,
+            download_urls=[dict(url=url.url) for url in row.download_urls],
+        )
+        for row in rows
+    ]
+    await session.execute(insert(Scan).on_conflict_do_nothing(), params)
     await session.commit()
 
 
