@@ -17,6 +17,7 @@ from mainframe.constants import GIT_SHA, Sentry
 from mainframe.database import async_session
 from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
+from mainframe.metrics import metrics_app  # type: ignore
 from mainframe.models.schemas import ServerMetadata
 from mainframe.rules import Rules, fetch_rules
 
@@ -125,6 +126,8 @@ app = FastAPI(
     description="A service that provides a REST API for managing rules.",
     version=__version__,
 )
+
+app.mount("/metrics", metrics_app)  # type: ignore
 
 if GIT_SHA in ("development", "testing"):
     app.dependency_overrides[validate_token] = validate_token_override

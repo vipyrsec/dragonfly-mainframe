@@ -13,6 +13,12 @@ from sqlalchemy.orm import selectinload
 from mainframe.database import get_db
 from mainframe.dependencies import validate_token
 from mainframe.json_web_token import AuthenticationData
+from mainframe.metrics import (
+    package_ingest_counter,
+    package_scan_fail_counter,
+    package_scan_success_counter,
+    package_scanned_counter,
+)
 from mainframe.models.orm import DownloadURL, Rule, Scan, Status
 from mainframe.models.schemas import (
     Error,
@@ -41,6 +47,8 @@ async def submit_results(
     name = result.name
     version = result.version
 
+    package_scanned_counter.inc()
+
     scan = await session.scalar(
         select(Scan).where(Scan.name == name).where(Scan.version == version).options(selectinload(Scan.rules))
     )
@@ -64,6 +72,7 @@ async def submit_results(
     if isinstance(result, PackageScanResultFail):
         scan.status = Status.FAILED
         scan.fail_reason = result.reason
+        package_scan_fail_counter.inc()
 
         await session.commit()
         return
@@ -100,6 +109,7 @@ async def submit_results(
         tag="scan_submitted",
     )
 
+    package_scan_success_counter.inc()
     await session.commit()
 
 
@@ -210,6 +220,9 @@ async def batch_queue_package(
                     session.add(row)
             except IntegrityError:
                 pass
+            else:
+                print("Incrementing!")
+                package_ingest_counter.inc()
 
 
 @router.post(
@@ -268,6 +281,7 @@ async def queue_package(
 
     try:
         await session.commit()
+        package_ingest_counter.inc()
     except IntegrityError:
         await log.warn(f"Package {name}@{version} already queued for scanning.", tag="already_queued")
         raise HTTPException(409, f"Package {name}@{version} is already queued for scanning")

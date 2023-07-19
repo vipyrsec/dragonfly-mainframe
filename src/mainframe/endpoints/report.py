@@ -15,6 +15,7 @@ from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
 from mainframe.dependencies import get_ms_graph_client, validate_token
 from mainframe.json_web_token import AuthenticationData
+from mainframe.metrics import package_scan_report_counter
 from mainframe.models.orm import Scan
 from mainframe.models.schemas import Error, PackageSpecifier
 from mainframe.utils.mailer import send_email
@@ -228,4 +229,5 @@ async def report_package(
 
     row.reported_by = auth.subject
     row.reported_at = dt.datetime.now(dt.timezone.utc)
+    package_scan_report_counter.inc()
     await session.commit()
