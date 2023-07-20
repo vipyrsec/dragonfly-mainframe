@@ -38,7 +38,6 @@ def send_email(
     ]
     for recipients_type, recipients_list in recipients_groups:
         if recipients_list is not None:
-            data[recipients_type] = _build_formatted_recipients_list(
-                recipients_list)
+            data[recipients_type] = _build_formatted_recipients_list(recipients_list)
 
     graph_client.post(url=f"/users/{sender}/sendMail", json=data)  # type: ignore
