@@ -1,5 +1,7 @@
 """Sending emails"""
 
+from typing import Any
+
 from msgraph.core import GraphClient
 
 
@@ -23,7 +25,7 @@ def send_email(
     bcc_recipients: list[str] | None = None,
 ) -> None:
     """Send an email"""
-    data = {
+    data: dict[str, Any] = {
         "message": {
             "subject": subject,
             "body": {"contentType": "text", "content": content},
