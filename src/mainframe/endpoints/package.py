@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from letsbuilda.pypi.async_client import PyPIServices  # type: ignore
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -181,7 +180,6 @@ async def batch_queue_package(
     request: Request,
 ):
     pypi_client: PyPIServices = request.app.state.pypi_client
-    rows: list[Scan] = []
 
     for package in packages:
         name = package.name
@@ -192,9 +190,16 @@ async def batch_queue_package(
         except PackageNotFoundError:
             continue
 
+        name = package_metadata.title
+        version = package_metadata.releases[0].version
+
+        scan = await session.scalar(select(Scan).where(Scan.name == name).where(Scan.version == version))
+        if scan:
+            continue
+
         scan = Scan(
-            name=package_metadata.title,
-            version=package_metadata.releases[0].version,
+            name=name,
+            version=version,
             status=Status.QUEUED,
             queued_by=auth.subject,
             download_urls=[
@@ -202,19 +207,7 @@ async def batch_queue_package(
             ],
         )
 
-        rows.append(scan)
-
-    params = [
-        dict(
-            name=row.name,
-            version=row.version,
-            status=row.status,
-            queued_by=row.queued_by,
-            download_urls=[dict(url=url.url) for url in row.download_urls],
-        )
-        for row in rows
-    ]
-    await session.execute(insert(Scan).on_conflict_do_nothing(), params)
+        session.add(scan)
     await session.commit()
 
 
