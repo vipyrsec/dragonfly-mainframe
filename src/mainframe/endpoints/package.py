@@ -208,7 +208,7 @@ async def batch_queue_package(
         try:
             await session.commit()
         except IntegrityError:
-            pass
+            await session.rollback()
 
 
 @router.post(
