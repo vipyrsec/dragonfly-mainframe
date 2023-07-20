@@ -203,16 +203,9 @@ async def batch_queue_package(
 
         rows.append(scan)
 
-    async with session.begin():
-        for row in rows:
-            try:
-                async with session.begin_nested():
-                    session.add(row)
-            except IntegrityError:
-                print("Skipping duplicate")
-                pass
-    await session.commit()
-    await session.close()
+    for scan in rows:
+        session.add(scan)
+        await session.commit()
 
 
 @router.post(
