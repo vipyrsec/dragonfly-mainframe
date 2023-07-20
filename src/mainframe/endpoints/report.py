@@ -49,11 +49,11 @@ def send_report_email(
 
     send_email(
         graph_client,  # type: ignore
-        sender="system@mantissecurity.org",
         subject=f"Automated PyPI Malware Report: {package_name}@{package_version}",
         content=content,
+        reply_to_recipients=[mainframe_settings.email_reply_to],
+        sender=mainframe_settings.email_sender,
         to_recipients=[mainframe_settings.email_recipient],
-        cc_recipients=[],
         bcc_recipients=list(mainframe_settings.bcc_recipients),
     )
 
