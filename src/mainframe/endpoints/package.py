@@ -205,7 +205,10 @@ async def batch_queue_package(
 
     for scan in rows:
         session.add(scan)
-        await session.commit()
+        try:
+            await session.commit()
+        except IntegrityError:
+            pass
 
 
 @router.post(
