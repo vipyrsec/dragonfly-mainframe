@@ -119,3 +119,13 @@ def test_handle_fail(api_url: str, db_session: Session, test_data: list[dict]):
         assert record is not None
     else:
         assert all(d["status"] != "queued" for d in test_data)
+
+
+def test_batch_queue(api_url: str, db_session: Session, test_data: list[dict]):
+    data = [dict(name=t["name"], version=t["version"]) for t in test_data] + [dict(name="c", version="1.0.0")]
+    print(data)
+    r = requests.post(f"{api_url}/batch/package", json=data)
+    r.raise_for_status()
+
+    for row in db_session.scalars(select(Scan)):
+        assert dict(name=row.name, version=row.version) in data
