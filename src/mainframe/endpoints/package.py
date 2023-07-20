@@ -202,7 +202,7 @@ async def batch_queue_package(
         )
 
         rows.append(scan)
-        
+
     async with session.begin():
         for row in rows:
             try:
