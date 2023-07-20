@@ -211,6 +211,8 @@ async def batch_queue_package(
             except IntegrityError:
                 print("Skipping duplicate")
                 pass
+    await session.commit()
+    await session.close()
 
 
 @router.post(
