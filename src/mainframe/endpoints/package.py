@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from letsbuilda.pypi.async_client import PyPIServices  # type: ignore
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -204,18 +203,14 @@ async def batch_queue_package(
 
         rows.append(scan)
 
-    params = [
-        dict(
-            name=row.name,
-            version=row.version,
-            status=row.status,
-            queued_by=row.queued_by,
-            download_urls=[dict(url=url.url) for url in row.download_urls],
-        )
-        for row in rows
-    ]
-    await session.execute(insert(Scan).on_conflict_do_nothing(), params)
-    await session.commit()
+    async with session.begin():
+        for row in rows:
+            try:
+                async with session.begin_nested():
+                    session.add(row)
+            except IntegrityError:
+                print("Skipping duplicate")
+                pass
 
 
 @router.post(
