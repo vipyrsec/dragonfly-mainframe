@@ -180,7 +180,6 @@ async def batch_queue_package(
     request: Request,
 ):
     pypi_client: PyPIServices = request.app.state.pypi_client
-    rows: list[Scan] = []
 
     for package in packages:
         name = package.name
@@ -191,9 +190,16 @@ async def batch_queue_package(
         except PackageNotFoundError:
             continue
 
+        name = package_metadata.title
+        version = package_metadata.releases[0].version
+
+        scan = await session.scalar(select(Scan).where(Scan.name == name).where(Scan.version == version))
+        if scan:
+            continue
+
         scan = Scan(
-            name=package_metadata.title,
-            version=package_metadata.releases[0].version,
+            name=name,
+            version=version,
             status=Status.QUEUED,
             queued_by=auth.subject,
             download_urls=[
@@ -201,16 +207,8 @@ async def batch_queue_package(
             ],
         )
 
-        rows.append(scan)
-
-    async with session.begin():
-        for row in rows:
-            try:
-                async with session.begin_nested():
-                    session.add(row)
-            except IntegrityError:
-                print("Skipping duplicate")
-                pass
+        session.add(scan)
+    await session.commit()
 
 
 @router.post(
