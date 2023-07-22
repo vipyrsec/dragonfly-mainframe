@@ -200,7 +200,9 @@ async def batch_queue_package(
 
         valid_packages.append(scan)
 
-    scalars = await session.scalars(select(Scan).where(tuple_(Scan.name, Scan.version).in_(valid_packages)))
+    scalars = await session.scalars(
+        select(Scan).where(tuple_(Scan.name, Scan.version).in_([(s.name, s.version) for s in valid_packages]))
+    )
 
     existing_rows = {(scan.name, scan.version) for scan in scalars.all()}
 
