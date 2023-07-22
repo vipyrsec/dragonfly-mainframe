@@ -31,6 +31,12 @@ class PackageSpecifier(BaseModel):
         frozen = True
 
 
+class ReportPackageBody(PackageSpecifier):
+    recipient: Optional[str]
+    inspector_url: Optional[str]
+    additional_information: Optional[str]
+
+
 class PackageScanResult(PackageSpecifier):
     """Client payload to server containing the results of a package scan"""
 
