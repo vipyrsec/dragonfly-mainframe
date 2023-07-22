@@ -86,7 +86,7 @@ async def report_package(
 
     Packages that have already been reported cannot be reported.
 
-    While the `inspector_url`, `additional_information` endpoints are optional in the schema,
+    While the `inspector_url` and `additional_information` fields are optional in the schema,
     the API requires you to provide them in certain cases. Some of those are outlined below.
 
     If the `recipient` field is not omitted, then that specified email address will be used
