@@ -77,7 +77,7 @@ async def report_package(
     request: Request,
 ):
     """
-    Report a package by sending an email to PyPI with the appropriate format
+    Report a package by sending an email to `recipient` address with the appropriate format
 
     Packages that do not exist in the database (e.g it was not queued yet)
     cannot be reported.
@@ -86,8 +86,13 @@ async def report_package(
 
     Packages that have already been reported cannot be reported.
 
-    While the `inspector_url` and `additional_information` endpoints are optional in the schema,
+    While the `inspector_url`, `additional_information` endpoints are optional in the schema,
     the API requires you to provide them in certain cases. Some of those are outlined below.
+
+    If the `recipient` field is not omitted, then that specified email address will be used
+    as the recipient to the report email. If omitted, it will be whatever is configured as
+    the default on the server. This is most likely `security@pypi.org` unless it is
+    overriden in the server configuration.
 
     `inspector_url` and `additional_information` both must be provided if
     the package being reported is in a `QUEUED` or `PENDING` state. That is, the package
