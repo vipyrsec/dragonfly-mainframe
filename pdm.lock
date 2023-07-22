@@ -6,7 +6,7 @@ groups = ["default", "lint", "logs", "test"]
 cross_platform = true
 static_urls = false
 lock_version = "4.3"
-content_hash = "sha256:5bd29372d63a4d7d5068eaf8505ed60a662b4833c7c9be1008d0294674e9db48"
+content_hash = "sha256:b9845665bf53fca986fc5489464dd3d52f1f9379bbc5feff61087d9871d538f1"
 
 [[package]]
 name = "aiohttp"
@@ -1698,6 +1698,20 @@ summary = "Structured Logging for Python"
 files = [
     {file = "structlog-23.1.0-py3-none-any.whl", hash = "sha256:79b9e68e48b54e373441e130fa447944e6f87a05b35de23138e475c05d0f7e0e"},
     {file = "structlog-23.1.0.tar.gz", hash = "sha256:270d681dd7d163c11ba500bc914b2472d2b50a8ef00faa999ded5ff83a2f906b"},
+]
+
+[[package]]
+name = "structlog-sentry"
+version = "2.0.3"
+requires_python = ">=3.7,<4.0"
+summary = "Sentry integration for structlog"
+dependencies = [
+    "sentry-sdk",
+    "structlog",
+]
+files = [
+    {file = "structlog_sentry-2.0.3-py3-none-any.whl", hash = "sha256:2c83585ab92c97111682f78edf65d3c9a0e2bfa9b2c68f2e59fcdfe1c725fd1b"},
+    {file = "structlog_sentry-2.0.3.tar.gz", hash = "sha256:894a48df2121f2797d0b6a28b158c3fee9be7447d41b7645db739696fd64be42"},
 ]
 
 [[package]]
