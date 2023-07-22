@@ -5,7 +5,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from letsbuilda.pypi.async_client import PyPIServices  # type: ignore
 from letsbuilda.pypi.exceptions import PackageNotFoundError
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -181,25 +181,16 @@ async def batch_queue_package(
 ):
     pypi_client: PyPIServices = request.app.state.pypi_client
 
+    valid_packages: list[Scan] = []
     for package in packages:
-        name = package.name
-        version = package.version
-
         try:
-            package_metadata = await pypi_client.get_package_metadata(name, version)
+            package_metadata = await pypi_client.get_package_metadata(package.name, package.version)
         except PackageNotFoundError:
             continue
 
-        name = package_metadata.title
-        version = package_metadata.releases[0].version
-
-        scan = await session.scalar(select(Scan).where(Scan.name == name).where(Scan.version == version))
-        if scan:
-            continue
-
         scan = Scan(
-            name=name,
-            version=version,
+            name=package_metadata.title,
+            version=package_metadata.releases[0].version,
             status=Status.QUEUED,
             queued_by=auth.subject,
             download_urls=[
@@ -207,7 +198,16 @@ async def batch_queue_package(
             ],
         )
 
-        session.add(scan)
+        valid_packages.append(scan)
+
+    scalars = await session.scalars(select(Scan).where(tuple_(Scan.name, Scan.version).in_(valid_packages)))
+
+    existing_rows = {(scan.name, scan.version) for scan in scalars.all()}
+
+    for scan in valid_packages:
+        if (scan.name, scan.version) not in existing_rows:
+            session.add(scan)
+
     await session.commit()
 
 
