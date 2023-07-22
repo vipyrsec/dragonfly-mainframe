@@ -103,7 +103,11 @@ async def submit_results(
     await session.commit()
 
 
-@router.get("/package", responses={400: {"model": Error, "description": "Invalid parameter combination."}})
+@router.get(
+    "/package",
+    responses={400: {"model": Error, "description": "Invalid parameter combination."}},
+    dependencies=[Depends(validate_token)],
+)
 async def lookup_package_info(
     session: Annotated[AsyncSession, Depends(get_db)],
     since: Optional[int] = None,
