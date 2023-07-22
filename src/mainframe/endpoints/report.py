@@ -26,6 +26,7 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 def send_report_email(
     graph_client: GraphClient,  # type: ignore
     *,
+    recipient: str,
     package_name: str,
     package_version: str,
     inspector_url: str,
@@ -53,7 +54,7 @@ def send_report_email(
         content=content,
         reply_to_recipients=[mainframe_settings.email_reply_to],
         sender=mainframe_settings.email_sender,
-        to_recipients=[mainframe_settings.email_recipient],
+        to_recipients=[recipient],
         bcc_recipients=list(mainframe_settings.bcc_recipients),
     )
 
@@ -202,6 +203,7 @@ async def report_package(
 
     send_report_email(
         graph_client,  # type: ignore
+        recipient=body.recipient or mainframe_settings.email_recipient,
         package_name=name,
         package_version=version,
         inspector_url=inspector_url,
