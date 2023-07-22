@@ -145,7 +145,7 @@ async def lookup_package_info(
     )
 
     if (not nn_name and not nn_since) or (nn_version and nn_since):
-        await log.aerror(
+        await log.adebug(
             "Invalid parameter combination",
             error_message="Invalid parameter combination.",
             tag="invalid_parameter_combination",

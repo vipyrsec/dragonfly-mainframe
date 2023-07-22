@@ -125,7 +125,7 @@ async def report_package(
         package_metadata = await pypi_client.get_package_metadata(name, version)
     except PackageNotFoundError:
         error = HTTPException(404, detail=f"Package `{name}@{version}` was not found on PyPI")
-        await log.aerror(
+        await log.adebug(
             f"Package {name}@{version} was not found on PyPI", error_message=error.detail, tag="package_not_found_pypi"
         )
         raise error
@@ -169,7 +169,7 @@ async def report_package(
         error = HTTPException(
             404, detail=f"Package `{name}` has records in the database, but none with version `{version}`"
         )
-        await log.aerror(
+        await log.adebug(
             f"No version {version} for package {name} in database", error_message=error.detail, tag="invalid_version"
         )
         raise error
@@ -196,7 +196,7 @@ async def report_package(
                     f"`{name}@{version}` has no matched rules in the database"
                 ),
             )
-            await log.aerror(
+            await log.adebug(
                 "Missing additional_information field", error_message=error.detail, tag="missing_additional_information"
             )
             raise error
