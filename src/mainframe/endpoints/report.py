@@ -1,6 +1,6 @@
 import datetime as dt
 from textwrap import dedent
-from typing import Annotated, Optional
+from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -16,7 +16,7 @@ from mainframe.database import get_db
 from mainframe.dependencies import get_ms_graph_client, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan
-from mainframe.models.schemas import Error, PackageSpecifier
+from mainframe.models.schemas import Error, ReportPackageBody
 from mainframe.utils.mailer import send_email
 from mainframe.utils.pypi import file_path_from_inspector_url
 
@@ -56,11 +56,6 @@ def send_report_email(
         to_recipients=[mainframe_settings.email_recipient],
         bcc_recipients=list(mainframe_settings.bcc_recipients),
     )
-
-
-class ReportPackageBody(PackageSpecifier):
-    inspector_url: Optional[str]
-    additional_information: Optional[str]
 
 
 router = APIRouter(tags=["report"])
