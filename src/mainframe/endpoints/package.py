@@ -103,9 +103,10 @@ def submit_results(
 
 
 @router.get(
-    "/package", 
-    responses={400: {"model": Error, "description": "Invalid parameter combination."}}),
+    "/package",
+    responses={400: {"model": Error, "description": "Invalid parameter combination."}},
     dependencies=[Depends(validate_token)],
+)
 def lookup_package_info(
     session: Annotated[Session, Depends(get_db)],
     since: Optional[int] = None,
