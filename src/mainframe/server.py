@@ -17,7 +17,7 @@ from mainframe.constants import GIT_SHA, Sentry
 from mainframe.database import async_session
 from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
-from mainframe.metrics import metrics_app  # type: ignore
+from mainframe.metrics import metrics_app, request_counter, request_time  # type: ignore
 from mainframe.models.schemas import ServerMetadata
 from mainframe.rules import Rules, fetch_rules
 
@@ -158,6 +158,8 @@ async def logging_middleware(request: Request, call_next: Callable[[Request], Aw
         raise
     finally:
         process_time = time.perf_counter_ns() - start_time
+        request_time.observe(process_time / 1_000_000_000)
+        request_counter.inc()
         status_code = response.status_code
         http_method = request.method
         http_version = request.scope["http_version"]

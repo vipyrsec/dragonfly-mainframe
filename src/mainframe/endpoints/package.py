@@ -5,7 +5,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from letsbuilda.pypi.async_client import PyPIServices  # type: ignore
 from letsbuilda.pypi.exceptions import PackageNotFoundError
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -113,7 +113,11 @@ async def submit_results(
     await session.commit()
 
 
-@router.get("/package", responses={400: {"model": Error, "description": "Invalid parameter combination."}})
+@router.get(
+    "/package",
+    responses={400: {"model": Error, "description": "Invalid parameter combination."}},
+    dependencies=[Depends(validate_token)],
+)
 async def lookup_package_info(
     session: Annotated[AsyncSession, Depends(get_db)],
     since: Optional[int] = None,
@@ -190,14 +194,11 @@ async def batch_queue_package(
     request: Request,
 ):
     pypi_client: PyPIServices = request.app.state.pypi_client
-    rows: list[Scan] = []
 
+    valid_packages: list[Scan] = []
     for package in packages:
-        name = package.name
-        version = package.version
-
         try:
-            package_metadata = await pypi_client.get_package_metadata(name, version)
+            package_metadata = await pypi_client.get_package_metadata(package.name, package.version)
         except PackageNotFoundError:
             continue
 
@@ -211,18 +212,20 @@ async def batch_queue_package(
             ],
         )
 
-        rows.append(scan)
+        valid_packages.append(scan)
 
-    async with session.begin():
-        for row in rows:
-            try:
-                async with session.begin_nested():
-                    session.add(row)
-            except IntegrityError:
-                pass
-            else:
-                print("Incrementing!")
-                package_ingest_counter.inc()
+    scalars = await session.scalars(
+        select(Scan).where(tuple_(Scan.name, Scan.version).in_([(s.name, s.version) for s in valid_packages]))
+    )
+
+    existing_rows = {(scan.name, scan.version) for scan in scalars.all()}
+
+    for scan in valid_packages:
+        if (scan.name, scan.version) not in existing_rows:
+            session.add(scan)
+            package_ingest_counter.inc()
+
+    await session.commit()
 
 
 @router.post(

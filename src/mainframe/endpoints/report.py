@@ -1,6 +1,6 @@
 import datetime as dt
 from textwrap import dedent
-from typing import Annotated, Optional
+from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -17,7 +17,7 @@ from mainframe.dependencies import get_ms_graph_client, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.metrics import package_scan_report_counter
 from mainframe.models.orm import Scan
-from mainframe.models.schemas import Error, PackageSpecifier
+from mainframe.models.schemas import Error, ReportPackageBody
 from mainframe.utils.mailer import send_email
 from mainframe.utils.pypi import file_path_from_inspector_url
 
@@ -27,6 +27,7 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 def send_report_email(
     graph_client: GraphClient,  # type: ignore
     *,
+    recipient: str,
     package_name: str,
     package_version: str,
     inspector_url: str,
@@ -50,18 +51,13 @@ def send_report_email(
 
     send_email(
         graph_client,  # type: ignore
-        sender="system@mantissecurity.org",
         subject=f"Automated PyPI Malware Report: {package_name}@{package_version}",
         content=content,
-        to_recipients=[mainframe_settings.email_recipient],
-        cc_recipients=[],
+        reply_to_recipients=[mainframe_settings.email_reply_to],
+        sender=mainframe_settings.email_sender,
+        to_recipients=[recipient],
         bcc_recipients=list(mainframe_settings.bcc_recipients),
     )
-
-
-class ReportPackageBody(PackageSpecifier):
-    inspector_url: Optional[str]
-    additional_information: Optional[str]
 
 
 router = APIRouter(tags=["report"])
@@ -82,7 +78,7 @@ async def report_package(
     request: Request,
 ):
     """
-    Report a package by sending an email to PyPI with the appropriate format
+    Report a package by sending an email to `recipient` address with the appropriate format
 
     Packages that do not exist in the database (e.g it was not queued yet)
     cannot be reported.
@@ -91,8 +87,13 @@ async def report_package(
 
     Packages that have already been reported cannot be reported.
 
-    While the `inspector_url` and `additional_information` endpoints are optional in the schema,
+    While the `inspector_url` and `additional_information` fields are optional in the schema,
     the API requires you to provide them in certain cases. Some of those are outlined below.
+
+    If the `recipient` field is not omitted, then that specified email address will be used
+    as the recipient to the report email. If omitted, it will be whatever is configured as
+    the default on the server. This is most likely `security@pypi.org` unless it is
+    overriden in the server configuration.
 
     `inspector_url` and `additional_information` both must be provided if
     the package being reported is in a `QUEUED` or `PENDING` state. That is, the package
@@ -208,6 +209,7 @@ async def report_package(
 
     send_report_email(
         graph_client,  # type: ignore
+        recipient=body.recipient or mainframe_settings.email_recipient,
         package_name=name,
         package_version=version,
         inspector_url=inspector_url,
