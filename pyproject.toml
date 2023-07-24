@@ -14,7 +14,7 @@ dependencies = [
     "SQLAlchemy>=2.0.12",
     "python-dotenv>=1.0.0",
     "alembic>=1.10.4",
-    "letsbuilda-pypi[async]==5.0.0b3",
+    "letsbuilda-pypi==5.0.0b3",
     "msgraph-core>=0.2.2",
     "azure-identity>=1.13.0",
     "structlog>=23.1.0",
