@@ -4,8 +4,7 @@ from typing import Annotated
 import structlog
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import and_, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Session, selectinload
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
@@ -19,8 +18,8 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 @router.post("/jobs")
-async def get_jobs(
-    session: Annotated[AsyncSession, Depends(get_db)],
+def get_jobs(
+    session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     request: Request,
     batch: int = 1,
@@ -40,7 +39,7 @@ async def get_jobs(
     packages are always processed after newly queued packages.
     """
 
-    scalars = await session.scalars(
+    scans = session.scalars(
         select(Scan)
         .where(
             or_(
@@ -55,9 +54,7 @@ async def get_jobs(
         .limit(batch)
         .options(selectinload(Scan.download_urls))
         .with_for_update()
-    )
-
-    scans = scalars.all()
+    ).all()
 
     response_body: list[JobResult] = []
     for scan in scans:
@@ -65,7 +62,7 @@ async def get_jobs(
         scan.pending_at = datetime.now(timezone.utc)
         scan.pending_by = auth.subject
 
-        await logger.ainfo(
+        logger.info(
             "Job given and status set to pending in database",
             package={
                 "name": scan.name,
@@ -86,6 +83,6 @@ async def get_jobs(
 
         response_body.append(job_result)
 
-    await session.commit()
+    session.commit()
 
     return response_body

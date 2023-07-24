@@ -3,12 +3,11 @@ from typing import Annotated, Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
-from letsbuilda.pypi.async_client import PyPIServices  # type: ignore
+from letsbuilda.pypi import PyPIServices  # type: ignore
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from sqlalchemy import select, tuple_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Session, selectinload
 
 from mainframe.database import get_db
 from mainframe.dependencies import validate_token
@@ -33,15 +32,15 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
         409: {"model": Error},
     },
 )
-async def submit_results(
+def submit_results(
     result: PackageScanResult | PackageScanResultFail,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
 ):
     name = result.name
     version = result.version
 
-    scan = await session.scalar(
+    scan = session.scalar(
         select(Scan).where(Scan.name == name).where(Scan.version == version).options(selectinload(Scan.rules))
     )
 
@@ -49,14 +48,14 @@ async def submit_results(
 
     if scan is None:
         error = HTTPException(404, f"Package `{name}@{version}` not found in database.")
-        await log.aerror(
+        log.error(
             f"Package {name}@{version} not found in database", error_message=error.detail, tag="package_not_found_db"
         )
         raise error
 
     if scan.status == Status.FINISHED:
         error = HTTPException(409, f"Package `{name}@{version}` is already in a FINISHED state.")
-        await log.aerror(
+        log.error(
             f"Scan {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
         )
         raise error
@@ -65,7 +64,7 @@ async def submit_results(
         scan.status = Status.FAILED
         scan.fail_reason = result.reason
 
-        await session.commit()
+        session.commit()
         return
 
     scan.status = Status.FINISHED
@@ -76,7 +75,7 @@ async def submit_results(
     scan.commit_hash = result.commit
 
     # These are the rules that already have an entry in the database
-    rules = (await session.scalars(select(Rule).where(Rule.name.in_(result.rules_matched)))).all()  # type: ignore
+    rules = session.scalars(select(Rule).where(Rule.name.in_(result.rules_matched))).all()
     rule_names = {rule.name for rule in rules}
     scan.rules.extend(rules)
 
@@ -84,7 +83,7 @@ async def submit_results(
     new_rules = [Rule(name=rule_name) for rule_name in result.rules_matched if rule_name not in rule_names]
     scan.rules.extend(new_rules)
 
-    await log.ainfo(
+    log.info(
         "Scan results submitted",
         package={
             "name": name,
@@ -100,12 +99,12 @@ async def submit_results(
         tag="scan_submitted",
     )
 
-    await session.commit()
+    session.commit()
 
 
 @router.get("/package", responses={400: {"model": Error, "description": "Invalid parameter combination."}})
-async def lookup_package_info(
-    session: Annotated[AsyncSession, Depends(get_db)],
+def lookup_package_info(
+    session: Annotated[Session, Depends(get_db)],
     since: Optional[int] = None,
     name: Optional[str] = None,
     version: Optional[str] = None,
@@ -145,7 +144,7 @@ async def lookup_package_info(
     )
 
     if (not nn_name and not nn_since) or (nn_version and nn_since):
-        await log.aerror(
+        log.error(
             "Invalid parameter combination",
             error_message="Invalid parameter combination.",
             tag="invalid_parameter_combination",
@@ -160,9 +159,9 @@ async def lookup_package_info(
     if nn_since:
         query = query.where(Scan.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.timezone.utc))
 
-    data = await session.scalars(query)
+    data = session.scalars(query)
 
-    await log.ainfo("Package information queried")
+    log.info("Package information queried")
     return data.all()
 
 
@@ -173,9 +172,9 @@ async def lookup_package_info(
         404: {"model": Error},
     },
 )
-async def batch_queue_package(
+def batch_queue_package(
     packages: list[PackageSpecifier],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     request: Request,
 ):
@@ -184,7 +183,7 @@ async def batch_queue_package(
     valid_packages: list[Scan] = []
     for package in packages:
         try:
-            package_metadata = await pypi_client.get_package_metadata(package.name, package.version)
+            package_metadata = pypi_client.get_package_metadata(package.name, package.version)
         except PackageNotFoundError:
             continue
 
@@ -200,7 +199,7 @@ async def batch_queue_package(
 
         valid_packages.append(scan)
 
-    scalars = await session.scalars(
+    scalars = session.scalars(
         select(Scan).where(tuple_(Scan.name, Scan.version).in_([(s.name, s.version) for s in valid_packages]))
     )
 
@@ -210,7 +209,7 @@ async def batch_queue_package(
         if (scan.name, scan.version) not in existing_rows:
             session.add(scan)
 
-    await session.commit()
+    session.commit()
 
 
 @router.post(
@@ -220,9 +219,9 @@ async def batch_queue_package(
         404: {"model": Error},
     },
 )
-async def queue_package(
+def queue_package(
     package: PackageSpecifier,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     request: Request,
 ) -> QueuePackageResponse:
@@ -244,10 +243,10 @@ async def queue_package(
 
     pypi_client: PyPIServices = request.app.state.pypi_client
     try:
-        package_metadata = await pypi_client.get_package_metadata(name, version)
+        package_metadata = pypi_client.get_package_metadata(name, version)
     except PackageNotFoundError:
         error = HTTPException(404, detail=f"Package {name}@{version} was not found on PyPI")
-        await log.aerror(
+        log.error(
             f"Package {name}@{version} was not found on PyPI", error_message=error.detail, tag="package_not_found_pypi"
         )
         raise error
@@ -268,12 +267,12 @@ async def queue_package(
     session.add(new_package)
 
     try:
-        await session.commit()
+        session.commit()
     except IntegrityError:
-        await log.warn(f"Package {name}@{version} already queued for scanning.", tag="already_queued")
+        log.warn(f"Package {name}@{version} already queued for scanning.", tag="already_queued")
         raise HTTPException(409, f"Package {name}@{version} is already queued for scanning")
 
-    await log.ainfo(
+    log.info(
         "Added new package",
         package={
             "name": name,

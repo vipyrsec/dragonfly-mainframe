@@ -7,7 +7,7 @@ router = APIRouter(tags=["rules"])
 
 
 @router.get("/rules", dependencies=[Depends(validate_token)])
-async def get_rules(request: Request) -> GetRules:
+def get_rules(request: Request) -> GetRules:
     return GetRules(
         hash=request.app.state.rules.rules_commit,
         rules=request.app.state.rules.rules,

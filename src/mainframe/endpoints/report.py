@@ -4,12 +4,11 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
-from letsbuilda.pypi.async_client import PyPIServices
+from letsbuilda.pypi import PyPIServices
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from msgraph.core import GraphClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Session, selectinload
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
@@ -69,9 +68,9 @@ router = APIRouter(tags=["report"])
         400: {"model": Error},
     },
 )
-async def report_package(
+def report_package(
     body: ReportPackageBody,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[Session, Depends(get_db)],
     graph_client: Annotated[GraphClient, Depends(get_ms_graph_client)],  # type: ignore
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     request: Request,
@@ -123,10 +122,10 @@ async def report_package(
 
     pypi_client: PyPIServices = request.app.state.pypi_client
     try:
-        package_metadata = await pypi_client.get_package_metadata(name, version)
+        package_metadata = pypi_client.get_package_metadata(name, version)
     except PackageNotFoundError:
         error = HTTPException(404, detail=f"Package `{name}@{version}` was not found on PyPI")
-        await log.aerror(
+        log.error(
             f"Package {name}@{version} was not found on PyPI", error_message=error.detail, tag="package_not_found_pypi"
         )
         raise error
@@ -136,7 +135,7 @@ async def report_package(
 
     query = select(Scan).where(Scan.name == name).options(selectinload(Scan.rules))
 
-    rows = (await session.scalars(query)).fetchall()
+    rows = session.scalars(query).all()
 
     inspector_url: str | None = None
     additional_information: str | None = None
@@ -144,7 +143,7 @@ async def report_package(
 
     if not rows:
         error = HTTPException(404, detail=f"No records for package `{name}` were found in the database")
-        await log.aerror(
+        log.error(
             f"No records for package {name} found in database", error_message=error.detail, tag="package_not_found_db"
         )
         raise error
@@ -158,19 +157,19 @@ async def report_package(
                     f"(`{row.name}@{row.version}` was already reported)"
                 ),
             )
-            await log.aerror(
+            log.error(
                 "Only one version of a package allowed to be reported at a time",
                 error_message=error.detail,
                 tag="multiple_versions_prohibited",
             )
             raise error
 
-    row = await session.scalar(query.where(Scan.version == version))
+    row = session.scalar(query.where(Scan.version == version))
     if row is None:
         error = HTTPException(
             404, detail=f"Package `{name}` has records in the database, but none with version `{version}`"
         )
-        await log.aerror(
+        log.error(
             f"No version {version} for package {name} in database", error_message=error.detail, tag="invalid_version"
         )
         raise error
@@ -181,7 +180,7 @@ async def report_package(
                 400,
                 detail=f"inspector_url is a required field as package `{name}@{version}` inspector_url column as null.",
             )
-            await log.aerror("Missing inspector_url field", error_message=error.detail, tag="missing_inspector_url")
+            log.error("Missing inspector_url field", error_message=error.detail, tag="missing_inspector_url")
             raise error
 
         inspector_url = row.inspector_url
@@ -197,7 +196,7 @@ async def report_package(
                     f"`{name}@{version}` has no matched rules in the database"
                 ),
             )
-            await log.aerror(
+            log.error(
                 "Missing additional_information field", error_message=error.detail, tag="missing_additional_information"
             )
             raise error
@@ -216,7 +215,7 @@ async def report_package(
         rules_matched=rules_matched,
     )
 
-    await log.ainfo(
+    log.info(
         "Sent report",
         email_data={
             "package_name": name,
@@ -230,4 +229,4 @@ async def report_package(
 
     row.reported_by = auth.subject
     row.reported_at = dt.datetime.now(dt.timezone.utc)
-    await session.commit()
+    session.commit()

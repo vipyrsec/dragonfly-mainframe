@@ -1,24 +1,23 @@
 import datetime as dt
 import json
 import logging
-import subprocess
-import time
 import uuid
 from pathlib import Path
-from typing import IO, Generator, cast
+from typing import Generator
 
-import conc_read
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, insert
 from sqlalchemy.orm import Session, sessionmaker
 
 from mainframe.models.orm import Base, Scan, Status
+from mainframe.server import app
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__file__)
 
-_api_url = "http://localhost:8000"
 
+_api_url = "http://localhost:8000"
 
 TEST_DIR = Path(__file__).parent
 TEST_DATA_DIR = TEST_DIR / "test_data"
@@ -26,43 +25,9 @@ TEST_DATA_FILES = list(TEST_DATA_DIR.iterdir())
 # TEST_DATA_FILES = [TEST_DATA_DIR / "sample.json"]
 
 
-logger.info("Starting server subprocess")
-
-if logger.isEnabledFor(logging.INFO):
-    start_point = time.perf_counter()
-
-server = subprocess.Popen(
-    ["pdm", "run", "uvicorn", "src.mainframe.server:app"], stderr=subprocess.PIPE, universal_newlines=True, bufsize=1
-)
-concurrent_reader = conc_read.ConcurrentReader(cast(IO, server.stderr), poll_freq=20)
-
-
-def pytest_sessionstart():
-    # This startup section is slightly cursed, but works relatively well. The
-    # idea is that we start the server as a subprocess in order to make http
-    # requests to it. However, we need to wait for some time in order to make
-    # sure that the server is ready to handle our requests.
-
-    # So to do that, we simply read the server logs until we find "Application
-    # startup complete".
-
-    for line in concurrent_reader:
-        if line is None:
-            time.sleep(0.1)
-            continue
-        if "Uvicorn running on" in line:
-            break
-
-    logger.info(f"Server started in {time.perf_counter() - start_point}s")
-
-
-def pytest_sessionfinish():
-    concurrent_reader.close()
-
-
 @pytest.fixture(scope="session")
 def engine() -> Engine:
-    return create_engine("postgresql://postgres:postgres@db:5432")
+    return create_engine("postgresql+psycopg2://postgres:postgres@db:5432")
 
 
 @pytest.fixture(scope="session")
@@ -70,9 +35,10 @@ def sm(engine) -> sessionmaker:
     return sessionmaker(bind=engine, autoflush=True)
 
 
-@pytest.fixture
-def api_url() -> str:
-    return _api_url
+@pytest.fixture()
+def client() -> TestClient:
+    with TestClient(app, base_url=_api_url) as client:
+        yield client
 
 
 def decode(L) -> list[dict]:
