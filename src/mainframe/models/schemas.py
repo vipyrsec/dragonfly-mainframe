@@ -84,3 +84,20 @@ class StatsResponse(BaseModel):
     ingested: int
     average_scan_time: float
     failed: int
+
+
+class MaliciousPackage(BaseModel):
+    """A malicious package"""
+
+    name: str
+    version: str
+    score: int
+    inspector_url: str
+    rules: list[str]
+
+
+class GetScansResponse(BaseModel):
+    """Get summary of packages scanned"""
+
+    all_scans: list[PackageSpecifier]
+    malicious_packages: list[MaliciousPackage]
