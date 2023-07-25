@@ -22,7 +22,7 @@ dependencies = [
     "sentry-sdk[fastapi]>=1.25.1",
     "requests>=2.30.0",
     "httpx>=0.24.1",
-    "psycopg[binary]",
+    "psycopg2-binary",
 ]
 dynamic = ["version"]
 
