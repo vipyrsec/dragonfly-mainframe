@@ -1,11 +1,8 @@
-import asyncio
 import os
 from logging.config import fileConfig
 
 from dotenv import load_dotenv
-from sqlalchemy import pool
-from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 from mainframe.models import orm
@@ -17,7 +14,7 @@ config = context.config
 load_dotenv()
 
 # modify the config here because ConfigParser can't handle default values
-config.set_main_option("sqlalchemy.url", os.getenv("DB_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432"))
+config.set_main_option("sqlalchemy.url", os.getenv("DB_URL", "postgresql+psycopg2://postgres:postgres@localhost:5432"))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -60,35 +57,24 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+def run_migrations_online() -> None:
+    """Run migrations in 'online' mode.
 
-    with context.begin_transaction():
-        context.run_migrations()
-
-
-async def run_async_migrations() -> None:
-    """In this scenario we need to create an Engine
+    In this scenario we need to create an Engine
     and associate a connection with the context.
 
     """
-
-    connectable = async_engine_from_config(
+    connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
 
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
+    with connectable.connect() as connection:
+        context.configure(connection=connection, target_metadata=target_metadata)
 
-    await connectable.dispose()
-
-
-def run_migrations_online() -> None:
-    """Run migrations in 'online' mode."""
-
-    asyncio.run(run_async_migrations())
+        with context.begin_transaction():
+            context.run_migrations()
 
 
 if context.is_offline_mode():
