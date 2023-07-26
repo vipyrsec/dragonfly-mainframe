@@ -27,7 +27,7 @@ class Mainframe(EnvConfig):
     email_recipient: str = "security@pypi.org"
     bcc_recipients: set[str] = set()
 
-    db_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432"
+    db_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432"
 
     dragonfly_github_token: str
 

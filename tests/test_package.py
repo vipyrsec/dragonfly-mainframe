@@ -1,8 +1,8 @@
 from typing import Optional
 
 import pytest
-import requests
 from fastapi.encoders import jsonable_encoder
+from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -51,14 +51,17 @@ def test_build_query_string(inp: tuple[Optional[int], Optional[str], Optional[st
     ],
 )
 def test_package_lookup_rejects_invalid_combinations(
-    since: Optional[int], name: Optional[str], version: Optional[str], api_url: str
+    client: TestClient,
+    since: Optional[int],
+    name: Optional[str],
+    version: Optional[str],
 ):
     """Test that invalid combinations are rejected with a 400 response code."""
 
     url = build_query_string(since, name, version)
     print(url)
 
-    r = requests.get(api_url + url)
+    r = client.get(url)
     assert r.status_code == 400
 
 
@@ -72,7 +75,11 @@ def test_package_lookup_rejects_invalid_combinations(
     ],
 )
 def test_package_lookup(
-    since: Optional[int], name: Optional[str], version: Optional[str], api_url: str, test_data: list[dict]
+    client: TestClient,
+    since: Optional[int],
+    name: Optional[str],
+    version: Optional[str],
+    test_data: list[dict],
 ):
     url = build_query_string(since, name, version)
     print(url)
@@ -86,7 +93,7 @@ def test_package_lookup(
             continue
         exp.append(d)
 
-    r = requests.get(api_url + url)
+    r = client.get(url)
     print(repr(r.text))
 
     def key(d):
@@ -95,8 +102,8 @@ def test_package_lookup(
     assert sorted(r.json(), key=key) == sorted(jsonable_encoder(exp), key=key)
 
 
-def test_handle_fail(api_url: str, db_session: Session, test_data: list[dict]):
-    r = requests.post(f"{api_url}/jobs")
+def test_handle_fail(client: TestClient, db_session: Session, test_data: list[dict]):
+    r = client.post("/jobs")
     r.raise_for_status()
     j = r.json()
 
@@ -106,7 +113,7 @@ def test_handle_fail(api_url: str, db_session: Session, test_data: list[dict]):
         version = j["version"]
         reason = "Package too large"
 
-        requests.put(f"{api_url}/package", json=dict(name=name, version=version, reason=reason))
+        client.put("/package", json=dict(name=name, version=version, reason=reason))
 
         record = db_session.scalar(
             select(Scan)
@@ -121,10 +128,10 @@ def test_handle_fail(api_url: str, db_session: Session, test_data: list[dict]):
         assert all(d["status"] != "queued" for d in test_data)
 
 
-def test_batch_queue(api_url: str, db_session: Session, test_data: list[dict]):
+def test_batch_queue(client: TestClient, db_session: Session, test_data: list[dict]):
     data = [dict(name=t["name"], version=t["version"]) for t in test_data] + [dict(name="c", version="1.0.0")]
     print(data)
-    r = requests.post(f"{api_url}/batch/package", json=data)
+    r = client.post("/batch/package", json=data)
     r.raise_for_status()
 
     for row in db_session.scalars(select(Scan)):
