@@ -43,8 +43,8 @@ class _Sentry(EnvConfig):
     EnvConfig.model_config["env_prefix"] = "sentry_"
 
     dsn: str = ""
-    environment: str = ""
-    release_prefix: str = ""
+    environment: str = "production"
+    release_prefix: str = "dragonfly-mainframe"
 
 
 Sentry = _Sentry()  # pyright: ignore
