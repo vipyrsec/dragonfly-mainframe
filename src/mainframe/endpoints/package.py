@@ -148,9 +148,8 @@ def lookup_package_info(
     )
 
     if (not nn_name and not nn_since) or (nn_version and nn_since):
-        log.error(
+        log.debug(
             "Invalid parameter combination",
-            error_message="Invalid parameter combination.",
             tag="invalid_parameter_combination",
         )
         raise HTTPException(status_code=400)

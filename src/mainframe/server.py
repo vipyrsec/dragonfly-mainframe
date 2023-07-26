@@ -12,6 +12,8 @@ from asgi_correlation_id.context import correlation_id
 from fastapi import FastAPI, Request, Response
 from letsbuilda.pypi import PyPIServices
 from requests import Session
+from sentry_sdk.integrations.logging import LoggingIntegration
+from structlog_sentry import SentryProcessor
 
 from mainframe.constants import GIT_SHA, Sentry
 from mainframe.database import sessionmaker
@@ -30,6 +32,7 @@ def configure_logger():
         structlog.stdlib.add_log_level,
         structlog.stdlib.PositionalArgumentsFormatter(),
         structlog.stdlib.ExtraAdder(),
+        SentryProcessor(event_level=logging.ERROR, level=logging.DEBUG),
         structlog.processors.format_exc_info,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
@@ -91,6 +94,7 @@ sentry_sdk.init(
     traces_sample_rate=0.0025,
     profiles_sample_rate=0.0025,
     release=f"{Sentry.release_prefix}@{GIT_SHA}",
+    integrations=[LoggingIntegration(event_level=None, level=None)],
 )
 
 
