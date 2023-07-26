@@ -1,22 +1,21 @@
 import datetime as dt
 from textwrap import dedent
-from typing import Annotated, Optional
+from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
-from letsbuilda.pypi.async_client import PyPIServices
+from letsbuilda.pypi import PyPIServices
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from msgraph.core import GraphClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Session, selectinload
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
 from mainframe.dependencies import get_ms_graph_client, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan
-from mainframe.models.schemas import Error, PackageSpecifier
+from mainframe.models.schemas import Error, ReportPackageBody
 from mainframe.utils.mailer import send_email
 from mainframe.utils.pypi import file_path_from_inspector_url
 
@@ -26,6 +25,7 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 def send_report_email(
     graph_client: GraphClient,  # type: ignore
     *,
+    recipient: str,
     package_name: str,
     package_version: str,
     inspector_url: str,
@@ -53,14 +53,9 @@ def send_report_email(
         content=content,
         reply_to_recipients=[mainframe_settings.email_reply_to],
         sender=mainframe_settings.email_sender,
-        to_recipients=[mainframe_settings.email_recipient],
+        to_recipients=[recipient],
         bcc_recipients=list(mainframe_settings.bcc_recipients),
     )
-
-
-class ReportPackageBody(PackageSpecifier):
-    inspector_url: Optional[str]
-    additional_information: Optional[str]
 
 
 router = APIRouter(tags=["report"])
@@ -73,15 +68,15 @@ router = APIRouter(tags=["report"])
         400: {"model": Error},
     },
 )
-async def report_package(
+def report_package(
     body: ReportPackageBody,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[Session, Depends(get_db)],
     graph_client: Annotated[GraphClient, Depends(get_ms_graph_client)],  # type: ignore
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     request: Request,
 ):
     """
-    Report a package by sending an email to PyPI with the appropriate format
+    Report a package by sending an email to `recipient` address with the appropriate format
 
     Packages that do not exist in the database (e.g it was not queued yet)
     cannot be reported.
@@ -90,8 +85,13 @@ async def report_package(
 
     Packages that have already been reported cannot be reported.
 
-    While the `inspector_url` and `additional_information` endpoints are optional in the schema,
+    While the `inspector_url` and `additional_information` fields are optional in the schema,
     the API requires you to provide them in certain cases. Some of those are outlined below.
+
+    If the `recipient` field is not omitted, then that specified email address will be used
+    as the recipient to the report email. If omitted, it will be whatever is configured as
+    the default on the server. This is most likely `security@pypi.org` unless it is
+    overriden in the server configuration.
 
     `inspector_url` and `additional_information` both must be provided if
     the package being reported is in a `QUEUED` or `PENDING` state. That is, the package
@@ -122,10 +122,10 @@ async def report_package(
 
     pypi_client: PyPIServices = request.app.state.pypi_client
     try:
-        package_metadata = await pypi_client.get_package_metadata(name, version)
+        package_metadata = pypi_client.get_package_metadata(name, version)
     except PackageNotFoundError:
         error = HTTPException(404, detail=f"Package `{name}@{version}` was not found on PyPI")
-        await log.adebug(f"Package {name}@{version} was not found on PyPI", tag="package_not_found_pypi")
+        log.debug(f"Package {name}@{version} was not found on PyPI", tag="package_not_found_pypi")
         raise error
 
     version = package_metadata.releases[0].version
@@ -133,7 +133,7 @@ async def report_package(
 
     query = select(Scan).where(Scan.name == name).options(selectinload(Scan.rules))
 
-    rows = (await session.scalars(query)).fetchall()
+    rows = session.scalars(query).all()
 
     inspector_url: str | None = None
     additional_information: str | None = None
@@ -141,7 +141,7 @@ async def report_package(
 
     if not rows:
         error = HTTPException(404, detail=f"No records for package `{name}` were found in the database")
-        await log.aerror(
+        log.error(
             f"No records for package {name} found in database", error_message=error.detail, tag="package_not_found_db"
         )
         raise error
@@ -155,19 +155,19 @@ async def report_package(
                     f"(`{row.name}@{row.version}` was already reported)"
                 ),
             )
-            await log.aerror(
+            log.error(
                 "Only one version of a package allowed to be reported at a time",
                 error_message=error.detail,
                 tag="multiple_versions_prohibited",
             )
             raise error
 
-    row = await session.scalar(query.where(Scan.version == version))
+    row = session.scalar(query.where(Scan.version == version))
     if row is None:
         error = HTTPException(
             404, detail=f"Package `{name}` has records in the database, but none with version `{version}`"
         )
-        await log.adebug(f"No version {version} for package {name} in database", tag="invalid_version")
+        log.debug(f"No version {version} for package {name} in database", tag="invalid_version")
         raise error
 
     if body.inspector_url is None:
@@ -176,7 +176,7 @@ async def report_package(
                 400,
                 detail=f"inspector_url is a required field as package `{name}@{version}` inspector_url column as null.",
             )
-            await log.aerror("Missing inspector_url field", error_message=error.detail, tag="missing_inspector_url")
+            log.error("Missing inspector_url field", error_message=error.detail, tag="missing_inspector_url")
             raise error
 
         inspector_url = row.inspector_url
@@ -192,7 +192,7 @@ async def report_package(
                     f"`{name}@{version}` has no matched rules in the database"
                 ),
             )
-            await log.adebug("Missing additional_information field", tag="missing_additional_information")
+            log.debug("Missing additional_information field", tag="missing_additional_information")
             raise error
 
     rules_matched.extend(rule.name for rule in row.rules)
@@ -201,6 +201,7 @@ async def report_package(
 
     send_report_email(
         graph_client,  # type: ignore
+        recipient=body.recipient or mainframe_settings.email_recipient,
         package_name=name,
         package_version=version,
         inspector_url=inspector_url,
@@ -208,7 +209,7 @@ async def report_package(
         rules_matched=rules_matched,
     )
 
-    await log.ainfo(
+    log.info(
         "Sent report",
         email_data={
             "package_name": name,
@@ -222,4 +223,4 @@ async def report_package(
 
     row.reported_by = auth.subject
     row.reported_at = dt.datetime.now(dt.timezone.utc)
-    await session.commit()
+    session.commit()

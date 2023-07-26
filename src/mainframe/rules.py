@@ -3,7 +3,7 @@ from io import BytesIO
 from typing import Final
 from zipfile import ZipFile
 
-from aiohttp import ClientSession
+from requests import Session
 
 from mainframe.constants import mainframe_settings
 
@@ -19,7 +19,7 @@ class Rules:
     rules: dict[str, str]
 
 
-async def fetch_rules(http_session: ClientSession) -> Rules:
+def fetch_rules(http_session: Session) -> Rules:
     """Return a dictionary mapping filenames to content"""
 
     # Running in a test environment, avoid hitting the GitHub API
@@ -29,12 +29,13 @@ async def fetch_rules(http_session: ClientSession) -> Rules:
     rules = {}
     buffer = BytesIO()
 
-    async with http_session.get(REPO_ZIP_URL, raise_for_status=True, headers=AUTH_HEADERS) as res:
-        bytes = await res.content.read()
+    with http_session.get(REPO_ZIP_URL, headers=AUTH_HEADERS) as res:
+        res.raise_for_status()
+        bytes = res.content
         buffer.write(bytes)
 
-    async with http_session.get(REPO_TOP_COMMIT_URL, raise_for_status=True, headers=JSON_HEADERS | AUTH_HEADERS) as res:
-        bytes = await res.read()
+    with http_session.get(REPO_TOP_COMMIT_URL, headers=JSON_HEADERS | AUTH_HEADERS) as res:
+        bytes = res.content
         rules_commit = bytes.decode()
 
     buffer.seek(0)

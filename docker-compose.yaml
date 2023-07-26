@@ -12,10 +12,7 @@ services:
     tty: true
     restart: always
     environment:
-      # disable prepared statement cache because we want to be able to create and destroy tables for each test
-      # when enabled, any schema change will invalidate the cache, causing an error
-      # disabling the cache results in a minor speed penalty, but this should be fine
-      DB_URL: postgresql+asyncpg://postgres:postgres@db:5432?prepared_statement_cache_size=0
+      DB_URL: postgresql+psycopg2://postgres:postgres@db:5432
       MICROSOFT_TENANT_ID: tenant_id
       MICROSOFT_CLIENT_ID: client_id
       MICROSOFT_CLIENT_SECRET: client_secret

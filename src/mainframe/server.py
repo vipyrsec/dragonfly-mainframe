@@ -5,18 +5,18 @@ from contextlib import asynccontextmanager
 from typing import Awaitable, Callable
 from unittest.mock import MagicMock
 
-import aiohttp
 import sentry_sdk
 import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
 from asgi_correlation_id.context import correlation_id
 from fastapi import FastAPI, Request, Response
-from letsbuilda.pypi.async_client import PyPIServices
+from letsbuilda.pypi import PyPIServices
+from requests import Session
 from sentry_sdk.integrations.logging import LoggingIntegration
 from structlog_sentry import SentryProcessor
 
 from mainframe.constants import GIT_SHA, Sentry
-from mainframe.database import async_session
+from mainframe.database import sessionmaker
 from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
 from mainframe.models.schemas import ServerMetadata
@@ -102,11 +102,11 @@ sentry_sdk.init(
 async def lifespan(app_: FastAPI):
     """Load the state for the app"""
 
-    http_session = aiohttp.ClientSession()
+    http_session = Session()
     pypi_client = PyPIServices(http_session)
-    db_session = async_session()
-    rules = await fetch_rules(http_session=http_session)
-    await db_session.close()
+    db_session = sessionmaker()
+    rules = fetch_rules(http_session=http_session)
+    db_session.close()
 
     if GIT_SHA == "testing":
         fut: asyncio.Future[MagicMock] = asyncio.Future()
@@ -194,7 +194,7 @@ async def metadata() -> ServerMetadata:
 @app.post("/update-rules/", tags=["rules"])
 async def update_rules():
     """Update the rules"""
-    rules = await fetch_rules(app.state.http_session)
+    rules = fetch_rules(app.state.http_session)
     app.state.rules = rules
 
 
