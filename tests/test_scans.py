@@ -1,44 +1,49 @@
+import datetime
 import random
+import string
 
-import requests
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from fastapi.testclient import TestClient
 
 from mainframe.constants import mainframe_settings
-from mainframe.models.orm import Scan
 
 
-def test_get_scans(api_url: str, db_session: Session):
-    query = select(Scan).order_by(Scan.queued_at)
+def _gen_random_string() -> str:
+    """Generate a random string"""
 
-    all_scans = db_session.scalars(query).all()
+    return "".join(random.choices(string.printable, k=10))
 
-    # Pick a random package and query all that have been queued after it
-    random_scan = random.choice(all_scans)
-    print("Querying packages since", random_scan.queued_at.isoformat())
-    since = int(random_scan.queued_at.timestamp())
-    res = requests.get(f"{api_url}/scans", params=dict(since=since))
-    json = res.json()
 
-    # Check that the `all_scans` list is accurate
-    all_package_specifiers = {
-        (scan.name, scan.version)
-        for scan in all_scans
-        if (scan.finished_at is not None) and (scan.finished_at >= random_scan.queued_at)
-    }
-    assert len(all_package_specifiers) == len(json["all_scans"])
-    assert all((scan["name"], scan["version"]) in all_package_specifiers for scan in json["all_scans"])
+def test_get_scans(client: TestClient):
+    since = int(datetime.datetime.now(tz=datetime.timezone.utc).timestamp())
 
-    # Check that the `malicious_packages` list is accurate
-    malicious_package_specifiers = {
-        (scan.name, scan.version)
-        for scan in all_scans
-        if (scan.score is not None)
-        and (scan.score >= mainframe_settings.score_threshold)
-        and (scan.finished_at >= random_scan.queued_at)
-    }
-    assert len(malicious_package_specifiers) == len(json["malicious_packages"])
-    assert all(
-        (malicious_package["name"], malicious_package["version"]) in malicious_package_specifiers
-        for malicious_package in json["malicious_packages"]
-    )
+    res = client.post("/jobs", params=dict(batch=2))
+    jobs = res.json()
+
+    if len(jobs) == 0:
+        payload = [
+            dict(name=_gen_random_string(), version=_gen_random_string()),
+            dict(name=_gen_random_string(), version=_gen_random_string()),
+        ]
+        client.post("/batch/package", json=payload)
+
+        res = client.post("/jobs", params=dict(batch=2))
+        jobs = res.json()
+
+    for job in jobs:
+        payload = dict(
+            name=job["name"],
+            version=job["version"],
+            commit=_gen_random_string(),
+            score=mainframe_settings.score_threshold + random.randint(0, 20),
+            inspector_url=_gen_random_string(),
+            rules_matched=[_gen_random_string() for _ in range(random.randint(0, 5))],
+        )
+
+        client.put("/package", json=payload)
+
+    res = client.get("/scans", params=dict(since=since))
+    scans = res.json()
+
+    jobs = [dict(name=j["name"], version=j["version"]) for j in jobs]
+    assert [dict(name=p["name"], version=p["version"]) for p in scans["all_scans"]] == jobs
+    assert [dict(name=p["name"], version=p["version"]) for p in scans["malicious_packages"]] == jobs
