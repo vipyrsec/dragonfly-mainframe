@@ -1,6 +1,6 @@
 import datetime as dt
 
-import requests
+from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -29,8 +29,8 @@ def test_fetch_queue_time(test_data: list[dict], db_session: Session):
         assert d["queued_at"] == fetch_queue_time(d["name"], d["version"], db_session)
 
 
-def test_job(api_url: str, test_data: list[dict], db_session: Session):
-    r = requests.post(f"{api_url}/jobs")
+def test_job(client: TestClient, test_data: list[dict], db_session: Session):
+    r = client.post("/jobs")
     r.raise_for_status()
     j = r.json()
     if j:
@@ -45,8 +45,8 @@ def test_job(api_url: str, test_data: list[dict], db_session: Session):
         assert all(d["status"] != "queued" for d in test_data)
 
 
-def test_batch_job(api_url: str, test_data: list[dict], db_session: Session):
-    r = requests.post(f"{api_url}/jobs", params=dict(batch=len(test_data)))
+def test_batch_job(client: TestClient, test_data: list[dict], db_session: Session):
+    r = client.post("/jobs", params=dict(batch=len(test_data)))
     r.raise_for_status()
     j = r.json()
 
