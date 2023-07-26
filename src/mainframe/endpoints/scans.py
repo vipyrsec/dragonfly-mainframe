@@ -3,8 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Session, selectinload
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
@@ -20,8 +19,8 @@ router = APIRouter(tags=["scans"])
 
 
 @router.get("/scans", dependencies=[Depends(validate_token)])
-async def get_scans(session: Annotated[AsyncSession, Depends(get_db)], since: int) -> GetScansResponse:
-    scalars = await session.scalars(
+def get_scans(session: Annotated[Session, Depends(get_db)], since: int) -> GetScansResponse:
+    scalars = session.scalars(
         select(Scan)
         .where(Scan.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.timezone.utc))
         .options(selectinload(Scan.rules))
