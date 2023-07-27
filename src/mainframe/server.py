@@ -91,8 +91,8 @@ sentry_sdk.init(
     dsn=Sentry.dsn,
     environment=Sentry.environment,
     send_default_pii=True,
-    traces_sample_rate=0.25,
-    profiles_sample_rate=0.25,
+    traces_sample_rate=1.0,
+    profiles_sample_rate=1.0,
     release=f"{Sentry.release_prefix}@{GIT_SHA}",
     integrations=[LoggingIntegration(event_level=None, level=None)],
 )
