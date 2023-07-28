@@ -147,9 +147,9 @@ You'll need to have the following environment variables set.
 | `SENTRY_ENVIRONMENT` | str | "" | Sentry environment |
 | `SENTRY_RELEASE_PREFIX` | str | "" | Sentry release prefix |
 | | | | |
-| `MICROSOFT_TENANT_ID` | str | | Microsoft tenant ID for automated emails |
-| `MICROSOFT_CLIENT_ID` | str | | Microsoft client ID for automated emails |
-| `MICROSOFT_CLIENT_SECRET` | str | | Microsoft client secret for automated emails |
+| `MICROSOFT_TENANT_ID` | str | "" | Microsoft tenant ID for automated emails |
+| `MICROSOFT_CLIENT_ID` | str | "" | Microsoft client ID for automated emails |
+| `MICROSOFT_CLIENT_SECRET` | str | "" | Microsoft client secret for automated emails |
 
 **NOTE**: Environment variables where the `default` column is empty are required for the application to startup
 
