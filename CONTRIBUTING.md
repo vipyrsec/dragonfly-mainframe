@@ -141,7 +141,7 @@ You'll need to have the following environment variables set.
 | | | | |
 | `EMAIL_RECIPIENT` | str | "security@pypi.org" | The recipient address of report emails |
 | `BCC_RECIPIENTS` | set | set() | Additional addresses that should be BCC'd in email reports. Defaults to an empty set. |
-| `DB_URL` | str | "postgresql+asyncpg://postgres:postgres@localhost:5432" | PostgreSQL database connection string |
+| `DB_URL` | str | "postgresql+psycopg2://postgres:postgres@localhost:5432" | PostgreSQL database connection string |
 | | | | |
 | `SENTRY_DSN` | str | "" | Sentry Data Source Name (DSN) |
 | `SENTRY_ENVIRONMENT` | str | "" | Sentry environment |
