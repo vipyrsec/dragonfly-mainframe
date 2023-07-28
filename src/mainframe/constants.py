@@ -51,9 +51,9 @@ Sentry = _Sentry()  # pyright: ignore
 class Microsoft(EnvConfig):
     EnvConfig.model_config["env_prefix"] = "microsoft_"
 
-    tenant_id: str
-    client_id: str
-    client_secret: str
+    tenant_id: str = ""
+    client_id: str = ""
+    client_secret: str = ""
 
 
 microsoft_settings = Microsoft()  # pyright: ignore
