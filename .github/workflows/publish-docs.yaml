@@ -6,6 +6,9 @@ on:
       - main
   pull_request:
 
+env:
+  DRAGONFLY_GITHUB_TOKEN: "This is just here for autodoc"
+
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
