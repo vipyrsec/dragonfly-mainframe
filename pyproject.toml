@@ -40,6 +40,12 @@ lint = [
 ]
 test = ["pytest>=7.3.1"]
 logs = ["rich>=13.4.2"]
+docs = [
+    "sphinx",
+    "furo",
+    "sphinx-autoapi",
+    "releases",
+]
 
 [tool.pdm.scripts]
 format = { shell = "black . && isort ." }
