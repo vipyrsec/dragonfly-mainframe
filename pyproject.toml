@@ -27,6 +27,10 @@ dependencies = [
 ]
 dynamic = ["version"]
 
+[project.urls]
+repository = "https://github.com/vipyrsec/dragonfly-mainframe/"
+documentation = "https://docs.vipyrsec.dev/dragonfly-mainframe/"
+
 [tool.pdm]
 version = { source = "file", path = "mypackage/__init__.py" }
 
