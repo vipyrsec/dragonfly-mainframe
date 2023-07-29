@@ -10,8 +10,8 @@ project_metadata = metadata("dragonfly-mainframe")
 project: str = project_metadata["Name"]
 release: str = project_metadata["Version"]
 REPO_LINK: str = project_metadata["Project-URL"].replace("repository, ", "")
-copyright: str = "Let's build a ..."  # noqa: A001
-author: str = "Let's build a ... community"
+copyright: str = "Vipyr Security"  # noqa: A001
+author: str = "Vipyr Security Developers"
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named "sphinx.ext.*") or your custom

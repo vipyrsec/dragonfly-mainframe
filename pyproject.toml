@@ -2,7 +2,7 @@
 name = "dragonfly-mainframe"
 description = "Distributes tasks to dragonfly-clients and handles package status updates."
 authors = [
-    { name = "jz9", email = "69145546+jonathan-d-zhang@users.noreply.github.com" },
+    { name = "Vipyr Security Developers", email = "support@vipyrsec.com" },
 ]
 requires-python = ">=3.11"
 license = { text = "MIT" }
