@@ -31,8 +31,12 @@ dynamic = ["version"]
 repository = "https://github.com/vipyrsec/dragonfly-mainframe/"
 documentation = "https://docs.vipyrsec.dev/dragonfly-mainframe/"
 
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
 [tool.pdm]
-version = { source = "file", path = "mypackage/__init__.py" }
+version = { source = "file", path = "src/mainframe/__init__.py" }
 
 [tool.pdm.dev-dependencies]
 lint = [
