@@ -31,7 +31,7 @@ jobs:
 
       - name: "Build docs"
         run: |
-          cd docs 
+          cd docs
           pdm run make dirhtml
 
       - name: "Upload artifact"
