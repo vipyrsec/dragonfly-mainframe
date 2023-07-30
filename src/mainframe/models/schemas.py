@@ -84,3 +84,34 @@ class StatsResponse(BaseModel):
     ingested: int
     average_scan_time: float
     failed: int
+
+
+class Token(BaseModel):
+    """Represents the response to a client trying to get credentials"""
+
+    access_token: str
+    token_type: str
+    expires_in: int
+
+
+class GetClientDTO(BaseModel):
+    """Payload received when getting a client"""
+
+    client_id: str
+    username: str
+    admin: bool
+
+
+class CreateClientDTO(GetClientDTO):
+    """Payload sent when creating a client"""
+
+    client_secret: str
+
+
+class UpdateClientDTO(BaseModel):
+    """Payload sent when updating a client"""
+
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    username: Optional[str] = None
+    admin: Optional[bool] = None
