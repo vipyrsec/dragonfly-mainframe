@@ -49,28 +49,6 @@ class PermissionsValidator:
             raise PermissionDeniedException
 
 
-def check_admin(
-    session: Annotated[Session, Depends(get_db)],
-    access_token: Annotated[str, Depends(oauth2_scheme)],
-):
-    """
-    Checks if the given access token has admin privileges. Intended for use in FastAPI decorators.
-
-    Throws an `HTTPException` with status code 403 FORBIDDEN if the user is not an administrator
-    Throws an `HTTPException` with status code 404 NOT FOUND if the user could not be found
-    Returns `None` if the user is an administrator.
-    """
-
-    client = get_client_by_access_token(session, access_token=access_token)
-    if client is None:
-        raise HTTPException(HTTP_404_NOT_FOUND, detail="Client not found")
-
-    if client.admin is False:
-        raise HTTPException(HTTP_403_FORBIDDEN, detail="Administrator privileges are required for this path")
-
-    return None
-
-
 def get_current_client(
     session: Annotated[Session, Depends(get_db)],
     access_token: Annotated[str, Depends(oauth2_scheme)],
@@ -87,3 +65,18 @@ def get_current_client(
         raise HTTPException(HTTP_404_NOT_FOUND, detail="Client not found")
 
     return client
+
+
+def check_admin(client: Annotated[APIClient, Depends(get_current_client)]):
+    """
+    Checks if the given access token has admin privileges. Intended for use in FastAPI decorators.
+
+    Throws an `HTTPException` with status code 403 FORBIDDEN if the user is not an administrator
+    Throws an `HTTPException` with status code 404 NOT FOUND if the user could not be found
+    Returns `None` if the user is an administrator.
+    """
+
+    if client.admin is False:
+        raise HTTPException(HTTP_403_FORBIDDEN, detail="Administrator privileges are required for this path")
+
+    return None
