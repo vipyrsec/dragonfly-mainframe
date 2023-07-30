@@ -33,6 +33,10 @@ class Mainframe(EnvConfig):
 
     job_timeout: int = 60 * 2
 
+    SECRET_KEY: str
+    JWT_SIGNING_ALGORITHM: str = "HS256"
+    JWT_EXPIRES_DELTA_MINUTES: int = 15
+
 
 mainframe_settings = Mainframe()  # pyright: ignore
 
