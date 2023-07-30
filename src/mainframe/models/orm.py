@@ -120,3 +120,14 @@ class Rule(Base):
     )
 
     name: Mapped[str] = mapped_column(unique=True)
+
+
+class APIClient(Base):
+    """An Oauth2 Client"""
+
+    __tablename__ = "api_clients"
+
+    client_id: Mapped[str] = mapped_column(primary_key=True, unique=True)
+    hashed_secret: Mapped[str]
+    username: Mapped[str] = mapped_column(unique=True)
+    admin: Mapped[bool] = mapped_column(default=False)
