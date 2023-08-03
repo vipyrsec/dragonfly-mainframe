@@ -31,8 +31,6 @@ class Mainframe(EnvConfig):
 
     dragonfly_github_token: str
 
-    job_timeout: int = 60 * 2
-
 
 mainframe_settings = Mainframe()  # pyright: ignore
 

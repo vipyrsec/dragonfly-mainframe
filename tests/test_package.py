@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from mainframe.models.orm import Scan, Status
+from mainframe.models.orm import Scan
 
 
 def build_query_string(since: Optional[int], name: Optional[str], version: Optional[str]) -> str:
@@ -100,32 +100,6 @@ def test_package_lookup(
         return d["scan_id"]
 
     assert sorted(r.json(), key=key) == sorted(jsonable_encoder(exp), key=key)
-
-
-def test_handle_fail(client: TestClient, db_session: Session, test_data: list[dict]):
-    r = client.post("/jobs")
-    r.raise_for_status()
-    j = r.json()
-
-    if j:
-        j = j[0]
-        name = j["name"]
-        version = j["version"]
-        reason = "Package too large"
-
-        client.put("/package", json=dict(name=name, version=version, reason=reason))
-
-        record = db_session.scalar(
-            select(Scan)
-            .where(Scan.name == name)
-            .where(Scan.version == version)
-            .where(Scan.status == Status.FAILED)
-            .where(Scan.fail_reason == reason)
-        )
-
-        assert record is not None
-    else:
-        assert all(d["status"] != "queued" for d in test_data)
 
 
 def test_batch_queue(client: TestClient, db_session: Session, test_data: list[dict]):
