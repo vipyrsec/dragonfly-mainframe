@@ -76,5 +76,3 @@ class StatsResponse(BaseModel):
     """Recent system statistics"""
 
     ingested: int
-    average_scan_time: float
-    failed: int

@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
@@ -22,22 +21,6 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 class Base(DeclarativeBase):
     pass
-
-
-class Status(Enum):
-    """
-    Package status.
-
-    QUEUED - Waiting to be sent to a worker
-    PENDING - Waiting for a response from a worker
-    FINISHED - Verdict received from worker
-    FAILED - Something went wrong with the client when scanning this package
-    """
-
-    QUEUED = "queued"
-    PENDING = "pending"
-    FINISHED = "finished"
-    FAILED = "failed"
 
 
 package_rules = Table(
@@ -63,7 +46,6 @@ class Scan(Base):
 
     name: Mapped[str]
     version: Mapped[str]
-    status: Mapped[Status]
 
     score: Mapped[Optional[int]]
     inspector_url: Mapped[Optional[str]]
@@ -71,21 +53,8 @@ class Scan(Base):
     rule_names: AssociationProxy[list[str]] = association_proxy("rules", "name", creator=lambda name: Rule(name=name))
     download_urls: Mapped[list[DownloadURL]] = relationship()
 
-    queued_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), server_default=FetchedValue(), default=lambda: datetime.now(timezone.utc)
-    )
-    queued_by: Mapped[str]
-
-    pending_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    pending_by: Mapped[Optional[str]]
-
-    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    finished_by: Mapped[Optional[str]]
-
     reported_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     reported_by: Mapped[Optional[str]]
-
-    fail_reason: Mapped[Optional[str]]
 
     commit_hash: Mapped[Optional[str]]
 
