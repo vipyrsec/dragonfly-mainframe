@@ -187,7 +187,7 @@ def batch_queue_package(
 
     scalars = session.scalars(select(Scan).where(tuple_(Scan.name, Scan.version).in_(name_ver)))
 
-    packages_to_check = {(scan.name, scan.version) for scan in scalars.all()} - name_ver
+    packages_to_check = name_ver - {(scan.name, scan.version) for scan in scalars.all()}
 
     for package in packages_to_check:
         try:
