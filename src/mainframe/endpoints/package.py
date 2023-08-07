@@ -191,7 +191,7 @@ def batch_queue_package(
 
     for package in packages_to_check:
         try:
-            package_metadata = pypi_client.get_package_metadata(package.name, package.version)
+            package_metadata = pypi_client.get_package_metadata(*package)
         except PackageNotFoundError:
             continue
 
@@ -205,17 +205,7 @@ def batch_queue_package(
             ],
         )
 
-        valid_packages.append(scan)
-
-    scalars = session.scalars(
-        select(Scan).where(tuple_(Scan.name, Scan.version).in_([(s.name, s.version) for s in valid_packages]))
-    )
-
-    existing_rows = {(scan.name, scan.version) for scan in scalars.all()}
-
-    for scan in valid_packages:
-        if (scan.name, scan.version) not in existing_rows:
-            session.add(scan)
+        session.add(scan)
 
     session.commit()
 
