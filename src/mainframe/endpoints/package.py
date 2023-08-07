@@ -176,36 +176,36 @@ def lookup_package_info(
     },
 )
 def batch_queue_package(
-    packages_list: list[PackageSpecifier],
+    packages: list[PackageSpecifier],
     session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     request: Request,
 ):
     pypi_client: PyPIServices = request.app.state.pypi_client
-    packages = {(s.name, s.version) for s in packages_list}
 
-    scalars = session.scalars(select(Scan).where(tuple_(Scan.name, Scan.version).in_(packages)))
+    name_ver = {(p.name, p.version) for p in packages}
 
-    existing_rows = {(scan.name, scan.version) for scan in scalars.all()}
+    scalars = session.scalars(select(Scan).where(tuple_(Scan.name, Scan.version).in_(name_ver)))
 
-    for package in packages:
-        if package not in existing_rows:
-            try:
-                package_metadata = pypi_client.get_package_metadata(*package)
-            except PackageNotFoundError:
-                continue
+    packages_to_check = {(scan.name, scan.version) for scan in scalars.all()} - name_ver
 
-            scan = Scan(
-                name=package_metadata.title,
-                version=package_metadata.releases[0].version,
-                status=Status.QUEUED,
-                queued_by=auth.subject,
-                download_urls=[
-                    DownloadURL(url=distribution.url) for distribution in package_metadata.releases[0].distributions
-                ],
-            )
+    for package in packages_to_check:
+        try:
+            package_metadata = pypi_client.get_package_metadata(*package)
+        except PackageNotFoundError:
+            continue
 
-            session.add(scan)
+        scan = Scan(
+            name=package_metadata.title,
+            version=package_metadata.releases[0].version,
+            status=Status.QUEUED,
+            queued_by=auth.subject,
+            download_urls=[
+                DownloadURL(url=distribution.url) for distribution in package_metadata.releases[0].distributions
+            ],
+        )
+
+        session.add(scan)
 
     session.commit()
 
