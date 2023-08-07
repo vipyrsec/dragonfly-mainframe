@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -11,6 +10,8 @@ from asgi_correlation_id import CorrelationIdMiddleware
 from asgi_correlation_id.context import correlation_id
 from fastapi import FastAPI, Request, Response
 from letsbuilda.pypi import PyPIServices
+from letsbuilda.pypi.models import Package
+from letsbuilda.pypi.models.models_package import Distribution, Release
 from requests import Session
 from sentry_sdk.integrations.logging import LoggingIntegration
 from structlog_sentry import SentryProcessor
@@ -109,10 +110,14 @@ async def lifespan(app_: FastAPI):
     db_session.close()
 
     if GIT_SHA == "testing":
-        fut: asyncio.Future[MagicMock] = asyncio.Future()
-        fut.set_result(MagicMock(return_value=MagicMock()))
-        pypi_client.get_package_metadata = MagicMock(return_value=fut)
-        pypi_client.get_package_metadata.return_value.urls = [MagicMock(url=None), MagicMock(url=None)]
+
+        def side_effect(name: str, version: str) -> Package:
+            return Package(
+                title=name,
+                releases=[Release(version=version, distributions=[Distribution(filename="test", url="test")])],
+            )
+
+        pypi_client.get_package_metadata = MagicMock(side_effect=side_effect)
 
     app_.state.rules = rules
     app_.state.http_session = http_session

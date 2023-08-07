@@ -129,10 +129,12 @@ def test_handle_fail(client: TestClient, db_session: Session, test_data: list[di
 
 
 def test_batch_queue(client: TestClient, db_session: Session, test_data: list[dict]):
-    data = [dict(name=t["name"], version=t["version"]) for t in test_data] + [dict(name="c", version="1.0.0")]
-    print(data)
-    r = client.post("/batch/package", json=data)
+    to_add: list[dict[str, str]] = [dict(name=t["name"], version=t["version"]) for t in test_data] + [
+        dict(name="c", version="1.0.0")
+    ]
+    r = client.post("/batch/package", json=to_add)
     r.raise_for_status()
 
-    for row in db_session.scalars(select(Scan)):
-        assert dict(name=row.name, version=row.version) in data
+    existing_packages = {(p.name, p.version) for p in db_session.scalars(select(Scan)).all()}
+    for item in to_add:
+        assert (item["name"], item["version"]) in existing_packages
