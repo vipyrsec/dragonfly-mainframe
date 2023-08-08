@@ -6,3 +6,5 @@ services:
       target: test
       args:
         GIT_SHA: testing
+  db:
+    command: "-c fsync=off -c full_page_writes=off"
