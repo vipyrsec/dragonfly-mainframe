@@ -1,84 +1,94 @@
-import datetime as dt
-import json
 import logging
-import uuid
-from pathlib import Path
+from copy import deepcopy
+from datetime import datetime, timedelta
 from typing import Generator
+from unittest.mock import MagicMock
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import Engine, create_engine, insert
+import requests
+from letsbuilda.pypi import PyPIServices
+from letsbuilda.pypi.models import Package
+from letsbuilda.pypi.models.models_package import Distribution, Release
+from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from mainframe.models.orm import Base, Scan, Status
-from mainframe.server import app
+from mainframe.json_web_token import AuthenticationData
+from mainframe.models.orm import Base, Scan
+from mainframe.rules import Rules
+
+from .test_data import data
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__file__)
 
 
-_api_url = "http://localhost:8000"
-
-TEST_DIR = Path(__file__).parent
-TEST_DATA_DIR = TEST_DIR / "test_data"
-TEST_DATA_FILES = list(TEST_DATA_DIR.iterdir())
-# TEST_DATA_FILES = [TEST_DATA_DIR / "sample.json"]
+@pytest.fixture(scope="session")
+def sm(engine: Engine) -> sessionmaker[Session]:
+    return sessionmaker(bind=engine, autoflush=False, join_transaction_mode="create_savepoint", expire_on_commit=False)
 
 
 @pytest.fixture(scope="session")
 def engine() -> Engine:
-    return create_engine("postgresql+psycopg2://postgres:postgres@db:5432")
+    return create_engine("postgresql+psycopg2://postgres:postgres@localhost:5432")
 
 
-@pytest.fixture(scope="session")
-def sm(engine) -> sessionmaker:
-    return sessionmaker(bind=engine, autoflush=True)
+@pytest.fixture(params=data, scope="session")
+def test_data(request: pytest.FixtureRequest) -> list[Scan]:
+    return request.param
 
 
-@pytest.fixture()
-def client() -> TestClient:
-    with TestClient(app, base_url=_api_url) as client:
-        yield client
+@pytest.fixture(scope="session", autouse=True)
+def initial_populate_db(engine: Engine, sm: sessionmaker[Session], test_data: list[Scan]):
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
 
-
-def decode(L) -> list[dict]:
-    out = []
-    for d in L:
-        new_d = d.copy()
-        for key, value in d.items():
-            if key == "status":
-                new_d[key] = Status(value)
-            elif key in ["queued_at", "pending_at", "finished_at", "reported_at"]:
-                if value is not None:
-                    new_d[key] = dt.datetime.fromisoformat(value)
-            elif key == "scan_id":
-                new_d[key] = uuid.UUID(f"{{{value}}}")
-
-        out.append(new_d)
-
-    return out
-
-
-@pytest.fixture(params=TEST_DATA_FILES, ids=[p.name for p in TEST_DATA_FILES])
-def test_data(request) -> list[dict]:
-    with open(request.param) as f:
-        data = json.load(f)
-
-    return decode(data)
+    session = sm()
+    for scan in test_data:
+        session.add(deepcopy(scan))
+    session.commit()
 
 
 @pytest.fixture(autouse=True)
-def db_setup(engine: Engine, sm: sessionmaker, test_data: list[dict]) -> Generator[None, None, None]:
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
-    with sm() as sess:
-        sess.execute(insert(Scan), test_data)
-        sess.commit()
-        yield
-    Base.metadata.drop_all(engine)
+def db_session(sm: sessionmaker[Session]) -> Generator[Session, None, None]:
+    session = sm()
+    session.commit = lambda: session.flush()
+    yield session
+    session.rollback()
 
 
-@pytest.fixture
-def db_session(sm) -> Generator[Session, None, None]:
-    with sm() as sess:
-        yield sess
+@pytest.fixture(scope="session")
+def auth() -> AuthenticationData:
+    return AuthenticationData(
+        issuer="DEVELOPMENT ISSUER",
+        subject="DEVELOPMENT SUBJECT",
+        audience="DEVELOPMENT AUDIENCE",
+        issued_at=datetime.now() - timedelta(seconds=10),
+        expires_at=datetime.now() + timedelta(seconds=10),
+        grant_type="DEVELOPMENT GRANT TYPE",
+    )
+
+
+@pytest.fixture(scope="session")
+def rules_state() -> Rules:
+    return Rules(
+        rules_commit="test commit hash",
+        rules={
+            "filename1": "rule contents 1",
+            "filename2": "rule contents 2",
+        },
+    )
+
+
+@pytest.fixture(scope="session")
+def pypi_client() -> PyPIServices:
+    session = requests.Session()
+    pypi_client = PyPIServices(session)
+
+    def side_effect(name: str, version: str) -> Package:
+        return Package(
+            title=name,
+            releases=[Release(version=version, distributions=[Distribution(filename="test", url="test")])],
+        )
+
+    pypi_client.get_package_metadata = MagicMock(side_effect=side_effect)
+    return pypi_client

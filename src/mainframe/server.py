@@ -2,7 +2,6 @@ import logging
 import time
 from contextlib import asynccontextmanager
 from typing import Awaitable, Callable
-from unittest.mock import MagicMock
 
 import sentry_sdk
 import structlog
@@ -10,14 +9,11 @@ from asgi_correlation_id import CorrelationIdMiddleware
 from asgi_correlation_id.context import correlation_id
 from fastapi import FastAPI, Request, Response
 from letsbuilda.pypi import PyPIServices
-from letsbuilda.pypi.models import Package
-from letsbuilda.pypi.models.models_package import Distribution, Release
 from requests import Session
 from sentry_sdk.integrations.logging import LoggingIntegration
 from structlog_sentry import SentryProcessor
 
 from mainframe.constants import GIT_SHA, Sentry
-from mainframe.database import sessionmaker
 from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
 from mainframe.models.schemas import ServerMetadata
@@ -105,19 +101,7 @@ async def lifespan(app_: FastAPI):
 
     http_session = Session()
     pypi_client = PyPIServices(http_session)
-    db_session = sessionmaker()
     rules = fetch_rules(http_session=http_session)
-    db_session.close()
-
-    if GIT_SHA == "testing":
-
-        def side_effect(name: str, version: str) -> Package:
-            return Package(
-                title=name,
-                releases=[Release(version=version, distributions=[Distribution(filename="test", url="test")])],
-            )
-
-        pypi_client.get_package_metadata = MagicMock(side_effect=side_effect)
 
     app_.state.rules = rules
     app_.state.http_session = http_session

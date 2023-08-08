@@ -3,7 +3,7 @@ from textwrap import dedent
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from letsbuilda.pypi import PyPIServices
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from msgraph.core import GraphClient
@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
-from mainframe.dependencies import get_ms_graph_client, validate_token
+from mainframe.dependencies import get_ms_graph_client, get_pypi_client, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan
 from mainframe.models.schemas import Error, ReportPackageBody
@@ -73,7 +73,7 @@ def report_package(
     session: Annotated[Session, Depends(get_db)],
     graph_client: Annotated[GraphClient, Depends(get_ms_graph_client)],  # type: ignore
     auth: Annotated[AuthenticationData, Depends(validate_token)],
-    request: Request,
+    pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
 ):
     """
     Report a package by sending an email to `recipient` address with the appropriate format
@@ -120,7 +120,6 @@ def report_package(
 
     log = logger.bind(package={"name": name, "version": version})
 
-    pypi_client: PyPIServices = request.app.state.pypi_client
     try:
         package_metadata = pypi_client.get_package_metadata(name, version)
     except PackageNotFoundError:

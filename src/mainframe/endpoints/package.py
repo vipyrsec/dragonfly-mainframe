@@ -2,7 +2,7 @@ import datetime as dt
 from typing import Annotated, Optional
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from letsbuilda.pypi import PyPIServices  # type: ignore
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from sqlalchemy import select, tuple_
@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from mainframe.database import get_db
-from mainframe.dependencies import validate_token
+from mainframe.dependencies import get_pypi_client, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import DownloadURL, Rule, Scan, Status
 from mainframe.models.schemas import (
@@ -179,10 +179,8 @@ def batch_queue_package(
     packages: list[PackageSpecifier],
     session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
-    request: Request,
+    pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
 ):
-    pypi_client: PyPIServices = request.app.state.pypi_client
-
     name_ver = {(p.name, p.version) for p in packages}
 
     scalars = session.scalars(select(Scan).where(tuple_(Scan.name, Scan.version).in_(name_ver)))
@@ -221,7 +219,7 @@ def queue_package(
     package: PackageSpecifier,
     session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
-    request: Request,
+    pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
 ) -> QueuePackageResponse:
     """
     Queue a package to be scanned when the next runner is available
@@ -239,7 +237,6 @@ def queue_package(
 
     log = logger.bind(package={"name": name, "version": version})
 
-    pypi_client: PyPIServices = request.app.state.pypi_client
     try:
         package_metadata = pypi_client.get_package_metadata(name, version)
     except PackageNotFoundError:
