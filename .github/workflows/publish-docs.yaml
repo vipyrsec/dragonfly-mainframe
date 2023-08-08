@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
 
       - name: "Setup PDM"
-        uses: pdm-project/setup-pdm@c287ac6f97f5fa767aa06946c7f55f40100b78c1 # v3.3
+        uses: pdm-project/setup-pdm@ddc33ca746b5716353581f988b29464200212702 # v3.3
         with:
           python-version: "3.11"
           cache: true

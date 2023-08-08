@@ -15,6 +15,7 @@ RUN pdm install -d
 
 COPY tests/ tests/
 ENV env=test
+ENV GIT_SHA="testing"
 
 CMD ["pdm", "run", "coverage"]
 
