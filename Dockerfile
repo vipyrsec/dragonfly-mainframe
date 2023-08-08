@@ -4,7 +4,7 @@ RUN pip install -U pip setuptools wheel
 RUN pip install pdm
 
 WORKDIR /app
-COPY pyproject.toml pdm.lock ./
+COPY pyproject.toml pdm.lock .coveragerc ./
 RUN mkdir __pypackages__ && pdm install --prod --no-lock --no-editable
 COPY src/ src/
 RUN pdm install --prod --no-lock --no-editable
