@@ -12,6 +12,7 @@ from letsbuilda.pypi.models.models_package import Distribution, Release
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from mainframe.constants import mainframe_settings
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Base, Scan
 from mainframe.rules import Rules
@@ -29,7 +30,7 @@ def sm(engine: Engine) -> sessionmaker[Session]:
 
 @pytest.fixture(scope="session")
 def engine() -> Engine:
-    return create_engine("postgresql+psycopg2://postgres:postgres@localhost:5432")
+    return create_engine(mainframe_settings.db_url)
 
 
 @pytest.fixture(params=data, scope="session")
