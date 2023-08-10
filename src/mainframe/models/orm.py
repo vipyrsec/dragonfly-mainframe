@@ -16,7 +16,6 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.ext.associationproxy import AssociationProxy, association_proxy
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -68,7 +67,6 @@ class Scan(Base):
     score: Mapped[Optional[int]]
     inspector_url: Mapped[Optional[str]]
     rules: Mapped[list[Rule]] = relationship(secondary=package_rules)
-    rule_names: AssociationProxy[list[str]] = association_proxy("rules", "name", creator=lambda name: Rule(name=name))
     download_urls: Mapped[list[DownloadURL]] = relationship()
 
     queued_at: Mapped[Optional[datetime]] = mapped_column(
