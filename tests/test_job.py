@@ -48,22 +48,22 @@ def test_job(test_data: list[Scan], db_session: Session, auth: AuthenticationDat
 
 
 def test_batch_job(test_data: list[Scan], db_session: Session, auth: AuthenticationData, rules_state: Rules):
-    jobs = get_jobs(db_session, auth, rules_state, batch=len(test_data))
+    jobs = {(job.name, job.version) for job in get_jobs(db_session, auth, rules_state, batch=len(test_data))}
 
     # check if each returned job should have actually been returned
-    for job in jobs:
-        original_data = next(scan for scan in test_data if (scan.name, scan.version) == (job.name, job.version))
-        if original_data.status == Status.QUEUED:
-            assert True
-        elif original_data.status == Status.PENDING:
-            assert original_data.pending_at is not None  # Appease the typechecker
-            assert dt.datetime.now(tz=dt.timezone.utc) - original_data.pending_at > dt.timedelta(minutes=2)
+    for row in test_data:
+        if row.status == Status.QUEUED:
+            assert (row.name, row.version) in jobs
+        elif row.status == Status.PENDING:
+            assert row.pending_at is not None  # Appease the type checker
+            if dt.datetime.now(tz=dt.timezone.utc) - row.pending_at > dt.timedelta(minutes=2):
+                assert (row.name, row.version) in jobs
         else:
-            assert False
+            assert (row.name, row.version) not in jobs
 
     # check if the database was accurately updated
-    for job in jobs:
-        row = db_session.scalar(select(Scan).where(Scan.name == job.name).where(Scan.version == job.version))
+    for name, version in jobs:
+        row = db_session.scalar(select(Scan).where(Scan.name == name).where(Scan.version == version))
 
         assert row is not None
         assert row.status == Status.PENDING
