@@ -2,7 +2,7 @@ import datetime as dt
 from typing import Annotated, Optional
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from letsbuilda.pypi import PyPIServices  # type: ignore
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from sqlalchemy import select, tuple_
@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from mainframe.database import get_db
-from mainframe.dependencies import validate_token
+from mainframe.dependencies import get_pypi_client, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import DownloadURL, Rule, Scan, Status
 from mainframe.models.schemas import (
@@ -148,9 +148,8 @@ def lookup_package_info(
     )
 
     if (not nn_name and not nn_since) or (nn_version and nn_since):
-        log.error(
+        log.debug(
             "Invalid parameter combination",
-            error_message="Invalid parameter combination.",
             tag="invalid_parameter_combination",
         )
         raise HTTPException(status_code=400)
@@ -180,14 +179,17 @@ def batch_queue_package(
     packages: list[PackageSpecifier],
     session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
-    request: Request,
+    pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
 ):
-    pypi_client: PyPIServices = request.app.state.pypi_client
+    name_ver = {(p.name, p.version) for p in packages}
 
-    valid_packages: list[Scan] = []
-    for package in packages:
+    scalars = session.scalars(select(Scan).where(tuple_(Scan.name, Scan.version).in_(name_ver)))
+
+    packages_to_check = name_ver - {(scan.name, scan.version) for scan in scalars.all()}
+
+    for package in packages_to_check:
         try:
-            package_metadata = pypi_client.get_package_metadata(package.name, package.version)
+            package_metadata = pypi_client.get_package_metadata(*package)
         except PackageNotFoundError:
             continue
 
@@ -201,17 +203,7 @@ def batch_queue_package(
             ],
         )
 
-        valid_packages.append(scan)
-
-    scalars = session.scalars(
-        select(Scan).where(tuple_(Scan.name, Scan.version).in_([(s.name, s.version) for s in valid_packages]))
-    )
-
-    existing_rows = {(scan.name, scan.version) for scan in scalars.all()}
-
-    for scan in valid_packages:
-        if (scan.name, scan.version) not in existing_rows:
-            session.add(scan)
+        session.add(scan)
 
     session.commit()
 
@@ -227,7 +219,7 @@ def queue_package(
     package: PackageSpecifier,
     session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
-    request: Request,
+    pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
 ) -> QueuePackageResponse:
     """
     Queue a package to be scanned when the next runner is available
@@ -245,7 +237,6 @@ def queue_package(
 
     log = logger.bind(package={"name": name, "version": version})
 
-    pypi_client: PyPIServices = request.app.state.pypi_client
     try:
         package_metadata = pypi_client.get_package_metadata(name, version)
     except PackageNotFoundError:

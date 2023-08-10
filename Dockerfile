@@ -1,4 +1,4 @@
-FROM python:3.11-slim@sha256:364ee1a9e029fb7b60102ae56ff52153ccc929ceab9aa387402fe738432d24cc as builder
+FROM python:3.11-slim@sha256:36b544be6e796eb5caa0bf1ab75a17d2e20211cad7f66f04f6f5c9eeda930ef5 as builder
 
 RUN pip install -U pip setuptools wheel
 RUN pip install pdm
@@ -15,10 +15,11 @@ RUN pdm install -d
 
 COPY tests/ tests/
 ENV env=test
+ENV GIT_SHA="testing"
 
 CMD ["pdm", "run", "pytest", "tests", "-vv"]
 
-FROM python:3.11-slim@sha256:364ee1a9e029fb7b60102ae56ff52153ccc929ceab9aa387402fe738432d24cc as prod
+FROM python:3.11-slim@sha256:36b544be6e796eb5caa0bf1ab75a17d2e20211cad7f66f04f6f5c9eeda930ef5 as prod
 
 # Define Git SHA build argument for sentry
 ARG git_sha="development"

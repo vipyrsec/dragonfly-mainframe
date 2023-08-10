@@ -2,16 +2,17 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
-from mainframe.dependencies import validate_token
+from mainframe.dependencies import get_rules, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan, Status
 from mainframe.models.schemas import JobResult
+from mainframe.rules import Rules
 
 router = APIRouter(tags=["job"])
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -21,7 +22,7 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 def get_jobs(
     session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
-    request: Request,
+    state: Annotated[Rules, Depends(get_rules)],
     batch: int = 1,
 ) -> list[JobResult]:
     """
@@ -78,7 +79,7 @@ def get_jobs(
             name=scan.name,
             version=scan.version,
             distributions=[dist.url for dist in scan.download_urls],
-            hash=request.app.state.rules.rules_commit,
+            hash=state.rules_commit,
         )
 
         response_body.append(job_result)

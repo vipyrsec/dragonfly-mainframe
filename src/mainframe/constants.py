@@ -39,9 +39,7 @@ class Mainframe(EnvConfig):
 mainframe_settings = Mainframe()  # pyright: ignore
 
 
-class _Sentry(EnvConfig):
-    EnvConfig.model_config["env_prefix"] = "sentry_"
-
+class _Sentry(EnvConfig, env_prefix="sentry_"):  # pyright: ignore
     dsn: str = ""
     environment: str = "production"
     release_prefix: str = "dragonfly-mainframe"
@@ -50,12 +48,10 @@ class _Sentry(EnvConfig):
 Sentry = _Sentry()  # pyright: ignore
 
 
-class Microsoft(EnvConfig):
-    EnvConfig.model_config["env_prefix"] = "microsoft_"
-
-    tenant_id: str
-    client_id: str
-    client_secret: str
+class Microsoft(EnvConfig, env_prefix="microsoft_"):  # pyright: ignore
+    tenant_id: str = ""
+    client_id: str = ""
+    client_secret: str = ""
 
 
 microsoft_settings = Microsoft()  # pyright: ignore
