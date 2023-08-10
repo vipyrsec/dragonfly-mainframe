@@ -32,9 +32,6 @@ def send_report_email(
     additional_information: str | None,
     rules_matched: list[str],
 ):
-    if additional_information is None and len(rules_matched) == 0:
-        raise ValueError("Cannot report a package that matched 0 rules without additional information")
-
     content = f"""
         PyPI Malicious Package Report
         -
