@@ -142,3 +142,10 @@ reportUntypedBaseClass = "error"
 reportUntypedClassDecorator = "error"
 reportUntypedFunctionDecorator = "error"
 reportUntypedNamedTuple = "error"
+
+[tool.coverage.run]
+branch = true
+omit = ["__pypackages__/*"]
+
+[tool.coverage.report]
+fail_under = 100

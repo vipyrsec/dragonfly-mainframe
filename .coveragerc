@@ -1,7 +1,0 @@
-[run]
-branch = true
-omit =
-    __pypackages__/*
-
-[report]
-fail_under = 100
