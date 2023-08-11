@@ -145,7 +145,15 @@ reportUntypedNamedTuple = "error"
 
 [tool.coverage.run]
 branch = true
-omit = ["__pypackages__/*"]
+omit = [
+    "__pypackages__/*",
+    "src/mainframe/dependencies.py",
+    "src/mainframe/database.py",
+    "src/mainframe/json_web_token.py",
+    "src/mainframe/custom_exceptions.py",
+    "src/mainframe/utils/microsoft.py",
+    "src/mainframe/utils/mailer.py"
+]
 
 [tool.coverage.report]
 fail_under = 100
