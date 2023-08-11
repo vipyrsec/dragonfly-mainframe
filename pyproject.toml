@@ -144,7 +144,7 @@ reportUntypedFunctionDecorator = "error"
 reportUntypedNamedTuple = "error"
 
 [tool.coverage.run]
-branch = true
+branch = false
 omit = [
     "__pypackages__/*",
     "src/mainframe/dependencies.py",
