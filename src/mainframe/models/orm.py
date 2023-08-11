@@ -25,7 +25,7 @@ from sqlalchemy.orm import (
 )
 
 
-class Base(DeclarativeBase, MappedAsDataclass):
+class Base(MappedAsDataclass, DeclarativeBase, kw_only=True):
     pass
 
 
@@ -62,36 +62,38 @@ class Scan(Base):
     scan_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
-        server_default=FetchedValue(),
-        default=uuid.uuid4,
+        default_factory=uuid.uuid4,
+        init=False,
     )
 
-    name: Mapped[str]
-    version: Mapped[str]
-    status: Mapped[Status]
+    name: Mapped[str] = mapped_column(default=None)
+    version: Mapped[str] = mapped_column(default=None)
+    status: Mapped[Status] = mapped_column(default=None)
 
-    score: Mapped[Optional[int]]
-    inspector_url: Mapped[Optional[str]]
-    rules: Mapped[list[Rule]] = relationship(secondary=package_rules)
-    download_urls: Mapped[list[DownloadURL]] = relationship()
+    score: Mapped[Optional[int]] = mapped_column(default=None)
+    inspector_url: Mapped[Optional[str]] = mapped_column(default=None)
+    rules: Mapped[list[Rule]] = relationship(secondary=package_rules, default_factory=list)
+    download_urls: Mapped[list[DownloadURL]] = relationship(default_factory=list)
 
     queued_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), server_default=FetchedValue(), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True),
+        server_default=FetchedValue(),
+        default_factory=lambda: datetime.now(timezone.utc),
     )
-    queued_by: Mapped[str]
+    queued_by: Mapped[str] = mapped_column(default=None)
 
-    pending_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    pending_by: Mapped[Optional[str]]
+    pending_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
+    pending_by: Mapped[Optional[str]] = mapped_column(default=None)
 
-    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    finished_by: Mapped[Optional[str]]
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
+    finished_by: Mapped[Optional[str]] = mapped_column(default=None)
 
-    reported_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    reported_by: Mapped[Optional[str]]
+    reported_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
+    reported_by: Mapped[Optional[str]] = mapped_column(default=None)
 
-    fail_reason: Mapped[Optional[str]]
+    fail_reason: Mapped[Optional[str]] = mapped_column(default=None)
 
-    commit_hash: Mapped[Optional[str]]
+    commit_hash: Mapped[Optional[str]] = mapped_column(default=None)
 
 
 class DownloadURL(Base):
@@ -102,13 +104,13 @@ class DownloadURL(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
-        server_default=FetchedValue(),
-        default=uuid.uuid4,
+        default_factory=uuid.uuid4,
+        init=False,
     )
 
-    scan_id: Mapped[str] = mapped_column(ForeignKey("scans.scan_id"))
+    scan_id: Mapped[str] = mapped_column(ForeignKey("scans.scan_id"), init=False)
 
-    url: Mapped[str]
+    url: Mapped[str] = mapped_column()
 
 
 class Rule(Base):
@@ -119,8 +121,8 @@ class Rule(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
-        server_default=FetchedValue(),
-        default=uuid.uuid4,
+        default_factory=uuid.uuid4,
+        init=False,
     )
 
     name: Mapped[str] = mapped_column(unique=True)
