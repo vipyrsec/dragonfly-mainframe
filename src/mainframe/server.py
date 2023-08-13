@@ -1,6 +1,7 @@
 import logging
 import time
 from contextlib import asynccontextmanager
+from threading import Thread
 from typing import Awaitable, Callable
 
 import sentry_sdk
@@ -17,6 +18,7 @@ from mainframe.constants import GIT_SHA, Sentry
 from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
 from mainframe.models.schemas import ServerMetadata
+from mainframe.receiver import target
 from mainframe.rules import Rules, fetch_rules
 
 from . import __version__
@@ -108,6 +110,9 @@ async def lifespan(app_: FastAPI):
     app_.state.pypi_client = pypi_client
 
     configure_logger()
+
+    thread = Thread(target=target, name="dragonfly-receiver")
+    thread.start()
 
     yield
 
