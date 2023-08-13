@@ -49,31 +49,11 @@ class Scan(Base):
     score: Mapped[Optional[int]]
     inspector_url: Mapped[Optional[str]]
     rules: Mapped[list[Rule]] = relationship(secondary=package_rules)
-    download_urls: Mapped[list[DownloadURL]] = relationship()
 
     reported_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     reported_by: Mapped[Optional[str]]
 
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-
-    commit_hash: Mapped[Optional[str]]
-
-
-class DownloadURL(Base):
-    """Download URLs"""
-
-    __tablename__: str = "download_urls"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        server_default=FetchedValue(),
-        default=uuid.uuid4,
-    )
-
-    scan_id: Mapped[str] = mapped_column(ForeignKey("scans.scan_id"))
-
-    url: Mapped[str]
 
 
 class Rule(Base):
