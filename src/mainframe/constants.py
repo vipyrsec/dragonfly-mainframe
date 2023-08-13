@@ -31,6 +31,8 @@ class Mainframe(EnvConfig):
 
     dragonfly_github_token: str
 
+    amqp_connection_string: str = "amqp://127.0.0.1:5672/%2f"
+
 
 mainframe_settings = Mainframe()  # pyright: ignore
 
