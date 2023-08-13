@@ -23,7 +23,7 @@ def build_auth_header(access_token: str) -> dict[str, str]:
 
 def fetch_commit_hash(http_session: Session, *, repository: str, access_token: str) -> str:
     """Fetch the top commit hash of the given repository"""
-    url = f"https://api.github.com/repos/{repository}/commits/main/"
+    url = f"https://api.github.com/repos/{repository}/commits/main"
     authentication_headers = build_auth_header(access_token)
     json_headers = {"Accept": "application/vnd.github.VERSION.sha"}
     headers = authentication_headers | json_headers
