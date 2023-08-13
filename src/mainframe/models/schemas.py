@@ -25,7 +25,7 @@ class PackageSpecifier(BaseModel):
     """
 
     name: str
-    version: Optional[str]
+    version: str
 
     class Config:
         frozen = True

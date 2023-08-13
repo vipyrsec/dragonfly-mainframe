@@ -1,9 +1,7 @@
-import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
 from typing import Awaitable, Callable
-from unittest.mock import MagicMock
 
 import sentry_sdk
 import structlog
@@ -16,7 +14,6 @@ from sentry_sdk.integrations.logging import LoggingIntegration
 from structlog_sentry import SentryProcessor
 
 from mainframe.constants import GIT_SHA, Sentry
-from mainframe.database import sessionmaker
 from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
 from mainframe.models.schemas import ServerMetadata
@@ -91,8 +88,8 @@ sentry_sdk.init(
     dsn=Sentry.dsn,
     environment=Sentry.environment,
     send_default_pii=True,
-    traces_sample_rate=0.25,
-    profiles_sample_rate=0.25,
+    traces_sample_rate=0.05,
+    profiles_sample_rate=0.05,
     release=f"{Sentry.release_prefix}@{GIT_SHA}",
     integrations=[LoggingIntegration(event_level=None, level=None)],
 )
@@ -104,15 +101,7 @@ async def lifespan(app_: FastAPI):
 
     http_session = Session()
     pypi_client = PyPIServices(http_session)
-    db_session = sessionmaker()
     rules = fetch_rules(http_session=http_session)
-    db_session.close()
-
-    if GIT_SHA == "testing":
-        fut: asyncio.Future[MagicMock] = asyncio.Future()
-        fut.set_result(MagicMock(return_value=MagicMock()))
-        pypi_client.get_package_metadata = MagicMock(return_value=fut)
-        pypi_client.get_package_metadata.return_value.urls = [MagicMock(url=None), MagicMock(url=None)]
 
     app_.state.rules = rules
     app_.state.http_session = http_session
