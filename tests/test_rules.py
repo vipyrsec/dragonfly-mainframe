@@ -24,7 +24,7 @@ def test_build_auth_header():
 
 def test_fetch_commit_hash():
     mock_session: Any = Mock()
-    url = "https://api.github.com/repos/owner-name/repo-name/commits/main/"
+    url = "https://api.github.com/repos/owner-name/repo-name/commits/main"
     headers = {
         "Authorization": "Bearer token",
         "Accept": "application/vnd.github.VERSION.sha",
