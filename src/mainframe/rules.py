@@ -3,7 +3,7 @@ from io import BytesIO
 from typing import Final
 from zipfile import ZipFile
 
-from requests import Session
+from httpx import Client
 
 from mainframe.constants import mainframe_settings
 
@@ -21,14 +21,15 @@ def build_auth_header(access_token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {access_token}"}
 
 
-def fetch_commit_hash(http_session: Session, *, repository: str, access_token: str) -> str:
+def fetch_commit_hash(http_session: Client, *, repository: str, access_token: str) -> str:
     """Fetch the top commit hash of the given repository"""
     url = f"https://api.github.com/repos/{repository}/commits/main"
     authentication_headers = build_auth_header(access_token)
     json_headers = {"Accept": "application/vnd.github.VERSION.sha"}
     headers = authentication_headers | json_headers
-    with http_session.get(url, headers=headers) as res:
-        return res.text
+
+    res = http_session.get(url, headers=headers)
+    return res.text
 
 
 def parse_zipfile(zipfile: ZipFile) -> dict[str, str]:
@@ -45,20 +46,20 @@ def parse_zipfile(zipfile: ZipFile) -> dict[str, str]:
     return rules
 
 
-def fetch_zipfile(http_session: Session, *, repository: str, access_token: str) -> ZipFile:
+def fetch_zipfile(http_session: Client, *, repository: str, access_token: str) -> ZipFile:
     """Download the source zipfile from GitHub for the given repository"""
     url = f"https://api.github.com/repos/{repository}/zipball/"
     headers = build_auth_header(access_token)
     buffer = BytesIO()
-    with http_session.get(url, headers=headers) as res:
-        res.raise_for_status()
-        bytes = res.content
-        buffer.write(bytes)
+    res = http_session.get(url, headers=headers)
+    res.raise_for_status()
+    bytes = res.content
+    buffer.write(bytes)
 
     return ZipFile(buffer)
 
 
-def fetch_rules(http_session: Session) -> Rules:
+def fetch_rules(http_session: Client) -> Rules:
     """Return the commit hash and all the rules"""
 
     access_token = mainframe_settings.dragonfly_github_token
