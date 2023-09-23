@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
+from operator import or_
 from typing import Optional
 
 from sqlalchemy import (
@@ -12,6 +13,7 @@ from sqlalchemy import (
     DateTime,
     FetchedValue,
     ForeignKey,
+    Index,
     Table,
     UniqueConstraint,
 )
@@ -86,6 +88,9 @@ class Scan(Base):
     fail_reason: Mapped[Optional[str]]
 
     commit_hash: Mapped[Optional[str]]
+
+
+Index(None, Scan.status, postgresql_where=or_(Scan.status == Status.QUEUED, Scan.status == Status.PENDING))
 
 
 class DownloadURL(Base):
