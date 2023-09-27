@@ -1,7 +1,7 @@
 """add scans status index
 
 Revision ID: 9ac5b6c4a36b
-Revises: 9d70bac89aa5
+Revises: b6c8e52cd4f5f
 Create Date: 2023-09-23 00:07:33.273030
 
 """
@@ -11,7 +11,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "9ac5b6c4a36b"
-down_revision = "9d70bac89aa5"
+down_revision = "b6c8e52cd4f5f"
 branch_labels = None
 depends_on = None
 
