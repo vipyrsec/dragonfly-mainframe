@@ -100,7 +100,7 @@ class DownloadURL(Base):
         default=uuid.uuid4,
     )
 
-    scan_id: Mapped[str] = mapped_column(ForeignKey("scans.scan_id"))
+    scan_id: Mapped[str] = mapped_column(ForeignKey("scans.scan_id"), index=True)
 
     url: Mapped[str]
 
