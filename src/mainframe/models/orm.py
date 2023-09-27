@@ -87,7 +87,7 @@ class Scan(Base):
     pending_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
     pending_by: Mapped[Optional[str]] = mapped_column(default=None)
 
-    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None, index=True)
     finished_by: Mapped[Optional[str]] = mapped_column(default=None)
 
     reported_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
