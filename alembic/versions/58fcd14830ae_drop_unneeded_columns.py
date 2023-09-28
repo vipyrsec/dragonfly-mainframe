@@ -12,7 +12,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "58fcd14830ae"
-down_revision = "9d70bac89aa5"
+down_revision = "94f1cd79b7d4"
 branch_labels = None
 depends_on = None
 
@@ -49,10 +49,11 @@ def downgrade() -> None:
     op.add_column("scans", sa.Column("commit_hash", sa.VARCHAR(), autoincrement=False, nullable=True))
     op.add_column("scans", sa.Column("pending_by", sa.VARCHAR(), autoincrement=False, nullable=True))
     op.add_column("scans", sa.Column("fail_reason", sa.VARCHAR(), autoincrement=False, nullable=True))
+    op.create_index(None, "scans", ["finished_at"])
     op.create_table(
         "download_urls",
         sa.Column("id", sa.UUID(), autoincrement=False, nullable=False),
-        sa.Column("scan_id", sa.UUID(), autoincrement=False, nullable=False),
+        sa.Column("scan_id", sa.UUID(), autoincrement=False, nullable=False, index=True),
         sa.Column("url", sa.VARCHAR(), autoincrement=False, nullable=False),
         sa.ForeignKeyConstraint(["scan_id"], ["scans.scan_id"], name="download_urls_scan_id_fkey"),
         sa.PrimaryKeyConstraint("id", name="download_urls_pkey"),

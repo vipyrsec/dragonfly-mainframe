@@ -1,10 +1,11 @@
+import datetime as dt
 from typing import Annotated, Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
-import datetime as dt
+
 from mainframe.database import get_db
 from mainframe.dependencies import validate_token
 from mainframe.models.orm import Scan

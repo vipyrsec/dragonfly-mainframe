@@ -53,7 +53,7 @@ class Scan(Base):
     reported_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     reported_by: Mapped[Optional[str]]
 
-    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), index=True)
 
 
 class Rule(Base):

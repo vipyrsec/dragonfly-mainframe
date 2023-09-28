@@ -26,7 +26,7 @@ def test_package_lookup(
 ):
     exp: set[tuple[str, str]] = set()
     for scan in test_data:
-        if since is not None and since > int(scan.finished_at.timestamp()): # pyright: ignore
+        if since is not None and since > int(scan.finished_at.timestamp()):  # pyright: ignore
             continue
         if name is not None and scan.name != name:
             continue
@@ -36,6 +36,7 @@ def test_package_lookup(
 
     scans = lookup_package_info(db_session, name, version, since)
     assert exp == {(scan.name, scan.version) for scan in scans}
+
 
 @pytest.mark.parametrize(
     "name,version,since",
