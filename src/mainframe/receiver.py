@@ -3,13 +3,10 @@
 import json
 from datetime import datetime, timezone
 
-import pika
-from pika.channel import Channel
-from pika.spec import Basic, BasicProperties
+import aio_pika
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from mainframe.constants import mainframe_settings
 from mainframe.database import sessionmaker
 from mainframe.models.orm import Rule, Scan
 from mainframe.models.schemas import PackageScanResult
@@ -45,20 +42,13 @@ def handle_delivery(body: bytes) -> None:
             pass
 
 
-def target():
-    connection = pika.BlockingConnection(pika.URLParameters(mainframe_settings.amqp_connection_string))
-    channel = connection.channel()
-    channel.queue_declare(queue="results")  # pyright: ignore
+async def task(amqp_url: str):
+    connection = await aio_pika.connect_robust(amqp_url)
+    async with connection:
+        channel = await connection.channel()
+        queue = await channel.declare_queue(name="results", durable=True)
 
-    def callback(channel: Channel, method: Basic.Deliver, _: BasicProperties, body: bytes):
-        try:
-            handle_delivery(body)
-        except:
-            channel.basic_reject(delivery_tag=method.delivery_tag, requeue=False)
-            raise
-        else:
-            channel.basic_ack(delivery_tag=method.delivery_tag)
-
-    channel.basic_consume(queue="results", on_message_callback=callback)  # pyright: ignore
-
-    channel.start_consuming()
+        async with queue.iterator() as queue_iterator:
+            async for message in queue_iterator:
+                async with message.process(requeue=False):
+                    handle_delivery(message.body)
