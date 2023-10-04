@@ -57,7 +57,7 @@ docs = [
 [tool.pdm.scripts]
 format = { shell = "black . && isort ." }
 lint = { shell = "pyright; ruff ." }
-test = { shell = "docker compose -f docker-compose.yaml -f docker-compose-tests.yaml up --build --exit-code-from mainframe" }
+test = { shell = "docker compose -f compose.yaml -f compose-tests.yaml up --build --exit-code-from mainframe" }
 coverage = { shell = "coverage run -m pytest tests -vv && coverage report && coverage xml" }
 precommit = { shell = "pre-commit run --all-files" }
 all = { composite = ["format", "lint", "test"] }
