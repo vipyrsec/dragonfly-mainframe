@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from mainframe.endpoints.report import report_package
 from mainframe.json_web_token import AuthenticationData
-from mainframe.models.orm import DownloadURL, Rule, Scan, Status
+from mainframe.models.orm import Rule, Scan
 from mainframe.models.schemas import ReportPackageBody
 
 
@@ -21,21 +21,12 @@ def test_report(db_session: Session, auth: AuthenticationData, pypi_client: PyPI
     result = Scan(
         name="c",
         version="1.0.0",
-        status=Status.FINISHED,
         score=10,
         inspector_url="test inspector url",
         rules=[Rule(name="rule 1"), Rule(name="rule 2")],
-        download_urls=[DownloadURL(url="test download url")],
-        queued_at=datetime.now() - timedelta(seconds=60),
-        queued_by="remmy",
-        pending_at=datetime.now() - timedelta(seconds=30),
-        pending_by="remmy",
         finished_at=datetime.now(),
-        finished_by="remmy",
         reported_at=None,
         reported_by=None,
-        fail_reason=None,
-        commit_hash="test commit hash",
     )
 
     db_session.add(result)
@@ -112,41 +103,23 @@ def test_report_multi_versions(
     version1 = Scan(
         name="c",
         version="1.0.0",
-        status=Status.FINISHED,
         score=10,
         inspector_url="test inspector url",
         rules=[Rule(name="rule 1"), Rule(name="rule 2")],
-        download_urls=[DownloadURL(url="test download url")],
-        queued_at=datetime.now() - timedelta(seconds=60),
-        queued_by="remmy",
-        pending_at=datetime.now() - timedelta(seconds=30),
-        pending_by="remmy",
         finished_at=datetime.now() - timedelta(seconds=10),
-        finished_by="remmy",
         reported_at=datetime.now(),
         reported_by="remmy",
-        fail_reason=None,
-        commit_hash="test commit hash",
     )
 
     version2 = Scan(
         name="c",
         version="2.0.0",
-        status=Status.FINISHED,
         score=10,
         inspector_url="test inspector url",
         rules=[Rule(name="rule 3"), Rule(name="rule 4")],
-        download_urls=[DownloadURL(url="test download url")],
-        queued_at=datetime.now() - timedelta(seconds=60),
-        queued_by="remmy",
-        pending_at=datetime.now() - timedelta(seconds=30),
-        pending_by="remmy",
         finished_at=datetime.now(),
-        finished_by="remmy",
         reported_at=None,
         reported_by=None,
-        fail_reason=None,
-        commit_hash="test commit hash",
     )
 
     db_session.add_all((version1, version2))
@@ -171,21 +144,12 @@ def test_report_invalid_version(
     scan = Scan(
         name="c",
         version="1.0.0",
-        status=Status.FINISHED,
         score=10,
         inspector_url="test inspector url",
         rules=[Rule(name="rule 1"), Rule(name="rule 2")],
-        download_urls=[DownloadURL(url="test download url")],
-        queued_at=datetime.now() - timedelta(seconds=60),
-        queued_by="remmy",
-        pending_at=datetime.now() - timedelta(seconds=30),
-        pending_by="remmy",
         finished_at=datetime.now() - timedelta(seconds=10),
-        finished_by="remmy",
         reported_at=None,
         reported_by="remmy",
-        fail_reason=None,
-        commit_hash="test commit hash",
     )
     db_session.add(scan)
     db_session.commit()
@@ -209,21 +173,12 @@ def test_report_missing_inspector_url(
     scan = Scan(
         name="c",
         version="1.0.0",
-        status=Status.FINISHED,
         score=0,
         inspector_url=None,
         rules=[],
-        download_urls=[],
-        queued_at=datetime.now() - timedelta(seconds=60),
-        queued_by="remmy",
-        pending_at=datetime.now() - timedelta(seconds=30),
-        pending_by="remmy",
         finished_at=datetime.now() - timedelta(seconds=10),
-        finished_by="remmy",
         reported_at=None,
         reported_by=None,
-        fail_reason=None,
-        commit_hash="test commit hash",
     )
     db_session.add(scan)
     db_session.commit()
@@ -247,21 +202,12 @@ def test_report_missing_additional_information(
     scan = Scan(
         name="c",
         version="1.0.0",
-        status=Status.FINISHED,
         score=0,
         inspector_url=None,
         rules=[],
-        download_urls=[],
-        queued_at=datetime.now() - timedelta(seconds=60),
-        queued_by="remmy",
-        pending_at=datetime.now() - timedelta(seconds=30),
-        pending_by="remmy",
         finished_at=datetime.now() - timedelta(seconds=10),
-        finished_by="remmy",
         reported_at=None,
         reported_by=None,
-        fail_reason=None,
-        commit_hash="test commit hash",
     )
     db_session.add(scan)
     db_session.commit()

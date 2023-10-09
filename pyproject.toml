@@ -24,6 +24,7 @@ dependencies = [
     "requests>=2.30.0",
     "httpx>=0.24.1",
     "psycopg2-binary",
+    "aio-pika>=9.3.0",
 ]
 dynamic = ["version"]
 

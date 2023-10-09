@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -13,10 +14,11 @@ from requests import Session
 from sentry_sdk.integrations.logging import LoggingIntegration
 from structlog_sentry import SentryProcessor
 
-from mainframe.constants import GIT_SHA, Sentry
+from mainframe.constants import GIT_SHA, Sentry, mainframe_settings
 from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
 from mainframe.models.schemas import ServerMetadata
+from mainframe.receiver import task
 from mainframe.rules import Rules, fetch_rules
 
 from . import __version__
@@ -108,6 +110,8 @@ async def lifespan(app_: FastAPI):
     app_.state.pypi_client = pypi_client
 
     configure_logger()
+
+    asyncio.create_task(task(mainframe_settings.amqp_connection_string))
 
     yield
 

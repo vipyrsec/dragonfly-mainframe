@@ -40,7 +40,6 @@ class ReportPackageBody(PackageSpecifier):
 class PackageScanResult(PackageSpecifier):
     """Client payload to server containing the results of a package scan"""
 
-    commit: str
     score: int = 0
     inspector_url: Optional[str] = None
     rules_matched: list[str] = []
@@ -66,12 +65,6 @@ class GetRules(BaseModel):
     rules: dict[str, str]
 
 
-class NoJob(BaseModel):
-    """Returned when no available jobs were found."""
-
-    detail: str
-
-
 class QueuePackageResponse(BaseModel):
     """Returned after queueing a package. Contains the UUID"""
 
@@ -82,5 +75,3 @@ class StatsResponse(BaseModel):
     """Recent system statistics"""
 
     ingested: int
-    average_scan_time: float
-    failed: int
