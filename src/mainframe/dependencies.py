@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from functools import cache
 from typing import Annotated
 
-import requests
+import httpx
 from fastapi import Depends, Request
 from letsbuilda.pypi import PyPIServices
 from msgraph.core import GraphClient
@@ -21,7 +21,7 @@ def get_ms_graph_client() -> GraphClient:  # type: ignore
 
 @cache
 def get_pypi_client() -> PyPIServices:
-    session = requests.Session()
+    session = httpx.Client()
     return PyPIServices(session)
 
 
@@ -53,5 +53,6 @@ class PermissionsValidator:
         token_permissions_set = set(token_permissions)  # type: ignore
         required_permissions_set = set(self.required_permissions)
 
-        if not required_permissions_set.issubset(token_permissions_set):  # type: ignore
+        # type: ignore
+        if not required_permissions_set.issubset(token_permissions_set):
             raise PermissionDeniedException

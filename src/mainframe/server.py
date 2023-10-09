@@ -8,8 +8,8 @@ import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
 from asgi_correlation_id.context import correlation_id
 from fastapi import FastAPI, Request, Response
+from httpx import Client
 from letsbuilda.pypi import PyPIServices
-from requests import Session
 from sentry_sdk.integrations.logging import LoggingIntegration
 from structlog_sentry import SentryProcessor
 
@@ -99,7 +99,7 @@ sentry_sdk.init(
 async def lifespan(app_: FastAPI):
     """Load the state for the app"""
 
-    http_session = Session()
+    http_session = Client()
     pypi_client = PyPIServices(http_session)
     rules = fetch_rules(http_session=http_session)
 
