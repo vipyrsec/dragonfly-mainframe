@@ -4,7 +4,6 @@ from mainframe.models.orm import Scan, Status
 
 data = [
     Scan(
-        scan_id="fce0366b-0bcf-4a29-a0a7-4d4bdf3c6f61",
         name="a",
         version="0.1.0",
         status=Status.FINISHED,
@@ -19,11 +18,11 @@ data = [
         reported_at=None,
         reported_by=None,
         rules=[],
+        download_urls=[],
         commit_hash=None,
         fail_reason=None,
     ),
     Scan(
-        scan_id="df157a3c-8994-467f-a494-9d63eaf96564",
         name="b",
         version="0.1.0",
         status=Status.FINISHED,
@@ -38,11 +37,11 @@ data = [
         reported_at=None,
         reported_by=None,
         rules=[],
+        download_urls=[],
         commit_hash="test commit hash",
         fail_reason=None,
     ),
     Scan(
-        scan_id="04685768-e41d-49e4-9192-19b6d435226a",
         name="a",
         version="0.2.0",
         status=Status.QUEUED,
@@ -57,11 +56,11 @@ data = [
         reported_at=None,
         reported_by=None,
         rules=[],
+        download_urls=[],
         commit_hash=None,
         fail_reason=None,
     ),
     Scan(
-        scan_id="bbb953ca-95af-4d57-a7a5-0b656f652695",
         name="b",
         version="0.2.0",
         status=Status.PENDING,
@@ -76,6 +75,7 @@ data = [
         reported_at=None,
         reported_by=None,
         rules=[],
+        download_urls=[],
         commit_hash=None,
         fail_reason=None,
     ),
