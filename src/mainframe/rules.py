@@ -25,7 +25,7 @@ def fetch_commit_hash(http_session: Session, *, repository: str, access_token: s
     """Fetch the top commit hash of the given repository"""
     url = f"https://api.github.com/repos/{repository}/commits/main"
     authentication_headers = build_auth_header(access_token)
-    json_headers = {"Accept": "application/vnd.github.VERSION.sha"}
+    json_headers = {"Accept": "application/vnd.github.sha"}
     headers = authentication_headers | json_headers
     with http_session.get(url, headers=headers) as res:
         return res.text
