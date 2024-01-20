@@ -27,7 +27,7 @@ def test_fetch_commit_hash():
     url = "https://api.github.com/repos/owner-name/repo-name/commits/main"
     headers = {
         "Authorization": "Bearer token",
-        "Accept": "application/vnd.github.VERSION.sha",
+        "Accept": "application/vnd.github.sha",
     }
 
     attrs = {"return_value.__enter__.return_value.text": "test commit hash"}
