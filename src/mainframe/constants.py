@@ -22,8 +22,8 @@ class Mainframe(EnvConfig):
     auth0_domain: str = ""
     auth0_audience: str = ""
 
-    email_reply_to: str = "support@mantissecurity.org"
-    email_sender: str = "system@mantissecurity.org"
+    email_reply_to: str = "support@vipyrsec.com"
+    email_sender: str = "system@vipyrsec.com"
     email_recipient: str = "security@pypi.org"
     bcc_recipients: set[str] = set()
 
