@@ -1,68 +1,28 @@
 from typing import Optional
 
 import pytest
-from fastapi.encoders import jsonable_encoder
-from fastapi.testclient import TestClient
+from fastapi import HTTPException
+from letsbuilda.pypi import PyPIServices
+from letsbuilda.pypi.exceptions import PackageNotFoundError
+from pytest import MonkeyPatch
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from mainframe.endpoints.job import get_jobs
+from mainframe.endpoints.package import (
+    batch_queue_package,
+    lookup_package_info,
+    queue_package,
+    submit_results,
+)
+from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan, Status
-
-
-def build_query_string(since: Optional[int], name: Optional[str], version: Optional[str]) -> str:
-    """Helper function for generating query parameters."""
-    since_q = name_q = version_q = ""
-    if since is not None:
-        since_q = f"since={since}"
-    if name is not None:
-        name_q = f"name={name}"
-    if version is not None:
-        version_q = f"version={version}"
-
-    params = [since_q, name_q, version_q]
-
-    url = f"/package?{'&'.join(x for x in params if x != '')}"
-    return url
-
-
-@pytest.mark.parametrize(
-    "inp,exp",
-    [
-        ((0, "name", "ver"), "/package?since=0&name=name&version=ver"),
-        ((0, None, "ver"), "/package?since=0&version=ver"),
-        ((None, None, "ver"), "/package?version=ver"),
-        ((None, None, None), "/package?"),
-    ],
+from mainframe.models.schemas import (
+    PackageScanResult,
+    PackageScanResultFail,
+    PackageSpecifier,
 )
-def test_build_query_string(inp: tuple[Optional[int], Optional[str], Optional[str]], exp: str):
-    """Test build_query_string"""
-    out = build_query_string(*inp)
-    print(out)
-    assert out == exp
-
-
-@pytest.mark.parametrize(
-    "since,name,version",
-    [
-        (0xC0FFEE, "name", "ver"),
-        (0, None, "ver"),
-        (None, None, "ver"),
-        (None, None, None),
-    ],
-)
-def test_package_lookup_rejects_invalid_combinations(
-    client: TestClient,
-    since: Optional[int],
-    name: Optional[str],
-    version: Optional[str],
-):
-    """Test that invalid combinations are rejected with a 400 response code."""
-
-    url = build_query_string(since, name, version)
-    print(url)
-
-    r = client.get(url)
-    assert r.status_code == 400
+from mainframe.rules import Rules
 
 
 @pytest.mark.parametrize(
@@ -75,45 +35,86 @@ def test_package_lookup_rejects_invalid_combinations(
     ],
 )
 def test_package_lookup(
-    client: TestClient,
     since: Optional[int],
     name: Optional[str],
     version: Optional[str],
-    test_data: list[dict],
+    test_data: list[Scan],
+    db_session: Session,
 ):
-    url = build_query_string(since, name, version)
-    print(url)
-    exp = []
-    for d in test_data:
-        if since is not None and (d["finished_at"] is None or since > int(d["finished_at"].timestamp())):
+    exp: set[tuple[str, str]] = set()
+    for scan in test_data:
+        if since is not None and (scan.finished_at is None or since > int(scan.finished_at.timestamp())):
             continue
-        if name is not None and d["name"] != name:
+        if name is not None and scan.name != name:
             continue
-        if version is not None and d["version"] != version:
+        if version is not None and scan.version != version:
             continue
-        exp.append(d)
+        exp.add((scan.name, scan.version))
 
-    r = client.get(url)
-    print(repr(r.text))
-
-    def key(d):
-        return d["scan_id"]
-
-    assert sorted(r.json(), key=key) == sorted(jsonable_encoder(exp), key=key)
+    scans = lookup_package_info(db_session, since, name, version)
+    assert exp == {(scan.name, scan.version) for scan in scans}
 
 
-def test_handle_fail(client: TestClient, db_session: Session, test_data: list[dict]):
-    r = client.post("/jobs")
-    r.raise_for_status()
-    j = r.json()
+@pytest.mark.parametrize(
+    "since,name,version",
+    [
+        (0xC0FFEE, "name", "ver"),
+        (0, None, "ver"),
+        (None, None, "ver"),
+        (None, None, None),
+    ],
+)
+def test_package_lookup_rejects_invalid_combinations(
+    db_session: Session,
+    since: Optional[int],
+    name: Optional[str],
+    version: Optional[str],
+):
+    """Test that invalid combinations are rejected with a 400 response code."""
 
-    if j:
-        j = j[0]
-        name = j["name"]
-        version = j["version"]
+    with pytest.raises(HTTPException) as e:
+        lookup_package_info(db_session, since, name, version)
+    assert e.value.status_code == 400
+
+
+def test_handle_success(db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules):
+    job = get_jobs(db_session, auth, rules_state, batch=1)
+
+    if job:
+        job = job[0]
+        name = job.name
+        version = job.version
+
+        body = PackageScanResult(
+            name=job.name,
+            version=job.version,
+            commit=rules_state.rules_commit,
+            score=2,
+            inspector_url="test inspector url",
+            rules_matched=["a", "b", "c"],
+        )
+        submit_results(body, db_session, auth)
+
+        record = db_session.scalar(select(Scan).where(Scan.name == name).where(Scan.version == version))
+
+        assert record is not None
+        assert record.score == 2
+        assert record.inspector_url == "test inspector url"
+        assert {rule.name for rule in record.rules} == {"a", "b", "c"}
+    else:
+        assert all(scan.status != Status.QUEUED for scan in test_data)
+
+
+def test_handle_fail(db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules):
+    job = get_jobs(db_session, auth, rules_state, batch=1)
+
+    if job:
+        job = job[0]
+        name = job.name
+        version = job.version
         reason = "Package too large"
 
-        client.put("/package", json=dict(name=name, version=version, reason=reason))
+        submit_results(PackageScanResultFail(name=name, version=version, reason=reason), db_session, auth)
 
         record = db_session.scalar(
             select(Scan)
@@ -125,14 +126,111 @@ def test_handle_fail(client: TestClient, db_session: Session, test_data: list[di
 
         assert record is not None
     else:
-        assert all(d["status"] != "queued" for d in test_data)
+        assert all(scan.status != Status.QUEUED for scan in test_data)
 
 
-def test_batch_queue(client: TestClient, db_session: Session, test_data: list[dict]):
-    data = [dict(name=t["name"], version=t["version"]) for t in test_data] + [dict(name="c", version="1.0.0")]
-    print(data)
-    r = client.post("/batch/package", json=data)
-    r.raise_for_status()
+def test_batch_queue(db_session: Session, test_data: list[Scan], pypi_client: PyPIServices, auth: AuthenticationData):
+    packages_to_add = [PackageSpecifier(name=scan.name, version=scan.version) for scan in test_data]
+    packages_to_add.append(PackageSpecifier(name="c", version="1.0.0"))
+    batch_queue_package(packages_to_add, db_session, auth, pypi_client)
 
-    for row in db_session.scalars(select(Scan)):
-        assert dict(name=row.name, version=row.version) in data
+    existing_packages = {(p.name, p.version) for p in db_session.scalars(select(Scan)).all()}
+    for package in packages_to_add:
+        assert (package.name, package.version) in existing_packages
+
+
+def test_batch_queue_nonexistent_package(
+    db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData, monkeypatch: MonkeyPatch
+):
+    # Make get_package_metadata always throw PackageNotFoundError to simulate an invalid package
+    def _side_effect(name: str, version: str):
+        raise PackageNotFoundError(name, version)
+
+    monkeypatch.setattr(pypi_client, "get_package_metadata", _side_effect)
+
+    package_to_add = PackageSpecifier(name="c", version="1.0.0")
+    batch_queue_package([package_to_add], db_session, auth, pypi_client)
+
+    existing_packages = {(p.name, p.version) for p in db_session.scalars(select(Scan)).all()}
+    assert ("c", "1.0.0") not in existing_packages
+
+
+def test_queue(db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData):
+    package = PackageSpecifier(name="c", version="1.0.0")
+    query = select(Scan).where(Scan.name == package.name).where(Scan.version == package.version)
+
+    assert db_session.scalar(query) is None
+
+    queue_package(package, db_session, auth, pypi_client)
+
+    assert db_session.scalar(query) is not None
+
+
+def test_queue_nonexistent_package(
+    db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData, monkeypatch: MonkeyPatch
+):
+    # Make get_package_metadata always throw PackageNotFoundError to simulate an invalid package
+    def _side_effect(name: str, version: str):
+        raise PackageNotFoundError(name, version)
+
+    monkeypatch.setattr(pypi_client, "get_package_metadata", _side_effect)
+
+    package = PackageSpecifier(name="c", version="1.0.0")
+    query = select(Scan).where(Scan.name == package.name).where(Scan.version == package.version)
+
+    with pytest.raises(HTTPException) as e:
+        queue_package(package, db_session, auth, pypi_client)
+    assert e.value.status_code == 404
+
+    assert db_session.scalar(query) is None
+
+
+def test_queue_duplicate_package(db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData):
+    package = PackageSpecifier(name="c", version="1.0.0")
+
+    queue_package(package, db_session, auth, pypi_client)
+
+    with pytest.raises(HTTPException) as e:
+        queue_package(package, db_session, auth, pypi_client)
+    assert e.value.status_code == 409
+
+
+def test_submit_nonexistent_package(db_session: Session, auth: AuthenticationData):
+    body = PackageScanResult(
+        name="c",
+        version="1.0.0",
+        commit="test rules commit",
+        score=2,
+        inspector_url="test inspector url",
+        rules_matched=["a", "b", "c"],
+    )
+
+    with pytest.raises(HTTPException) as e:
+        submit_results(body, db_session, auth)
+    assert e.value.status_code == 404
+
+
+def test_submit_duplicate_package(
+    db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules
+):
+    job = get_jobs(db_session, auth, rules_state, batch=1)
+
+    if job:
+        job = job[0]
+
+        body = PackageScanResult(
+            name=job.name,
+            version=job.version,
+            commit=rules_state.rules_commit,
+            score=2,
+            inspector_url="test inspector url",
+            rules_matched=["a", "b", "c"],
+        )
+        submit_results(body, db_session, auth)
+
+        with pytest.raises(HTTPException) as e:
+            submit_results(body, db_session, auth)
+        assert e.value.status_code == 409
+
+    else:
+        assert all(scan.status != Status.QUEUED for scan in test_data)

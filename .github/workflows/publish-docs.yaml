@@ -21,10 +21,10 @@ jobs:
 
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
+        uses: actions/checkout@v4 # v3.5.3
 
       - name: "Setup PDM"
-        uses: pdm-project/setup-pdm@c287ac6f97f5fa767aa06946c7f55f40100b78c1 # v3.3
+        uses: pdm-project/setup-pdm@ddc33ca746b5716353581f988b29464200212702 # v3.3
         with:
           python-version: "3.11"
           cache: true
@@ -38,7 +38,7 @@ jobs:
           pdm run make dirhtml
 
       - name: "Upload artifact"
-        uses: actions/upload-pages-artifact@a753861a5debcf57bf8b404356158c8e1e33150c # v2.0.0
+        uses: actions/upload-pages-artifact@0252fc4ba7626f0298f0cf00902a25c6afc77fa8 # v3.0.0
         with:
           path: ./docs/build/dirhtml
 
@@ -54,4 +54,4 @@ jobs:
     steps:
       - name: "Deploy to GitHub Pages"
         id: deployment
-        uses: actions/deploy-pages@12ab2b16cf43a7a061fe99da74b6f8f11fb77f5b # v2.0.3
+        uses: actions/deploy-pages@87c3283f01cd6fe19a0ab93a23b2f6fcba5a8e42 # v4.0.3
