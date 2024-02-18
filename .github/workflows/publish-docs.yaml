@@ -21,10 +21,10 @@ jobs:
 
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@v4 # v3.5.3
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: "Setup PDM"
-        uses: pdm-project/setup-pdm@ddc33ca746b5716353581f988b29464200212702 # v3.3
+        uses: pdm-project/setup-pdm@c050bdcb2405837648035b6678c75609d53a749f # v4
         with:
           python-version: "3.11"
           cache: true

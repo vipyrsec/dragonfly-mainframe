@@ -11,11 +11,11 @@ jobs:
   lint_test:
     runs-on: ubuntu-latest
     steps:
-      - name: "Checkout repo"
-        uses: actions/checkout@v4
+      - name: "Checkout repository"
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: "Setup PDM"
-        uses: pdm-project/setup-pdm@v3
+        uses: pdm-project/setup-pdm@c050bdcb2405837648035b6678c75609d53a749f # v4
         with:
           python-version: "3.11"
           cache: true
