@@ -23,6 +23,7 @@ def test_create_subscription(db_session: Session):
     payload = AddSubscription(
         package_name=package.name,
         discord_id=discord_id,
+        email_address="test@test.com",
     )
 
     create_subscription_route(payload, db_session)
