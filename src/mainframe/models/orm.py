@@ -109,7 +109,7 @@ class Scan(Base):
         init=False,
     )
 
-    name: Mapped[str] = mapped_column(default=None)
+    name: Mapped[str] = mapped_column(ForeignKey("packages.name"), default=None)
     version: Mapped[str] = mapped_column(default=None)
     status: Mapped[Status] = mapped_column(default=None)
 
