@@ -1,5 +1,4 @@
 import logging
-from copy import deepcopy
 from datetime import datetime, timedelta
 from typing import Generator
 from unittest.mock import MagicMock
@@ -7,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 from letsbuilda.pypi import PyPIServices
-from letsbuilda.pypi.models import Package
+from letsbuilda.pypi.models import Package as PyPIPackage
 from letsbuilda.pypi.models.models_package import Distribution, Release
 from msgraph.core import GraphClient
 from sqlalchemy import Engine, create_engine
@@ -15,7 +14,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from mainframe.constants import mainframe_settings
 from mainframe.json_web_token import AuthenticationData
-from mainframe.models.orm import Base, Scan
+from mainframe.models.orm import Base, Package
 from mainframe.rules import Rules
 
 from .test_data import data
@@ -34,19 +33,15 @@ def engine() -> Engine:
     return create_engine(mainframe_settings.db_url)
 
 
-@pytest.fixture(params=data, scope="session")
-def test_data(request: pytest.FixtureRequest) -> list[Scan]:
-    return request.param
-
-
-@pytest.fixture(scope="session", autouse=True)
-def initial_populate_db(engine: Engine, sm: sessionmaker[Session], test_data: list[Scan]):
+@pytest.fixture(params=data, scope="session", autouse=True)
+def initial_populate_db(request: pytest.FixtureRequest, engine: Engine, sm: sessionmaker[Session]):
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
 
+    packages: list[Package] = request.param
+
     session = sm()
-    for scan in test_data:
-        session.add(deepcopy(scan))
+    session.add_all(packages)
     session.commit()
 
 
@@ -86,8 +81,8 @@ def pypi_client() -> PyPIServices:
     session = requests.Session()
     pypi_client = PyPIServices(session)
 
-    def side_effect(name: str, version: str) -> Package:
-        return Package(
+    def side_effect(name: str, version: str) -> PyPIPackage:
+        return PyPIPackage(
             title=name,
             releases=[Release(version=version, distributions=[Distribution(filename="test", url="test")])],
         )

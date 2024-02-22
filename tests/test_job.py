@@ -13,7 +13,8 @@ def oldest_queued_package(db_session: Session):
     return db_session.scalar(select(func.min(Scan.queued_at)).where(Scan.status == Status.QUEUED))
 
 
-def test_min_queue_date_of_queued_rows(test_data: list[Scan], db_session: Session):
+def test_min_queue_date_of_queued_rows(db_session: Session):
+    test_data = db_session.scalars(select(Scan)).all()
     queued_at_times = [
         scan.queued_at for scan in test_data if scan.status is Status.QUEUED and scan.queued_at is not None
     ]
@@ -28,12 +29,14 @@ def fetch_queue_time(name: str, version: str, db_session: Session) -> dt.datetim
     return db_session.scalar(select(Scan.queued_at).where(Scan.name == name).where(Scan.version == version))
 
 
-def test_fetch_queue_time(test_data: list[Scan], db_session: Session):
+def test_fetch_queue_time(db_session: Session):
+    test_data = db_session.scalars(select(Scan)).all()
     for scan in test_data:
         assert scan.queued_at == fetch_queue_time(scan.name, scan.version, db_session)
 
 
-def test_job(test_data: list[Scan], db_session: Session, auth: AuthenticationData, rules_state: Rules):
+def test_job(db_session: Session, auth: AuthenticationData, rules_state: Rules):
+    test_data = db_session.scalars(select(Scan)).all()
     job = get_jobs(db_session, auth, rules_state, batch=1)
     if job:
         job = job[0]
@@ -47,7 +50,8 @@ def test_job(test_data: list[Scan], db_session: Session, auth: AuthenticationDat
         assert all(scan.status != Status.QUEUED for scan in test_data)
 
 
-def test_batch_job(test_data: list[Scan], db_session: Session, auth: AuthenticationData, rules_state: Rules):
+def test_batch_job(db_session: Session, auth: AuthenticationData, rules_state: Rules):
+    test_data = db_session.scalars(select(Scan)).all()
     jobs = {(job.name, job.version) for job in get_jobs(db_session, auth, rules_state, batch=len(test_data))}
 
     # check if each returned job should have actually been returned

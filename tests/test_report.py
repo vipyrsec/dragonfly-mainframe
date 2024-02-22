@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from mainframe.endpoints.report import report_package
 from mainframe.json_web_token import AuthenticationData
-from mainframe.models.orm import DownloadURL, Rule, Scan, Status
+from mainframe.models.orm import DownloadURL, Package, Rule, Scan, Status
 from mainframe.models.schemas import ReportPackageBody
 
 
@@ -38,7 +38,9 @@ def test_report(db_session: Session, auth: AuthenticationData, pypi_client: PyPI
         commit_hash="test commit hash",
     )
 
-    db_session.add(result)
+    package = Package(name="c", people=[], scans=[result])
+
+    db_session.add(package)
     db_session.commit()
 
     body = ReportPackageBody(
@@ -149,7 +151,9 @@ def test_report_multi_versions(
         commit_hash="test commit hash",
     )
 
-    db_session.add_all((version1, version2))
+    package = Package(name="c", people=[], scans=[version1, version2])
+
+    db_session.add(package)
     db_session.commit()
 
     body = ReportPackageBody(
@@ -187,7 +191,9 @@ def test_report_invalid_version(
         fail_reason=None,
         commit_hash="test commit hash",
     )
-    db_session.add(scan)
+
+    package = Package(name="c", people=[], scans=[scan])
+    db_session.add(package)
     db_session.commit()
 
     body = ReportPackageBody(
@@ -225,7 +231,8 @@ def test_report_missing_inspector_url(
         fail_reason=None,
         commit_hash="test commit hash",
     )
-    db_session.add(scan)
+    package = Package(name="c", people=[], scans=[scan])
+    db_session.add(package)
     db_session.commit()
 
     body = ReportPackageBody(
@@ -263,7 +270,8 @@ def test_report_missing_additional_information(
         fail_reason=None,
         commit_hash="test commit hash",
     )
-    db_session.add(scan)
+    package = Package(name="c", people=[], scans=[scan])
+    db_session.add(package)
     db_session.commit()
 
     body = ReportPackageBody(

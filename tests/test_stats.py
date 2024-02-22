@@ -4,7 +4,7 @@ from math import isclose
 from sqlalchemy.orm import Session
 
 from mainframe.endpoints.stats import get_stats
-from mainframe.models.orm import DownloadURL, Rule, Scan, Status
+from mainframe.models.orm import DownloadURL, Package, Rule, Scan, Status
 
 
 def test_stats(db_session: Session):
@@ -27,8 +27,9 @@ def test_stats(db_session: Session):
         fail_reason=None,
         commit_hash="test commit hash",
     )
+    package = Package(name="c", people=[], scans=[scan])
 
-    db_session.add(scan)
+    db_session.add_all((package, scan))
     db_session.commit()
 
     stats = get_stats(db_session)
