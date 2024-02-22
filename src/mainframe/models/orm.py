@@ -9,6 +9,7 @@ from operator import or_
 from typing import Optional
 
 from sqlalchemy import (
+    BigInteger,
     Column,
     DateTime,
     FetchedValue,
@@ -29,6 +30,46 @@ from sqlalchemy.orm import (
 
 class Base(MappedAsDataclass, DeclarativeBase, kw_only=True):
     pass
+
+
+subscriptions_table = Table(
+    "subscriptions",
+    Base.metadata,
+    Column("package_name", ForeignKey("packages.name"), primary_key=True),
+    Column("person_id", ForeignKey("people.id"), primary_key=True),
+)
+
+
+class Package(Base):
+    """Represents a PyPI package"""
+
+    __tablename__: str = "packages"
+
+    name: Mapped[str] = mapped_column(primary_key=True)
+    scans: Mapped[list[Scan]] = relationship(default_factory=list)
+    people: Mapped[list[Person]] = relationship(
+        secondary=subscriptions_table, back_populates="packages", default_factory=list
+    )
+
+
+class Person(Base):
+    """Represents a person or entity interested in malicious package notifications"""
+
+    __tablename__: str = "people"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default_factory=uuid.uuid4,
+        init=False,
+    )
+
+    discord_id: Mapped[Optional[int]] = mapped_column(BigInteger, unique=True)
+    email_address: Mapped[Optional[str]] = mapped_column(unique=True)
+
+    packages: Mapped[list[Package]] = relationship(
+        secondary=subscriptions_table, back_populates="people", default_factory=list
+    )
 
 
 class Status(Enum):
