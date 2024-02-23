@@ -52,6 +52,10 @@ def test_job(db_session: Session, auth: AuthenticationData, rules_state: Rules):
 
 def test_batch_job(db_session: Session, auth: AuthenticationData, rules_state: Rules):
     test_data = db_session.scalars(select(Scan)).all()
+    # if we don't expunge, SQLAlchemy will automatically update these scans after a call to `get_jobs`.
+    # we want to compare the state of the database before and after a call to `get_jobs`, so this is important.
+    for scan in test_data:
+        db_session.expunge(scan)
     jobs = {(job.name, job.version) for job in get_jobs(db_session, auth, rules_state, batch=len(test_data))}
 
     # check if each returned job should have actually been returned
