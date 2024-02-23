@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 
 import pytest
@@ -41,7 +42,7 @@ def test_create_subscription_nonexistent_package(db_session: Session):
 
     with pytest.raises(HTTPException) as error:
         create_subscription_route(payload, db_session)
-        assert error.value.status_code == 404
+    assert error.value.status_code == 404
 
 
 def test_get_person(db_session: Session):
@@ -63,3 +64,12 @@ def test_get_person(db_session: Session):
     assert person.discord_id == 123
     assert person.email_address is None
     assert person.packages == ["test-package"]
+
+
+def test_get_nonexistent_person(db_session: Session):
+    with pytest.raises(HTTPException) as error:
+        # the chances of this already existing are very low
+        person_id = uuid.uuid4()
+        get_person_route(person_id=person_id, session=db_session)
+
+    assert error.value.status_code == 404
