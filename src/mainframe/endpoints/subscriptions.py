@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from mainframe.database import get_db
 from mainframe.dependencies import validate_token
 from mainframe.models.orm import Package, Person
-from mainframe.models.schemas import AddSubscription, GetPerson
+from mainframe.models.schemas import AddSubscription, GetPerson, RemoveSubscription
 
 router = APIRouter(prefix="/subscriptions", tags=["subscriptions"], dependencies=[Depends(validate_token)])
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -51,3 +51,33 @@ def get_person_route(person_id: UUID, session: Annotated[Session, Depends(get_db
         email_address=person.email_address,
         packages=subscribed_packages,
     )
+
+
+@router.get("/")
+def get_all_people_route(session: Annotated[Session, Depends(get_db)]) -> list[GetPerson]:
+    people = session.scalars(select(Person)).all()
+
+    return [
+        GetPerson(
+            person_id=person.id,
+            discord_id=person.discord_id,
+            email_address=person.email_address,
+            packages=[package.name for package in person.packages],
+        )
+        for person in people
+    ]
+
+
+@router.delete("/")
+def delete_subscription_route(payload: RemoveSubscription, session: Annotated[Session, Depends(get_db)]):
+    person = session.scalar(select(Person).where(Person.id == payload.user_id))
+    if person is None:
+        raise HTTPException(404, detail="A user with that ID could not be found")
+
+    package = session.scalar(select(Package).where(Package.name == payload.package_name))
+    if package is None:
+        raise HTTPException(404, detail="A package with that name could not be found")
+
+    person.packages.remove(package)
+
+    session.commit()
