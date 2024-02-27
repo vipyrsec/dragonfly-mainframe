@@ -3,7 +3,7 @@ from io import BytesIO
 from typing import Final
 from zipfile import ZipFile
 
-from requests import Session
+import httpx
 
 from mainframe.constants import mainframe_settings
 
@@ -21,14 +21,13 @@ def build_auth_header(access_token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {access_token}"}
 
 
-def fetch_commit_hash(http_session: Session, *, repository: str, access_token: str) -> str:
+def fetch_commit_hash(http_client: httpx.Client, *, repository: str, access_token: str) -> str:
     """Fetch the top commit hash of the given repository"""
     url = f"https://api.github.com/repos/{repository}/commits/main"
     authentication_headers = build_auth_header(access_token)
     json_headers = {"Accept": "application/vnd.github.sha"}
     headers = authentication_headers | json_headers
-    with http_session.get(url, headers=headers) as res:
-        return res.text
+    return http_client.get(url, headers=headers).text
 
 
 def parse_zipfile(zipfile: ZipFile) -> dict[str, str]:
@@ -45,27 +44,27 @@ def parse_zipfile(zipfile: ZipFile) -> dict[str, str]:
     return rules
 
 
-def fetch_zipfile(http_session: Session, *, repository: str, access_token: str) -> ZipFile:
+def fetch_zipfile(http_client: httpx.Client, *, repository: str, access_token: str) -> ZipFile:
     """Download the source zipfile from GitHub for the given repository"""
     url = f"https://api.github.com/repos/{repository}/zipball/"
     headers = build_auth_header(access_token)
     buffer = BytesIO()
-    with http_session.get(url, headers=headers) as res:
-        res.raise_for_status()
-        bytes = res.content
-        buffer.write(bytes)
+    res = http_client.get(url, headers=headers, follow_redirects=True)
+    res.raise_for_status()
+    bytes = res.content
+    buffer.write(bytes)
 
     return ZipFile(buffer)
 
 
-def fetch_rules(http_session: Session) -> Rules:
+def fetch_rules(http_client: httpx.Client) -> Rules:
     """Return the commit hash and all the rules"""
 
     access_token = mainframe_settings.dragonfly_github_token
 
-    commit_hash = fetch_commit_hash(http_session, repository=REPOSITORY, access_token=access_token)
+    commit_hash = fetch_commit_hash(http_client, repository=REPOSITORY, access_token=access_token)
 
-    zipfile = fetch_zipfile(http_session, repository=REPOSITORY, access_token=access_token)
+    zipfile = fetch_zipfile(http_client, repository=REPOSITORY, access_token=access_token)
     rules = parse_zipfile(zipfile)
 
     return Rules(rules_commit=commit_hash, rules=rules)
