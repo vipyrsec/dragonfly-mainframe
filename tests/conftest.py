@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 from typing import Generator
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
-import requests
 from letsbuilda.pypi import PyPIServices
 from letsbuilda.pypi.models import Package
 from letsbuilda.pypi.models.models_package import Distribution, Release
@@ -83,8 +83,8 @@ def rules_state() -> Rules:
 
 @pytest.fixture(scope="session")
 def pypi_client() -> PyPIServices:
-    session = requests.Session()
-    pypi_client = PyPIServices(session)
+    http_client = httpx.Client()
+    pypi_client = PyPIServices(http_client)
 
     def side_effect(name: str, version: str) -> Package:
         return Package(
