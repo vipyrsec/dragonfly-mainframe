@@ -15,7 +15,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "alembic>=1.10.4",
     "letsbuilda-pypi>=5.1.0",
-    "msgraph-core>=0.2.2",
+    "msgraph-core==0.2.2",
     "azure-identity>=1.13.0",
     "structlog>=23.1.0",
     "asgi-correlation-id>=4.2.0",
