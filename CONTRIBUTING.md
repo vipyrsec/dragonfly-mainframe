@@ -139,6 +139,7 @@ You'll need to have the following environment variables set.
 | `DRAGONFLY_GITHUB_TOKEN` | str | | Github PAT for accessing YARA rules in the security-intelligence repository |
 | `JOB_TIMEOUT` | int | 60 \* 2 | The maximum time to wait for clients to respond with job results. After this time has elapsed, the server will begin distributing this job to other clients |
 | | | | |
+| `REPORTER_URL` | str | "" | The url of the reporter microservice |
 | `EMAIL_RECIPIENT` | str | "security@pypi.org" | The recipient address of report emails |
 | `BCC_RECIPIENTS` | set | set() | Additional addresses that should be BCC'd in email reports. Defaults to an empty set. |
 | `DB_URL` | str | "postgresql+psycopg2://postgres:postgres@localhost:5432" | PostgreSQL database connection string |
