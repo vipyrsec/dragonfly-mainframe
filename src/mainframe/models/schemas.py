@@ -35,6 +35,7 @@ class ReportPackageBody(PackageSpecifier):
     recipient: Optional[str]
     inspector_url: Optional[str]
     additional_information: Optional[str]
+    use_email: bool = False
 
 
 class PackageScanResult(PackageSpecifier):
