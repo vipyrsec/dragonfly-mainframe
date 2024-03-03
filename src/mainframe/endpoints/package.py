@@ -15,6 +15,7 @@ from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import DownloadURL, Rule, Scan, Status
 from mainframe.models.schemas import (
     Error,
+    Package,
     PackageScanResult,
     PackageScanResultFail,
     PackageSpecifier,
@@ -162,10 +163,10 @@ def lookup_package_info(
     if nn_since:
         query = query.where(Scan.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.timezone.utc))
 
-    data = session.scalars(query)
-
+    data = (session.scalars(query)).all()
+    packages = [Package.build_from_db(result) for result in data]
     log.info("Package information queried")
-    return data.all()
+    return packages
 
 
 @router.post(
