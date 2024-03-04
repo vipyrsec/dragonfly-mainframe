@@ -26,15 +26,17 @@ class Package(BaseModel):
     name: str
     version: str = ""
     status: str = ""
-    score: Optional[int] = 0  # Just for the sake of texting, remove upon merge
+    score: int
     inspector_url: Optional[str] = ""
     rules: list[str] = []
     download_urls: list[str] = []
-    queued_at: str = ""
+    queued_at: Optional[datetime]
     queued_by: str = ""
-    pending_at: Optional[str] = None
+    reported_at: Optional[datetime]
+    reported_by: Optional[str]
+    pending_at: Optional[datetime]
     pending_by: Optional[str] = None
-    finished_at: Optional[str] = None
+    finished_at: Optional[datetime]
     finished_by: Optional[str] = None
     commit_hash: Optional[str] = ""
 
@@ -45,11 +47,12 @@ class Package(BaseModel):
             name=scan.name,
             version=scan.version,
             status=str(scan.status),
-            score=scan.score,
+            score=scan.score,  # pyright: ignore
             inspector_url=scan.inspector_url,
             rules=[rule.name for rule in scan.rules],
             download_urls=[url.url for url in scan.download_urls],
             reported_at=scan.reported_at,
+            reported_by=scan.reported_by,
             queued_at=scan.queued_at,
             queued_by=scan.queued_by,
             pending_at=scan.pending_at,
