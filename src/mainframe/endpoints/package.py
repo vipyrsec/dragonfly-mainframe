@@ -164,7 +164,7 @@ def lookup_package_info(
         query = query.where(Scan.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.timezone.utc))
 
     data = (session.scalars(query)).all()
-    packages = [Package.build_from_db(result) for result in data]
+    packages = [Package.from_db(result) for result in data]
     log.info("Package information queried")
     return packages
 

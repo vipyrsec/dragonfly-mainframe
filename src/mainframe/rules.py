@@ -7,7 +7,7 @@ import httpx
 
 from mainframe.constants import mainframe_settings
 
-REPOSITORY: Final[str] = "vipyrsec/security-intelligence-public"  # Change back to security-intelligence upon merge
+REPOSITORY: Final[str] = "vipyrsec/security-intelligence"
 
 
 @dataclass

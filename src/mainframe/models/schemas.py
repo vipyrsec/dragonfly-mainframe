@@ -1,6 +1,9 @@
+from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
+
+from src.mainframe.models.orm import Scan
 
 
 class ServerMetadata(BaseModel):
@@ -36,24 +39,35 @@ class Package(BaseModel):
     commit_hash: Optional[str] = ""
 
     @classmethod
-    def build_from_db(cls, scan_result): # I'm... not sure of what type `scan_result` is. I'll ask later.
+    def from_db(cls, scan: Scan):
         return cls(
-            scan_id=str(scan_result.scan_id),
-            name=scan_result.name,
-            version=scan_result.version,
-            status=scan_result.status,
-            score=scan_result.score,
-            inspector_url=scan_result.inspector_url,
-            rules=[rule.rule_name for rule in scan_result.rules],
-            download_urls=[url.url for url in scan_result.download_urls],
-            queued_at=scan_result.queued_at.isoformat(),
-            queued_by=scan_result.queued_by,
-            pending_at=scan_result.pending_at.isoformat() if scan_result.pending_at else None,
-            pending_by=scan_result.pending_by,
-            finished_at=scan_result.finished_at.isoformat() if scan_result.finished_at else None,
-            finished_by=scan_result.finished_by,
-            commit_hash=scan_result.commit_hash,
+            scan_id=str(scan.scan_id),
+            name=scan.name,
+            version=scan.version,
+            status=str(scan.status),
+            score=scan.score,
+            inspector_url=scan.inspector_url,
+            rules=[rule.name for rule in scan.rules],
+            download_urls=[url.url for url in scan.download_urls],
+            reported_at=scan.reported_at,
+            queued_at=scan.queued_at,
+            queued_by=scan.queued_by,
+            pending_at=scan.pending_at,
+            pending_by=scan.pending_by,
+            finished_at=scan.finished_at,
+            finished_by=scan.finished_by,
+            commit_hash=scan.commit_hash,
         )
+
+    @field_serializer(
+        "queued_at",
+        "pending_at",
+        "finished_at",
+        "reported_at",
+    )
+    def serialize_dt(self, dt: Optional[datetime], _info):  # pyright: ignore
+        if dt:
+            return int(dt.timestamp())
 
 
 class PackageSpecifier(BaseModel):
