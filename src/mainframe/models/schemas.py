@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Annotated, Optional
+from typing import Optional
 
-from pydantic import BaseModel, functional_serializers
+from pydantic import BaseModel, field_serializer
 
 from src.mainframe.models.orm import Scan
 
@@ -62,15 +62,15 @@ class Package(BaseModel):
             commit_hash=scan.commit_hash,
         )
 
-     @field_serializer(
-         "queued_at",
-         "pending_at",
-         "finished_at",
-         "reported_at",
-     )
-     def serialize_dt(self, dt: Optional[datetime], _info):  # pyright: ignore
-         if dt:
-             return int(dt.timestamp())
+    @field_serializer(
+        "queued_at",
+        "pending_at",
+        "finished_at",
+        "reported_at",
+    )
+    def serialize_dt(self, dt: Optional[datetime], _info):  # pyright: ignore
+        if dt:
+            return int(dt.timestamp())
 
 
 class PackageSpecifier(BaseModel):
