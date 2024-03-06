@@ -85,7 +85,7 @@ class PackageSpecifier(BaseModel):
     Model used to specify a package by name and version
 
     name:  A str of the name of the package to be scanned
-    version: An optional str of the package version to scan. If omitted, latest version is used
+    version: A str of the package version to scan.
     """
 
     name: str
