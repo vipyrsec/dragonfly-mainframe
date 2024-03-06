@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Optional
+from typing import Annotated, Optional
 
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, functional_serializers
 
 from src.mainframe.models.orm import Scan
 
@@ -22,21 +22,28 @@ class Error(BaseModel):
 class Package(BaseModel):
     """Model representing a package queried from the database."""
 
+    _datetime = Annotated[
+        int | datetime,
+        functional_serializers.PlainSerializer(
+            lambda x: int(x.timestamp()) if isinstance(x, datetime) else print(f"{x} is not a datetime object")
+        ),
+    ]
+
     scan_id: str
     name: str
     version: str = ""
     status: str = ""
-    score: int
+    score: Optional[int]
     inspector_url: Optional[str] = ""
     rules: list[str] = []
     download_urls: list[str] = []
-    queued_at: Optional[datetime]
+    queued_at: Optional[_datetime]
     queued_by: str = ""
-    reported_at: Optional[datetime]
+    reported_at: Optional[_datetime]
     reported_by: Optional[str]
-    pending_at: Optional[datetime]
+    pending_at: Optional[_datetime]
     pending_by: Optional[str] = None
-    finished_at: Optional[datetime]
+    finished_at: Optional[_datetime]
     finished_by: Optional[str] = None
     commit_hash: Optional[str] = ""
 
@@ -62,15 +69,15 @@ class Package(BaseModel):
             commit_hash=scan.commit_hash,
         )
 
-    @field_serializer(
-        "queued_at",
-        "pending_at",
-        "finished_at",
-        "reported_at",
-    )
-    def serialize_dt(self, dt: Optional[datetime], _info):  # pyright: ignore
-        if dt:
-            return int(dt.timestamp())
+    # @field_serializer(
+    #     "queued_at",
+    #     "pending_at",
+    #     "finished_at",
+    #     "reported_at",
+    # )
+    # def serialize_dt(self, dt: Optional[datetime], _info):  # pyright: ignore
+    #     if dt:
+    #         return int(dt.timestamp())
 
 
 class PackageSpecifier(BaseModel):

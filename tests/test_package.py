@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 import pytest
@@ -18,6 +19,7 @@ from mainframe.endpoints.package import (
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan, Status
 from mainframe.models.schemas import (
+    Package,
     PackageScanResult,
     PackageScanResultFail,
     PackageSpecifier,
@@ -234,3 +236,40 @@ def test_submit_duplicate_package(
 
     else:
         assert all(scan.status != Status.QUEUED for scan in test_data)
+
+
+@pytest.mark.parametrize(
+    "name, version, score, queued_by, reported_by, queued_at",
+    [
+        ("pyfoo", "0.2.1", 13, "Ryan", "Ryan", datetime(2024, 3, 5, 12, 30, 0)),
+        ("pybar", "2.83.2", 0, "Bob", None, datetime(2024, 3, 5, 12, 30, 0)),
+        ("pybaz", "0.1.0", 56, "Daniel", None, datetime(2024, 3, 5, 12, 30, 0)),
+    ],
+)
+def test_package_from_db(
+    name: str,
+    version: str,
+    score: Optional[int],
+    queued_by: str,
+    reported_by: Optional[str],
+    queued_at: datetime,
+):
+    """Test the from_db method of Package."""
+
+    scan = Scan(
+        name=name,
+        version=version,
+        score=score,
+        queued_by=queued_by,
+        reported_by=reported_by,
+        queued_at=queued_at,
+    )
+
+    pkg = (Package.from_db(scan)).model_dump()
+
+    assert pkg.get("queued_at") == int(queued_at.timestamp())
+    assert pkg.get("name") == name
+    assert pkg.get("version") == version
+    assert pkg.get("score") == score
+    assert pkg.get("queued_by") == queued_by
+    assert pkg.get("reported_by") == reported_by
