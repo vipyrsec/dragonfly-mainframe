@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, field_serializer
 
-from src.mainframe.models.orm import Scan
+from mainframe.models.orm import Scan
 
 
 class ServerMetadata(BaseModel):
