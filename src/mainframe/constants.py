@@ -33,6 +33,8 @@ class Mainframe(EnvConfig):
 
     job_timeout: int = 60 * 2
 
+    cache_size: int = 20
+
 
 mainframe_settings = Mainframe()  # pyright: ignore
 
