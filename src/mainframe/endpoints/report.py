@@ -136,6 +136,17 @@ def _validate_additional_information(body: ReportPackageBody, scan: Scan):
             raise error
 
 
+def _validate_pypi(name: str, version: str, pypi_client: PyPIServices):
+    log = logger.bind(package={"name": name, "version": version})
+
+    try:
+        pypi_client.get_package_metadata(name, version)
+    except PackageNotFoundError:
+        error = HTTPException(404, detail="Package not found on PyPI")
+        log.error("Package not found on PyPI", tag="package_not_found_pypi")
+        raise error
+
+
 @router.post(
     "/report",
     responses={
@@ -193,12 +204,7 @@ def report_package(
 
     # If execution reaches here, we must have found a matching scan in our
     # database. Check if the package we want to report exists on PyPI.
-    try:
-        pypi_client.get_package_metadata(name, version)
-    except PackageNotFoundError:
-        error = HTTPException(404, detail=f"Package `{name}@{version}` was not found on PyPI")
-        log.error(f"Package {name}@{version} was not found on PyPI", tag="package_not_found_pypi")
-        raise error
+    _validate_pypi(name, version, pypi_client)
 
     rules_matched: list[str] = []
     rules_matched.extend(rule.name for rule in scan.rules)

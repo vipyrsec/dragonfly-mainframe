@@ -12,4 +12,3 @@ def file_path_from_inspector_url(inspector_url: str) -> str:
 
     # The 8th element of path is when the file path starts
     return "/".join(segments[8:])
-
