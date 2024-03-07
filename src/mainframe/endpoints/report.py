@@ -172,11 +172,8 @@ def report_package(
     If the package has successfully been scanned (that is, it is in
     a `FINISHED` state), and it has been determined to be malicious, then
     neither `inspector_url` nor `additional_information` is required. If the
-    `inspector_url` is omitted, then it will be that of the most malicious file
-    scanned (that is, the file with the highest aggregate yara weight score).
-    If the `additional_information` is omitted, the final e-mail sent to the
-    destination address will read "No user description provided." If either of
-    these fields are included, they override the default value in the database.
+    `inspector_url` is omitted, then it will default to a URL that points to
+    the file with the highest total score.
 
     If the package has successfully been scanned (that is, it is in
     a `FINISHED` state), and it has been determined NOT to be malicious (that
