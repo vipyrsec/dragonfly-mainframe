@@ -3,13 +3,10 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
-from letsbuilda.pypi import Package, PyPIServices
-from letsbuilda.pypi.exceptions import PackageNotFoundError
+from letsbuilda.pypi import PyPIServices
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from mainframe.utils import pypi
-from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
 from mainframe.dependencies import get_pypi_client, validate_token
 from mainframe.json_web_token import AuthenticationData
@@ -17,9 +14,11 @@ from mainframe.models.orm import Scan
 from mainframe.models.schemas import (
     EmailReport,
     Error,
+    ObservationKind,
     ObservationReport,
     ReportPackageBody,
 )
+from mainframe.utils import pypi
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -78,48 +77,6 @@ def _lookup_package(name: str, version: str, session: Session) -> Scan:
         raise error
 
     return scan
-
-
-def build_email_report(body: ReportPackageBody) -> EmailReport:
-    """
-    Builds an `EmailReport` from a `ReportPackageBody`.
-
-    Returns:
-        A valid `EmailReport`.
-
-    Raises:
-        HTTPException(400): Missing required fields.
-        HTTPException(404): The package was not found on PyPI, the package was
-            not found in the database, or the specified name and version was not
-            found in the database.
-        HTTPException(409): The package was already reported.
-    """
-
-    return EmailReport(
-        name=body.name,
-        version=body.version,
-        rules_matched=rules_matched,
-        recipient=body.recipient,
-        inspector_url=inspector_url,
-        additional_information=additional_information,
-    )
-
-
-def build_observation_report(body: ReportPackageBody) -> ObservationReport:
-    """
-    Builds an `ObservationReport` from a `ReportPackageBody`.
-
-    Returns:
-        A valid `ObservationReport`.
-
-    Raises:
-        HTTPException(400): Missing required fields.
-        HTTPException(404): The package was not found on PyPI, the package was
-            not found in the database, or the specified name and version was not
-            found in the database.
-        HTTPException(409): The package was already reported.
-    """
-    ...
 
 
 @router.post(
@@ -182,7 +139,7 @@ def report_package(
     if inspector_url is None:
         error = HTTPException(
             400,
-            detail=f"inspector_url is a required field as package `{body.name}@{body.version}` inspector_url column as null.",
+            detail="inspector_url not given and not found in database",
         )
         log.error("Missing inspector_url field", error_message=error.detail, tag="missing_inspector_url")
         raise error
@@ -190,9 +147,10 @@ def report_package(
     if body.additional_information is None:
         if len(scan.rules) == 0 or body.use_email is True:
             if len(scan.rules) == 0:
-                detail = (f"additional_information is a required field as package "
-                        f"`{name}@{version}` has no matched rules in the database"
-                          )
+                detail = (
+                    f"additional_information is a required field as package "
+                    f"`{name}@{version}` has no matched rules in the database"
+                )
             else:
                 detail = "additional_information is required when using Observation API"
 
@@ -212,7 +170,14 @@ def report_package(
     rules_matched.extend(rule.name for rule in scan.rules)
 
     if body.use_email is True:
-        ...
+        report = EmailReport(
+            name=body.name,
+            version=body.version,
+            rules_matched=rules_matched,
+            recipient=body.recipient,
+            inspector_url=inspector_url,
+            additional_information=body.additional_information,
+        )
         log.info(
             "Sent report",
             report_data={
@@ -226,7 +191,16 @@ def report_package(
             reported_by=auth.subject,
         )
     else:
-        ...
+        # We previously checked this condition, but the typechecker isn't smart
+        # enough to figure that out
+        assert body.additional_information is not None
+
+        report = ObservationReport(
+            kind=ObservationKind.Malware,
+            summary=body.additional_information,
+            inspector_url=inspector_url,
+            extra=dict(yara_rules=rules_matched),
+        )
 
     scan.reported_by = auth.subject
     scan.reported_at = dt.datetime.now(dt.timezone.utc)
