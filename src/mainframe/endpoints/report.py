@@ -3,11 +3,12 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
-from letsbuilda.pypi import PyPIServices
+from letsbuilda.pypi import Package, PyPIServices
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from mainframe.utils import pypi
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
 from mainframe.dependencies import get_pypi_client, validate_token
@@ -26,7 +27,7 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 router = APIRouter(tags=["report"])
 
 
-def lookup_package(name: str, version: str, session: Session) -> Scan:
+def _lookup_package(name: str, version: str, session: Session) -> Scan:
     """
     Checks if the package is valid according to our database.
 
@@ -175,7 +176,7 @@ def report_package(
     log = logger.bind(package={"name": name, "version": version})
 
     # Check our database first to avoid unnecessarily using PyPI API.
-    scan = lookup_package(name, version, session)
+    scan = _lookup_package(name, version, session)
 
     inspector_url = body.inspector_url or scan.inspector_url
     if inspector_url is None:
@@ -209,9 +210,7 @@ def report_package(
 
     # If execution reaches here, we must have found a matching scan in our
     # database. Check if the package we want to report exists on PyPI.
-    try:
-        pypi_client.get_package_metadata(name, version)
-    except PackageNotFoundError:
+    if pypi.lookup_package(name, version, pypi_client) is None:
         error = HTTPException(404, detail=f"Package `{name}@{version}` was not found on PyPI")
         log.error(f"Package {name}@{version} was not found on PyPI", tag="package_not_found_pypi")
         raise error
