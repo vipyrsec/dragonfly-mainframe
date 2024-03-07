@@ -9,7 +9,6 @@ import pytest
 from letsbuilda.pypi import PyPIServices
 from letsbuilda.pypi.models import Package
 from letsbuilda.pypi.models.models_package import Distribution, Release
-from msgraph.core import GraphClient
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -94,8 +93,3 @@ def pypi_client() -> PyPIServices:
 
     pypi_client.get_package_metadata = MagicMock(side_effect=side_effect)
     return pypi_client
-
-
-@pytest.fixture(scope="session")
-def graph_client() -> GraphClient:
-    return MagicMock(spec=GraphClient)  # type: ignore
