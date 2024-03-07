@@ -81,6 +81,31 @@ def _lookup_package(name: str, version: str, session: Session) -> Scan:
     return scan
 
 
+def validate_inspector_url(body: ReportPackageBody, scan: Scan) -> str:
+    """
+    Coalesce inspector_urls from ReportPackageBody and Scan.
+
+    Returns:
+        The inspector_url for the package.
+
+    Raises:
+        HTTPException: 400 Bad Request if the inspector_url was not passed in
+            `body` and not found in the database.
+    """
+    log = logger.bind(package={"name": body.name, "version": body.version})
+
+    inspector_url = body.inspector_url or scan.inspector_url
+    if inspector_url is None:
+        error = HTTPException(
+            400,
+            detail="inspector_url not given and not found in database",
+        )
+        log.error("Missing inspector_url field", error_message=error.detail, tag="missing_inspector_url")
+        raise error
+
+    return inspector_url
+
+
 @router.post(
     "/report",
     responses={
@@ -137,14 +162,7 @@ def report_package(
     # Check our database first to avoid unnecessarily using PyPI API.
     scan = _lookup_package(name, version, session)
 
-    inspector_url = body.inspector_url or scan.inspector_url
-    if inspector_url is None:
-        error = HTTPException(
-            400,
-            detail="inspector_url not given and not found in database",
-        )
-        log.error("Missing inspector_url field", error_message=error.detail, tag="missing_inspector_url")
-        raise error
+    inspector_url = validate_inspector_url(body, scan)
 
     if body.additional_information is None:
         if len(scan.rules) == 0 or body.use_email is True:
