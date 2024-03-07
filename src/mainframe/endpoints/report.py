@@ -3,7 +3,7 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
-from letsbuilda.pypi import PyPIServices
+from letsbuilda.pypi import PackageNotFoundError, PyPIServices
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -18,7 +18,6 @@ from mainframe.models.schemas import (
     ObservationReport,
     ReportPackageBody,
 )
-from mainframe.utils import pypi
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -161,7 +160,9 @@ def report_package(
 
     # If execution reaches here, we must have found a matching scan in our
     # database. Check if the package we want to report exists on PyPI.
-    if pypi.lookup_package(name, version, pypi_client) is None:
+    try:
+        pypi_client.get_package_metadata(name, version)
+    except PackageNotFoundError:
         error = HTTPException(404, detail=f"Package `{name}@{version}` was not found on PyPI")
         log.error(f"Package {name}@{version} was not found on PyPI", tag="package_not_found_pypi")
         raise error
