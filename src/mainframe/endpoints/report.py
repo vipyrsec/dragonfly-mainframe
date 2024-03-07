@@ -188,25 +188,18 @@ def report_package(
         raise error
 
     if body.additional_information is None:
-        if len(scan.rules) == 0:
-            error = HTTPException(
-                400,
-                detail=(
-                    f"additional_information is a required field as package "
-                    f"`{name}@{version}` has no matched rules in the database"
-                ),
-            )
-            log.error(
-                "Missing additional_information field", error_message=error.detail, tag="missing_additional_information"
-            )
-            raise error
+        if len(scan.rules) == 0 or body.use_email is True:
+            if len(scan.rules) == 0:
+                detail = (f"additional_information is a required field as package "
+                        f"`{name}@{version}` has no matched rules in the database"
+                          )
+            else:
+                detail = "additional_information is required when using Observation API"
 
-        if body.use_email is True:
-            error = HTTPException(400, detail="additional_information is required when using Observation API")
+            error = HTTPException(400, detail=detail)
             log.error(
-                "Missing additional_information field", error_message=error.detail, tag="missing_additional_information"
+                "Missing additional_information field", error_message=detail, tag="missing_additional_information"
             )
-            raise error
 
     # If execution reaches here, we must have found a matching scan in our
     # database. Check if the package we want to report exists on PyPI.
