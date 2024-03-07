@@ -1,12 +1,15 @@
 import datetime as dt
 from typing import Annotated
 
+import httpx
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.encoders import jsonable_encoder
 from letsbuilda.pypi import PackageNotFoundError, PyPIServices
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
 from mainframe.dependencies import get_pypi_client, validate_token
 from mainframe.json_web_token import AuthenticationData
@@ -179,18 +182,8 @@ def report_package(
             inspector_url=inspector_url,
             additional_information=body.additional_information,
         )
-        log.info(
-            "Sent report",
-            report_data={
-                "package_name": name,
-                "package_version": version,
-                "inspector_url": inspector_url,
-                "additional_information": body.additional_information,
-                "rules_matched": rules_matched,
-                "use_email": body.use_email,
-            },
-            reported_by=auth.subject,
-        )
+
+        httpx.post(f"{mainframe_settings.reporter_url}/report/email", json=jsonable_encoder(report))
     else:
         # We previously checked this condition, but the typechecker isn't smart
         # enough to figure that out
@@ -202,6 +195,21 @@ def report_package(
             inspector_url=inspector_url,
             extra=dict(yara_rules=rules_matched),
         )
+
+        httpx.post(f"{mainframe_settings.reporter_url}/report/{name}", json=jsonable_encoder(report))
+
+    log.info(
+        "Sent report",
+        report_data={
+            "package_name": name,
+            "package_version": version,
+            "inspector_url": inspector_url,
+            "additional_information": body.additional_information,
+            "rules_matched": rules_matched,
+            "use_email": body.use_email,
+        },
+        reported_by=auth.subject,
+    )
 
     scan.reported_by = auth.subject
     scan.reported_at = dt.datetime.now(dt.timezone.utc)
