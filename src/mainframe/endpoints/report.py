@@ -1,5 +1,5 @@
 import datetime as dt
-from typing import Annotated
+from typing import Annotated, Optional
 
 import httpx
 import structlog
@@ -81,7 +81,7 @@ def _lookup_package(name: str, version: str, session: Session) -> Scan:
     return scan
 
 
-def validate_inspector_url(body: ReportPackageBody, scan: Scan) -> str:
+def _validate_inspector_url(name: str, version: str, body_url: Optional[str], scan_url: Optional[str]) -> str:
     """
     Coalesce inspector_urls from ReportPackageBody and Scan.
 
@@ -92,9 +92,9 @@ def validate_inspector_url(body: ReportPackageBody, scan: Scan) -> str:
         HTTPException: 400 Bad Request if the inspector_url was not passed in
             `body` and not found in the database.
     """
-    log = logger.bind(package={"name": body.name, "version": body.version})
+    log = logger.bind(package={"name": name, "version": version})
 
-    inspector_url = body.inspector_url or scan.inspector_url
+    inspector_url = body_url or scan_url
     if inspector_url is None:
         error = HTTPException(
             400,
@@ -104,6 +104,36 @@ def validate_inspector_url(body: ReportPackageBody, scan: Scan) -> str:
         raise error
 
     return inspector_url
+
+
+def _validate_additional_information(body: ReportPackageBody, scan: Scan):
+    """
+    Validates the additional_information field.
+
+    Returns:
+        None if `body.additional_information` is valid.
+
+    Raises:
+        HTTPException: 400 Bad Request if `additional_information` was required
+            and was not passed
+    """
+    log = logger.bind(package={"name": body.name, "version": body.version})
+
+    if body.additional_information is None:
+        if len(scan.rules) == 0 or body.use_email is False:
+            if len(scan.rules) == 0:
+                detail = (
+                    f"additional_information is a required field as package "
+                    f"`{body.name}@{body.version}` has no matched rules in the database"
+                )
+            else:
+                detail = "additional_information is required when using Observation API"
+
+            error = HTTPException(400, detail=detail)
+            log.error(
+                "Missing additional_information field", error_message=detail, tag="missing_additional_information"
+            )
+            raise error
 
 
 @router.post(
@@ -161,23 +191,8 @@ def report_package(
 
     # Check our database first to avoid unnecessarily using PyPI API.
     scan = _lookup_package(name, version, session)
-
-    inspector_url = validate_inspector_url(body, scan)
-
-    if body.additional_information is None:
-        if len(scan.rules) == 0 or body.use_email is True:
-            if len(scan.rules) == 0:
-                detail = (
-                    f"additional_information is a required field as package "
-                    f"`{name}@{version}` has no matched rules in the database"
-                )
-            else:
-                detail = "additional_information is required when using Observation API"
-
-            error = HTTPException(400, detail=detail)
-            log.error(
-                "Missing additional_information field", error_message=detail, tag="missing_additional_information"
-            )
+    inspector_url = _validate_inspector_url(name, version, body.inspector_url, scan.inspector_url)
+    _validate_additional_information(body, scan)
 
     # If execution reaches here, we must have found a matching scan in our
     # database. Check if the package we want to report exists on PyPI.
