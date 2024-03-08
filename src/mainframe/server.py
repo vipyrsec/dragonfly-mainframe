@@ -8,7 +8,7 @@ import sentry_sdk
 import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
 from asgi_correlation_id.context import correlation_id
-from fastapi import FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from letsbuilda.pypi import PyPIServices
 from sentry_sdk.integrations.logging import LoggingIntegration
 from structlog_sentry import SentryProcessor
@@ -173,6 +173,7 @@ app.add_middleware(CorrelationIdMiddleware)
 @app.get("/", tags=["metadata"])
 async def metadata() -> ServerMetadata:
     """Get server metadata"""
+
     rules: Rules = app.state.rules
     return ServerMetadata(
         server_commit=GIT_SHA,
@@ -180,7 +181,7 @@ async def metadata() -> ServerMetadata:
     )
 
 
-@app.post("/update-rules/", tags=["rules"])
+@app.post("/update-rules/", tags=["rules"], dependencies=[Depends(validate_token)])
 async def update_rules():
     """Update the rules"""
     rules = fetch_rules(app.state.http_session)

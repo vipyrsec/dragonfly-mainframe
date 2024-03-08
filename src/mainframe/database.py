@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from mainframe.constants import mainframe_settings
 
-engine = create_engine(mainframe_settings.db_url, pool_size=25, echo=True)
+engine = create_engine(mainframe_settings.db_url, pool_size=25)
 sessionmaker = sessionmaker(bind=engine, expire_on_commit=False)
 
 
