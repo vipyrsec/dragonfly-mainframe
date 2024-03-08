@@ -206,8 +206,7 @@ def report_package(
     # database. Check if the package we want to report exists on PyPI.
     _validate_pypi(name, version, pypi_client)
 
-    rules_matched: list[str] = []
-    rules_matched.extend(rule.name for rule in scan.rules)
+    rules_matched: list[str] = [rule.name for rule in scan.rules]
 
     if body.use_email is True:
         report = EmailReport(
