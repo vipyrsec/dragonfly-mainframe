@@ -170,6 +170,12 @@ def lookup_package_info(
     return data.all()
 
 
+def _deduplicate_packages(packages: list[PackageSpecifier], session: Session) -> set[tuple[str, str]]:
+    name_ver = {(p.name, p.version) for p in packages}
+    scalars = session.scalars(select(Scan).where(tuple_(Scan.name, Scan.version).in_(name_ver)))
+    return name_ver - {(scan.name, scan.version) for scan in scalars.all()}
+
+
 def _get_packages_metadata(pypi_client: PyPIServices, packages_to_check: set[tuple[str, str]]) -> Iterable[Package]:
     if not packages_to_check:
         return
@@ -200,11 +206,7 @@ def batch_queue_package(
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
 ):
-    name_ver = {(p.name, p.version) for p in packages}
-
-    scalars = session.scalars(select(Scan).where(tuple_(Scan.name, Scan.version).in_(name_ver)))
-
-    packages_to_check = name_ver - {(scan.name, scan.version) for scan in scalars.all()}
+    packages_to_check = _deduplicate_packages(packages, session)
 
     for package_metadata in _get_packages_metadata(pypi_client, packages_to_check):
         scan = Scan(

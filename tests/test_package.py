@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from mainframe.endpoints.job import get_jobs
+from mainframe.endpoints.package import _deduplicate_packages # pyright: ignore [reportPrivateUsage]
 from mainframe.endpoints.package import (
     batch_queue_package,
     lookup_package_info,
@@ -129,15 +130,26 @@ def test_handle_fail(db_session: Session, test_data: list[Scan], auth: Authentic
         assert all(scan.status != Status.QUEUED for scan in test_data)
 
 
-@pytest.mark.parametrize("packages", [[PackageSpecifier(name="c", version="1.0.0")], []])
-def test_batch_queue(db_session: Session, test_data: list[Scan], packages: list[PackageSpecifier], pypi_client: PyPIServices, auth: AuthenticationData):
-    packages_to_add = [PackageSpecifier(name=scan.name, version=scan.version) for scan in test_data]
-    packages_to_add.extend(packages)
-    batch_queue_package(packages_to_add, db_session, auth, pypi_client)
+def test_batch_queue(db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData):
+    pack = PackageSpecifier(name="c", version="1.0.0")
+    batch_queue_package([pack], db_session, auth, pypi_client)
 
-    existing_packages = {(p.name, p.version) for p in db_session.scalars(select(Scan)).all()}
-    for package in packages_to_add:
-        assert (package.name, package.version) in existing_packages
+    existing_packages = {(p.name, p.version) for p in db_session.scalars(select(Scan))}
+    assert (pack.name, pack.version) in existing_packages
+
+def test_batch_queue_empty_packages(db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData):
+    before = sorted((s.name, s.version) for s in db_session.scalars(select(Scan)))
+    batch_queue_package([], db_session, auth, pypi_client)
+    after = sorted((s.name, s.version) for s in db_session.scalars(select(Scan)))
+    assert before == after
+
+@pytest.mark.parametrize("packages", [[PackageSpecifier(name="c", version="1.0.0")], []])
+def test_deduplicate_packages(test_data: list[Scan], packages: list[PackageSpecifier], db_session: Session):
+    non_unique = [PackageSpecifier(name=scan.name, version=scan.version) for scan in test_data]
+
+    result = _deduplicate_packages(non_unique + packages, db_session)
+
+    assert sorted(result) == sorted((p.name, p.version) for p in packages)
 
 
 def test_batch_queue_nonexistent_package(
