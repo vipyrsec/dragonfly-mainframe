@@ -3,10 +3,11 @@ from typing import Annotated, Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
-from letsbuilda.pypi import PyPIServices  # type: ignore
+from letsbuilda.pypi import Package, PyPIServices  # type: ignore
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from sqlalchemy import select, tuple_
 from sqlalchemy.exc import IntegrityError
+from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy.orm import Session, selectinload
 
 from mainframe.database import get_db
@@ -187,23 +188,27 @@ def batch_queue_package(
 
     packages_to_check = name_ver - {(scan.name, scan.version) for scan in scalars.all()}
 
-    for package in packages_to_check:
+    def _get_package_metadata(package: tuple[str, str]) -> Optional[Package]:
         try:
-            package_metadata = pypi_client.get_package_metadata(*package)
+            return pypi_client.get_package_metadata(*package)
         except PackageNotFoundError:
-            continue
+            return
 
-        scan = Scan(
-            name=package_metadata.title,
-            version=package_metadata.releases[0].version,
-            status=Status.QUEUED,
-            queued_by=auth.subject,
-            download_urls=[
-                DownloadURL(url=distribution.url) for distribution in package_metadata.releases[0].distributions
-            ],
-        )
+    # IO-bound, so these threads won't take up much CPU. Just spawn as many as
+    # we need to send all requests at once
+    with ThreadPoolExecutor(max_workers=len(packages_to_check)) as tpe:
+        for package_metadata in filter(None, tpe.map(_get_package_metadata, packages_to_check)):
+            scan = Scan(
+                name=package_metadata.title,
+                version=package_metadata.releases[0].version,
+                status=Status.QUEUED,
+                queued_by=auth.subject,
+                download_urls=[
+                    DownloadURL(url=distribution.url) for distribution in package_metadata.releases[0].distributions
+                ],
+            )
 
-        session.add(scan)
+            session.add(scan)
 
     session.commit()
 
