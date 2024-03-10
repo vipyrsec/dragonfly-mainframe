@@ -197,8 +197,6 @@ def batch_queue_package(
         except PackageNotFoundError:
             return
         
-
-    
     # IO-bound, so these threads won't take up much CPU. Just spawn as many as
     # we need to send all requests at once
     with ThreadPoolExecutor(max_workers=len(packages_to_check)) as tpe:
