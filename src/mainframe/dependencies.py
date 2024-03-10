@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from functools import cache
 from typing import Annotated
 
-import requests
+import httpx
 from fastapi import Depends, Request
 from letsbuilda.pypi import PyPIServices
 from msgraph.core import GraphClient
@@ -21,8 +21,8 @@ def get_ms_graph_client() -> GraphClient:  # type: ignore
 
 @cache
 def get_pypi_client() -> PyPIServices:
-    session = requests.Session()
-    return PyPIServices(session)
+    http_client = httpx.Client()
+    return PyPIServices(http_client)
 
 
 def get_rules(request: Request) -> Rules:

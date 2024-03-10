@@ -40,6 +40,7 @@ def test_job(test_data: list[Scan], db_session: Session, auth: AuthenticationDat
         # if job, the row with the name and version we get should be pending
         # and the queued_at should be at least as old as all queued packages
         job_queued_at = fetch_queue_time(job.name, job.version, db_session)
+        assert job_queued_at is not None
         oldest_still_queued = oldest_queued_package(db_session)
         assert oldest_still_queued is None or job_queued_at >= oldest_still_queued
     else:

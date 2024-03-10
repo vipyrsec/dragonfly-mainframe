@@ -3,13 +3,13 @@ import time
 from contextlib import asynccontextmanager
 from typing import Awaitable, Callable
 
+import httpx
 import sentry_sdk
 import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
 from asgi_correlation_id.context import correlation_id
-from fastapi import FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from letsbuilda.pypi import PyPIServices
-from requests import Session
 from sentry_sdk.integrations.logging import LoggingIntegration
 from structlog_sentry import SentryProcessor
 
@@ -99,12 +99,12 @@ sentry_sdk.init(
 async def lifespan(app_: FastAPI):
     """Load the state for the app"""
 
-    http_session = Session()
-    pypi_client = PyPIServices(http_session)
-    rules = fetch_rules(http_session=http_session)
+    http_client = httpx.Client()
+    pypi_client = PyPIServices(http_client)
+    rules = fetch_rules(http_client)
 
     app_.state.rules = rules
-    app_.state.http_session = http_session
+    app_.state.http_session = http_client
     app_.state.pypi_client = pypi_client
 
     configure_logger()
@@ -173,6 +173,7 @@ app.add_middleware(CorrelationIdMiddleware)
 @app.get("/", tags=["metadata"])
 async def metadata() -> ServerMetadata:
     """Get server metadata"""
+
     rules: Rules = app.state.rules
     return ServerMetadata(
         server_commit=GIT_SHA,
@@ -180,7 +181,7 @@ async def metadata() -> ServerMetadata:
     )
 
 
-@app.post("/update-rules/", tags=["rules"])
+@app.post("/update-rules/", tags=["rules"], dependencies=[Depends(validate_token)])
 async def update_rules():
     """Update the rules"""
     rules = fetch_rules(app.state.http_session)
