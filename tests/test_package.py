@@ -1,3 +1,4 @@
+import itertools
 from typing import Optional
 
 import pytest
@@ -38,9 +39,9 @@ def test_package_lookup(
     since: Optional[int],
     name: Optional[str],
     version: Optional[str],
-    test_data: list[Scan],
     db_session: Session,
 ):
+    test_data = db_session.scalars(select(Scan)).all()
     exp: set[tuple[str, str]] = set()
     for scan in test_data:
         if since is not None and (scan.finished_at is None or since > int(scan.finished_at.timestamp())):
@@ -51,7 +52,8 @@ def test_package_lookup(
             continue
         exp.add((scan.name, scan.version))
 
-    scans = lookup_package_info(db_session, since, name, version)
+    packages = lookup_package_info(db_session, since, name, version)
+    scans = itertools.chain.from_iterable(package.scans for package in packages)
     assert exp == {(scan.name, scan.version) for scan in scans}
 
 
@@ -77,8 +79,9 @@ def test_package_lookup_rejects_invalid_combinations(
     assert e.value.status_code == 400
 
 
-def test_handle_success(db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules):
+def test_handle_success(db_session: Session, auth: AuthenticationData, rules_state: Rules):
     job = get_jobs(db_session, auth, rules_state, batch=1)
+    test_data = db_session.scalars(select(Scan)).all()
 
     if job:
         job = job[0]
@@ -105,8 +108,9 @@ def test_handle_success(db_session: Session, test_data: list[Scan], auth: Authen
         assert all(scan.status != Status.QUEUED for scan in test_data)
 
 
-def test_handle_fail(db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules):
+def test_handle_fail(db_session: Session, auth: AuthenticationData, rules_state: Rules):
     job = get_jobs(db_session, auth, rules_state, batch=1)
+    test_data = db_session.scalars(select(Scan)).all()
 
     if job:
         job = job[0]
@@ -129,7 +133,8 @@ def test_handle_fail(db_session: Session, test_data: list[Scan], auth: Authentic
         assert all(scan.status != Status.QUEUED for scan in test_data)
 
 
-def test_batch_queue(db_session: Session, test_data: list[Scan], pypi_client: PyPIServices, auth: AuthenticationData):
+def test_batch_queue(db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData):
+    test_data = db_session.scalars(select(Scan)).all()
     packages_to_add = [PackageSpecifier(name=scan.name, version=scan.version) for scan in test_data]
     packages_to_add.append(PackageSpecifier(name="c", version="1.0.0"))
     batch_queue_package(packages_to_add, db_session, auth, pypi_client)
@@ -210,10 +215,9 @@ def test_submit_nonexistent_package(db_session: Session, auth: AuthenticationDat
     assert e.value.status_code == 404
 
 
-def test_submit_duplicate_package(
-    db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules
-):
+def test_submit_duplicate_package(db_session: Session, auth: AuthenticationData, rules_state: Rules):
     job = get_jobs(db_session, auth, rules_state, batch=1)
+    test_data = db_session.scalars(select(Scan)).all()
 
     if job:
         job = job[0]

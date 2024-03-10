@@ -1,4 +1,5 @@
 from typing import Optional
+from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -84,3 +85,32 @@ class StatsResponse(BaseModel):
     ingested: int
     average_scan_time: float
     failed: int
+
+
+class Subscription(BaseModel):
+    """Represents a package name and an optional version."""
+
+    package_name: str
+    package_version: Optional[str] = None
+
+
+class AddSubscription(Subscription):
+    """Payload for when a user wants to subscribe to a malicious package."""
+
+    discord_id: Optional[int] = None
+    email_address: Optional[str] = None
+
+
+class RemoveSubscription(Subscription):
+    """Payload for when a user wants to unsubscribe from a malicious package."""
+
+    user_id: UUID
+
+
+class GetPerson(BaseModel):
+    """Get a user's information and what packages they're subscribed to"""
+
+    person_id: UUID
+    discord_id: Optional[int] = None
+    email_address: Optional[str] = None
+    packages: list[str]

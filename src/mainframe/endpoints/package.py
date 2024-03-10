@@ -7,12 +7,12 @@ from letsbuilda.pypi import PyPIServices  # type: ignore
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from sqlalchemy import select, tuple_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, contains_eager, selectinload
 
 from mainframe.database import get_db
 from mainframe.dependencies import get_pypi_client, validate_token
 from mainframe.json_web_token import AuthenticationData
-from mainframe.models.orm import DownloadURL, Rule, Scan, Status
+from mainframe.models.orm import DownloadURL, Package, Rule, Scan, Status
 from mainframe.models.schemas import (
     Error,
     PackageScanResult,
@@ -154,7 +154,12 @@ def lookup_package_info(
         )
         raise HTTPException(status_code=400)
 
-    query = select(Scan).options(selectinload(Scan.rules))
+    query = (
+        select(Package)
+        .join(Scan, Package.scans)
+        .options(contains_eager(Package.scans))
+        .execution_options(populate_existing=True)
+    )
     if nn_name:
         query = query.where(Scan.name == name)
     if nn_version:
@@ -162,10 +167,10 @@ def lookup_package_info(
     if nn_since:
         query = query.where(Scan.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.timezone.utc))
 
-    data = session.scalars(query)
+    packages = session.scalars(query).unique().all()
 
     log.info("Package information queried")
-    return data.all()
+    return packages
 
 
 @router.post(
@@ -187,11 +192,15 @@ def batch_queue_package(
 
     packages_to_check = name_ver - {(scan.name, scan.version) for scan in scalars.all()}
 
-    for package in packages_to_check:
+    for name, version in packages_to_check:
         try:
-            package_metadata = pypi_client.get_package_metadata(*package)
+            package_metadata = pypi_client.get_package_metadata(name, version)
         except PackageNotFoundError:
             continue
+
+        package = session.scalar(select(Package).where(Package.name == package_metadata.title))
+        if package is None:
+            package = Package(name=package_metadata.title)
 
         scan = Scan(
             name=package_metadata.title,
@@ -203,7 +212,8 @@ def batch_queue_package(
             ],
         )
 
-        session.add(scan)
+        package.scans.append(scan)
+        session.add(package)
 
     session.commit()
 
@@ -216,7 +226,7 @@ def batch_queue_package(
     },
 )
 def queue_package(
-    package: PackageSpecifier,
+    payload: PackageSpecifier,
     session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
@@ -232,8 +242,8 @@ def queue_package(
         409: The given package and version combination has already been queued
     """
 
-    name = package.name
-    version = package.version
+    name = payload.name
+    version = payload.version
 
     log = logger.bind(package={"name": name, "version": version})
 
@@ -249,7 +259,7 @@ def queue_package(
     version = package_metadata.releases[0].version  # Use latest version if not provided
     log = logger.bind(package={"name": name, "version": version})
 
-    new_package = Scan(
+    scan = Scan(
         name=name,
         version=version,
         status=Status.QUEUED,
@@ -259,7 +269,12 @@ def queue_package(
         ],
     )
 
-    session.add(new_package)
+    package = session.scalar(select(Package).where(Package.name == name))
+    if package is None:
+        package = Package(name=name)
+
+    package.scans.append(scan)
+    session.add(package)
 
     try:
         session.commit()
@@ -272,11 +287,11 @@ def queue_package(
         package={
             "name": name,
             "version": version,
-            "status": new_package.status,
+            "status": scan.status,
             "queued_by": auth.subject,
-            "download_urls": new_package.download_urls,
+            "download_urls": scan.download_urls,
         },
         tag="package_added",
     )
 
-    return QueuePackageResponse(id=str(new_package.scan_id))
+    return QueuePackageResponse(id=str(scan.scan_id))
