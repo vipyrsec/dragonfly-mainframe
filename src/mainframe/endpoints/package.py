@@ -188,12 +188,17 @@ def batch_queue_package(
 
     packages_to_check = name_ver - {(scan.name, scan.version) for scan in scalars.all()}
 
+    if not packages_to_check:
+        return
+    
     def _get_package_metadata(package: tuple[str, str]) -> Optional[Package]:
         try:
             return pypi_client.get_package_metadata(*package)
         except PackageNotFoundError:
             return
+        
 
+    
     # IO-bound, so these threads won't take up much CPU. Just spawn as many as
     # we need to send all requests at once
     with ThreadPoolExecutor(max_workers=len(packages_to_check)) as tpe:
