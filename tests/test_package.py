@@ -129,9 +129,10 @@ def test_handle_fail(db_session: Session, test_data: list[Scan], auth: Authentic
         assert all(scan.status != Status.QUEUED for scan in test_data)
 
 
-def test_batch_queue(db_session: Session, test_data: list[Scan], pypi_client: PyPIServices, auth: AuthenticationData):
+@pytest.mark.parametrize("packages", [[PackageSpecifier(name="c", version="1.0.0")], []])
+def test_batch_queue(db_session: Session, test_data: list[Scan], packages: list[PackageSpecifier], pypi_client: PyPIServices, auth: AuthenticationData):
     packages_to_add = [PackageSpecifier(name=scan.name, version=scan.version) for scan in test_data]
-    packages_to_add.append(PackageSpecifier(name="c", version="1.0.0"))
+    packages_to_add.extend(packages)
     batch_queue_package(packages_to_add, db_session, auth, pypi_client)
 
     existing_packages = {(p.name, p.version) for p in db_session.scalars(select(Scan)).all()}
