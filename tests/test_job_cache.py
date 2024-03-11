@@ -1,4 +1,7 @@
+import queue
+
 import pytest
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from mainframe.job_cache import JobCache
@@ -58,3 +61,17 @@ def test_from_pending_to_finished(job_cache: JobCache):
 
     # check that it's not in the pending queue
     assert [("abc", "1.0.0")] not in [(s.name, s.version) for s in job_cache.pending]
+
+
+def test_refill(job_cache: JobCache, db_session: Session):
+    queued = db_session.scalars(select(Scan).where(Scan.status == Status.QUEUED)).all()
+
+    job_cache.refill()
+    cached_queued: list[Scan] = []
+    while True:
+        try:
+            cached_queued.append(job_cache.scan_queue.get_nowait())
+        except queue.Empty:
+            break
+
+    assert [(s.name, s.version) for s in queued] == [(s.name, s.version) for s in cached_queued]
