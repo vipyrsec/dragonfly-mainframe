@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 import pytest
@@ -18,6 +19,7 @@ from mainframe.endpoints.package import (
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan, Status
 from mainframe.models.schemas import (
+    Package,
     PackageScanResult,
     PackageScanResultFail,
     PackageSpecifier,
@@ -35,11 +37,11 @@ from mainframe.rules import Rules
     ],
 )
 def test_package_lookup(
-    since: Optional[int],
-    name: Optional[str],
-    version: Optional[str],
-    test_data: list[Scan],
-    db_session: Session,
+        since: Optional[int],
+        name: Optional[str],
+        version: Optional[str],
+        test_data: list[Scan],
+        db_session: Session,
 ):
     exp: set[tuple[str, str]] = set()
     for scan in test_data:
@@ -65,10 +67,10 @@ def test_package_lookup(
     ],
 )
 def test_package_lookup_rejects_invalid_combinations(
-    db_session: Session,
-    since: Optional[int],
-    name: Optional[str],
-    version: Optional[str],
+        db_session: Session,
+        since: Optional[int],
+        name: Optional[str],
+        version: Optional[str],
 ):
     """Test that invalid combinations are rejected with a 400 response code."""
 
@@ -140,7 +142,7 @@ def test_batch_queue(db_session: Session, test_data: list[Scan], pypi_client: Py
 
 
 def test_batch_queue_nonexistent_package(
-    db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData, monkeypatch: MonkeyPatch
+        db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData, monkeypatch: MonkeyPatch
 ):
     # Make get_package_metadata always throw PackageNotFoundError to simulate an invalid package
     def _side_effect(name: str, version: str):
@@ -167,7 +169,7 @@ def test_queue(db_session: Session, pypi_client: PyPIServices, auth: Authenticat
 
 
 def test_queue_nonexistent_package(
-    db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData, monkeypatch: MonkeyPatch
+        db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData, monkeypatch: MonkeyPatch
 ):
     # Make get_package_metadata always throw PackageNotFoundError to simulate an invalid package
     def _side_effect(name: str, version: str):
@@ -211,7 +213,7 @@ def test_submit_nonexistent_package(db_session: Session, auth: AuthenticationDat
 
 
 def test_submit_duplicate_package(
-    db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules
+        db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules
 ):
     job = get_jobs(db_session, auth, rules_state, batch=1)
 
@@ -234,3 +236,47 @@ def test_submit_duplicate_package(
 
     else:
         assert all(scan.status != Status.QUEUED for scan in test_data)
+
+
+def test_package_from_db():
+    """Test the from_db method of Package."""
+
+    scan = Scan(
+        name="pyfoo",
+        version="3.12.2",
+        score=14,
+        queued_by="Ryan",
+        reported_by="Ryan",
+        queued_at=datetime(2024, 3, 5, 12, 30, 0),
+    )
+
+    pkg = Package.from_db(scan)
+
+    assert pkg.name == "pyfoo"
+    assert pkg.version == "3.12.2"
+    assert pkg.score == 14
+    assert pkg.queued_by == "Ryan"
+    assert pkg.reported_by == "Ryan"
+    assert pkg.queued_at == datetime(2024, 3, 5, 12, 30, 0)
+
+
+def test_datetime_serialization():
+    """Test that the datetime fields are serialized correctly."""
+
+    scan = Scan(
+        name="Pyfoo",
+        version="3.13.0",
+        queued_at=datetime(2023, 10, 12, 13, 45, 30),
+        pending_at=datetime(2023, 10, 12, 13, 45, 30),
+        finished_at=datetime(2023, 10, 12, 13, 45, 30),
+        reported_at=datetime(2023, 10, 12, 13, 45, 30),
+        queued_by="Tina",
+    )
+
+    pkg = Package.from_db(scan).model_dump()
+    dt = int(datetime(2023, 10, 12, 13, 45, 30).timestamp())
+
+    assert pkg.get("queued_at") == dt
+    assert pkg.get("pending_at") == dt
+    assert pkg.get("finished_at") == dt
+    assert pkg.get("reported_at") == dt
