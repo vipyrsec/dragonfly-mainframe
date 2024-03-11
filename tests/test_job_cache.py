@@ -1,5 +1,6 @@
 import queue
 from datetime import UTC, datetime, timedelta
+from unittest.mock import Mock
 
 import pytest
 from sqlalchemy import select
@@ -14,7 +15,8 @@ from mainframe.models.schemas import PackageScanResultFail
 # Override globally defined job cache
 @pytest.fixture
 def job_cache(db_session: Session) -> JobCache:
-    return JobCache(db_session, size=10)
+    mock_sessionmaker = Mock(return_value=db_session)
+    return JobCache(mock_sessionmaker, size=10)
 
 
 def test_get_cached_job(job_cache: JobCache):

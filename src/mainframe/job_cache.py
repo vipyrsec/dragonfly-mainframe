@@ -5,7 +5,7 @@ from typing import Optional
 
 import structlog
 from sqlalchemy import and_, or_, select, tuple_
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, selectinload, sessionmaker
 
 from mainframe.constants import mainframe_settings
 from mainframe.models.orm import Rule, Scan, Status
@@ -17,27 +17,28 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 class JobCache:
     """Handles caching of jobs and results"""
 
-    def __init__(self, session: Session, size: int = 1) -> None:
+    def __init__(self, sessionmaker: sessionmaker[Session], size: int = 1) -> None:
         self.scan_queue: Queue[Scan] = Queue(maxsize=size)
         self.pending: list[Scan] = []
         self.results_queue: Queue[PackageScanResult | PackageScanResultFail] = Queue(maxsize=size)
         self.enabled = size > 1
 
-        self.session = session
+        self.sessionmaker = sessionmaker
 
     def requeue_timeouts(self) -> list[Scan]:
         """Send all timed out pending packages back to the queue. Return a list of `Scan`s that were requeued."""
+        TIMEOUT_LIMIT = timedelta(seconds=mainframe_settings.job_timeout)
         scans: list[Scan] = []
-        TIMEOUT_LIMIT = timedelta(minutes=mainframe_settings.job_timeout)
         for pending_scan in self.pending:
             # this should never happen, but the type checker must be appeased
-            if pending_scan.pending_at is None:
-                continue
+            assert pending_scan.pending_at is not None
 
             pending_for = datetime.now(timezone.utc) - pending_scan.pending_at
 
             if pending_for > TIMEOUT_LIMIT:
                 self.pending.remove(pending_scan)
+                pending_scan.status = Status.QUEUED
+                pending_scan.pending_at = None
                 self.scan_queue.put_nowait(pending_scan)
                 scans.append(pending_scan)
                 logger.warn(
@@ -67,7 +68,8 @@ class JobCache:
             .options(selectinload(Scan.rules), selectinload(Scan.download_urls))
         )
 
-        scans = self.session.scalars(query).all()
+        with self.sessionmaker() as session:
+            scans = session.scalars(query).all()
 
         logger.info(f"Fetched {len(scans)} scans from DB to refill queue with.")
 
@@ -93,9 +95,9 @@ class JobCache:
 
         name_versions = [(result.name, result.version) for result in results]
         query = select(Scan).where(tuple_(Scan.name, Scan.version).in_(name_versions))
-        scans = self.session.scalars(query).all()
-
-        all_rules = self.session.scalars(select(Rule)).all()
+        session = self.sessionmaker()
+        scans = session.scalars(query).all()
+        all_rules = session.scalars(select(Rule)).all()
 
         for result in results:
             scan = next((scan for scan in scans if (scan.name, scan.version) == (result.name, result.version)), None)
@@ -127,7 +129,7 @@ class JobCache:
 
                 scan.rules.extend(old_rules + new_rules)
 
-                self.session.add(scan)
+                session.add(scan)
 
                 logger.info(
                     "Scan results submitted",
@@ -144,7 +146,7 @@ class JobCache:
                     tag="scan_submitted",
                 )
 
-        self.session.commit()
+        session.commit()
 
     def fetch_job(self) -> Optional[Scan]:
         """Directly fetch a job from the database. Used only when cache is disabled."""
@@ -165,14 +167,15 @@ class JobCache:
             .with_for_update()
         )
 
-        scan = self.session.scalar(query)
+        session = self.sessionmaker()
+        scan = session.scalar(query)
         if scan is None:
             return None
 
         scan.status = Status.PENDING
         scan.pending_at = datetime.now(timezone.utc)
 
-        self.session.commit()
+        session.commit()
 
         return scan
 

@@ -2,7 +2,7 @@ import logging
 from copy import deepcopy
 from datetime import datetime, timedelta
 from typing import Generator
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock
 
 import httpx
 import pytest
@@ -32,7 +32,8 @@ def sm(engine: Engine) -> sessionmaker[Session]:
 
 @pytest.fixture
 def job_cache(db_session: Session) -> JobCache:
-    return JobCache(db_session)
+    mock_sessionmaker = Mock(return_value=db_session)
+    return JobCache(mock_sessionmaker)
 
 
 @pytest.fixture(scope="session")
@@ -57,11 +58,14 @@ def initial_populate_db(engine: Engine, sm: sessionmaker[Session], test_data: li
 
 
 @pytest.fixture(autouse=True)
-def db_session(sm: sessionmaker[Session]) -> Generator[Session, None, None]:
-    session = sm()
-    session.commit = lambda: session.flush()
+def db_session(engine: Engine) -> Generator[Session, None, None]:
+    connection = engine.connect()
+    transaction = connection.begin()
+    session = Session(bind=connection, join_transaction_mode="create_savepoint")
     yield session
-    session.rollback()
+    session.close()
+    transaction.rollback()
+    connection.close()
 
 
 @pytest.fixture(scope="session")
