@@ -48,11 +48,9 @@ class JobCache:
 
     def refill(self) -> None:
         # refill from timed out pending scans first
-        print("qsize 2", self.scan_queue.qsize())
         logger.info("Refilling from timed out pending scans")
         requeued_scans = self.requeue_timeouts()
         logger.info(f"Moved {len(requeued_scans)} timed out scans from pending to queue")
-        print("qsize 3", self.scan_queue.qsize())
 
         # exclude packages that we just put back into the queue
         # and packages that are currently pending from our database query
@@ -75,7 +73,6 @@ class JobCache:
 
         for scan in scans:
             try:
-                print("qsize 4", self.scan_queue.qsize())
                 self.scan_queue.put(scan, timeout=5)
                 logger.info("Put scan into queue.", name=scan.name, version=scan.version)
             except queue.Full:
@@ -148,12 +145,9 @@ class JobCache:
                 )
 
         self.session.commit()
-        for scan in self.session.scalars(select(Scan)):
-            print(scan.name, scan.version, scan.status)
 
     def fetch_job(self) -> Optional[Scan]:
         """Directly fetch a job from the database. Used only when cache is disabled."""
-        print("fetching job, bypassing cache")
         query = (
             select(Scan)
             .where(
