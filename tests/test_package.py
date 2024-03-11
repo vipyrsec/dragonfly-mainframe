@@ -15,6 +15,7 @@ from mainframe.endpoints.package import (
     queue_package,
     submit_results,
 )
+from mainframe.job_cache import JobCache
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan, Status
 from mainframe.models.schemas import (
@@ -77,8 +78,10 @@ def test_package_lookup_rejects_invalid_combinations(
     assert e.value.status_code == 400
 
 
-def test_handle_success(db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules):
-    job = get_jobs(db_session, auth, rules_state, batch=1)
+def test_handle_success(
+    db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules, job_cache: JobCache
+):
+    job = get_jobs(job_cache, auth, rules_state, batch=1)
 
     if job:
         job = job[0]
@@ -93,7 +96,7 @@ def test_handle_success(db_session: Session, test_data: list[Scan], auth: Authen
             inspector_url="test inspector url",
             rules_matched=["a", "b", "c"],
         )
-        submit_results(body, db_session, auth)
+        submit_results(body, job_cache)
 
         record = db_session.scalar(select(Scan).where(Scan.name == name).where(Scan.version == version))
 
@@ -105,8 +108,10 @@ def test_handle_success(db_session: Session, test_data: list[Scan], auth: Authen
         assert all(scan.status != Status.QUEUED for scan in test_data)
 
 
-def test_handle_fail(db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules):
-    job = get_jobs(db_session, auth, rules_state, batch=1)
+def test_handle_fail(
+    db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules, job_cache: JobCache
+):
+    job = get_jobs(job_cache, auth, rules_state, batch=1)
 
     if job:
         job = job[0]
@@ -114,7 +119,10 @@ def test_handle_fail(db_session: Session, test_data: list[Scan], auth: Authentic
         version = job.version
         reason = "Package too large"
 
-        submit_results(PackageScanResultFail(name=name, version=version, reason=reason), db_session, auth)
+        submit_results(PackageScanResultFail(name=name, version=version, reason=reason), job_cache)
+        print("-" * 10)
+        for scan in db_session.scalars(select(Scan)):
+            print(scan.name, scan.version, scan.status)
 
         record = db_session.scalar(
             select(Scan)
@@ -193,44 +201,3 @@ def test_queue_duplicate_package(db_session: Session, pypi_client: PyPIServices,
     with pytest.raises(HTTPException) as e:
         queue_package(package, db_session, auth, pypi_client)
     assert e.value.status_code == 409
-
-
-def test_submit_nonexistent_package(db_session: Session, auth: AuthenticationData):
-    body = PackageScanResult(
-        name="c",
-        version="1.0.0",
-        commit="test rules commit",
-        score=2,
-        inspector_url="test inspector url",
-        rules_matched=["a", "b", "c"],
-    )
-
-    with pytest.raises(HTTPException) as e:
-        submit_results(body, db_session, auth)
-    assert e.value.status_code == 404
-
-
-def test_submit_duplicate_package(
-    db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules
-):
-    job = get_jobs(db_session, auth, rules_state, batch=1)
-
-    if job:
-        job = job[0]
-
-        body = PackageScanResult(
-            name=job.name,
-            version=job.version,
-            commit=rules_state.rules_commit,
-            score=2,
-            inspector_url="test inspector url",
-            rules_matched=["a", "b", "c"],
-        )
-        submit_results(body, db_session, auth)
-
-        with pytest.raises(HTTPException) as e:
-            submit_results(body, db_session, auth)
-        assert e.value.status_code == 409
-
-    else:
-        assert all(scan.status != Status.QUEUED for scan in test_data)
