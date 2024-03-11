@@ -14,6 +14,7 @@ from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from mainframe.constants import mainframe_settings
+from mainframe.job_cache import JobCache
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Base, Scan
 from mainframe.rules import Rules
@@ -27,6 +28,11 @@ logger = logging.getLogger(__file__)
 @pytest.fixture(scope="session")
 def sm(engine: Engine) -> sessionmaker[Session]:
     return sessionmaker(bind=engine, autoflush=False, join_transaction_mode="create_savepoint", expire_on_commit=False)
+
+
+@pytest.fixture
+def job_cache(db_session: Session) -> JobCache:
+    return JobCache(db_session)
 
 
 @pytest.fixture(scope="session")
