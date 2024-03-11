@@ -1,9 +1,11 @@
 import queue
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from mainframe.constants import mainframe_settings
 from mainframe.job_cache import JobCache
 from mainframe.models.orm import Scan, Status
 from mainframe.models.schemas import PackageScanResultFail
@@ -75,3 +77,21 @@ def test_refill(job_cache: JobCache, db_session: Session):
             break
 
     assert [(s.name, s.version) for s in queued] == [(s.name, s.version) for s in cached_queued]
+
+
+def test_requeue_timeouts(job_cache: JobCache):
+    scan = Scan(
+        name="abc",
+        version="1.0.0",
+        status=Status.PENDING,
+        pending_at=datetime.now(UTC) - timedelta(seconds=mainframe_settings.job_timeout + 60),
+    )
+
+    job_cache.pending.append(scan)
+
+    job_cache.requeue_timeouts()
+
+    scan = job_cache.scan_queue.get_nowait()
+    assert scan.name == "abc"
+    assert scan.version == "1.0.0"
+    assert scan.status == Status.QUEUED
