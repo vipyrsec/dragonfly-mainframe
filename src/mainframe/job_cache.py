@@ -28,7 +28,8 @@ class JobCache:
     def requeue_timeouts(self) -> list[Scan]:
         """Send all timed out pending packages back to the queue. Return a list of `Scan`s that were requeued."""
         TIMEOUT_LIMIT = timedelta(seconds=mainframe_settings.job_timeout)
-        scans: list[Scan] = []
+        timedout_scans: list[Scan] = []
+        pending_scans: list[Scan] = []
         for pending_scan in self.pending:
             # this should never happen, but the type checker must be appeased
             assert pending_scan.pending_at is not None
@@ -36,16 +37,18 @@ class JobCache:
             pending_for = datetime.now(timezone.utc) - pending_scan.pending_at
 
             if pending_for > TIMEOUT_LIMIT:
-                self.pending.remove(pending_scan)
                 pending_scan.status = Status.QUEUED
                 pending_scan.pending_at = None
                 self.scan_queue.put_nowait(pending_scan)
-                scans.append(pending_scan)
+                timedout_scans.append(pending_scan)
                 logger.warn(
                     "Timed out package found. Requeueing.", name=pending_scan.name, version=pending_scan.version
                 )
+            else:
+                pending_scans.append(pending_scan)
 
-        return scans
+        self.pending = pending_scans
+        return timedout_scans
 
     def refill(self) -> None:
         # refill from timed out pending scans first
@@ -75,7 +78,7 @@ class JobCache:
 
         for scan in scans:
             try:
-                self.scan_queue.put(scan, timeout=5)
+                self.scan_queue.put_nowait(scan)
                 logger.info("Put scan into queue.", name=scan.name, version=scan.version)
             except queue.Full:
                 # this scenario can happen if some jobs from the timeout have already
