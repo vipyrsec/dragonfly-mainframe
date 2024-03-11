@@ -10,9 +10,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from mainframe.database import get_db
-from mainframe.dependencies import get_pypi_client, validate_token
+from mainframe.dependencies import get_pypi_client, job_cache, validate_token
+from mainframe.job_cache import JobCache
 from mainframe.json_web_token import AuthenticationData
-from mainframe.models.orm import DownloadURL, Rule, Scan, Status
+from mainframe.models.orm import DownloadURL, Scan, Status
 from mainframe.models.schemas import (
     Error,
     PackageScanResult,
@@ -34,72 +35,9 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 )
 def submit_results(
     result: PackageScanResult | PackageScanResultFail,
-    session: Annotated[Session, Depends(get_db)],
-    auth: Annotated[AuthenticationData, Depends(validate_token)],
+    job_cache: Annotated[JobCache, Depends(job_cache)],
 ):
-    name = result.name
-    version = result.version
-
-    scan = session.scalar(
-        select(Scan).where(Scan.name == name).where(Scan.version == version).options(selectinload(Scan.rules))
-    )
-
-    log = logger.bind(package={"name": name, "version": version})
-
-    if scan is None:
-        error = HTTPException(404, f"Package `{name}@{version}` not found in database.")
-        log.error(
-            f"Package {name}@{version} not found in database", error_message=error.detail, tag="package_not_found_db"
-        )
-        raise error
-
-    if scan.status == Status.FINISHED:
-        error = HTTPException(409, f"Package `{name}@{version}` is already in a FINISHED state.")
-        log.error(
-            f"Scan {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
-        )
-        raise error
-
-    if isinstance(result, PackageScanResultFail):
-        scan.status = Status.FAILED
-        scan.fail_reason = result.reason
-
-        session.commit()
-        return
-
-    scan.status = Status.FINISHED
-    scan.finished_at = dt.datetime.now(dt.timezone.utc)
-    scan.inspector_url = result.inspector_url
-    scan.score = result.score
-    scan.finished_by = auth.subject
-    scan.commit_hash = result.commit
-
-    # These are the rules that already have an entry in the database
-    rules = session.scalars(select(Rule).where(Rule.name.in_(result.rules_matched))).all()
-    rule_names = {rule.name for rule in rules}
-    scan.rules.extend(rules)
-
-    # These are the rules that had to be created
-    new_rules = [Rule(name=rule_name) for rule_name in result.rules_matched if rule_name not in rule_names]
-    scan.rules.extend(new_rules)
-
-    log.info(
-        "Scan results submitted",
-        package={
-            "name": name,
-            "version": version,
-            "status": scan.status,
-            "finished_at": scan.finished_at,
-            "inspector_url": result.inspector_url,
-            "score": result.score,
-            "finished_by": auth.subject,
-            "existing_rules": rule_names,
-            "created_rules": [rule.name for rule in new_rules],
-        },
-        tag="scan_submitted",
-    )
-
-    session.commit()
+    job_cache.submit_result(result)
 
 
 @router.get(

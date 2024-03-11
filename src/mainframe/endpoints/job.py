@@ -1,16 +1,12 @@
-from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends
-from sqlalchemy import and_, or_, select
-from sqlalchemy.orm import Session, selectinload
 
-from mainframe.constants import mainframe_settings
-from mainframe.database import get_db
-from mainframe.dependencies import get_rules, validate_token
+from mainframe.dependencies import get_rules, job_cache, validate_token
+from mainframe.job_cache import JobCache
 from mainframe.json_web_token import AuthenticationData
-from mainframe.models.orm import Scan, Status
+from mainframe.models.orm import Scan
 from mainframe.models.schemas import JobResult
 from mainframe.rules import Rules
 
@@ -20,7 +16,7 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 @router.post("/jobs")
 def get_jobs(
-    session: Annotated[Session, Depends(get_db)],
+    job_cache: Annotated[JobCache, Depends(job_cache)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     state: Annotated[Rules, Depends(get_rules)],
     batch: int = 1,
@@ -40,31 +36,16 @@ def get_jobs(
     packages are always processed after newly queued packages.
     """
 
-    scans = session.scalars(
-        select(Scan)
-        .where(
-            or_(
-                Scan.status == Status.QUEUED,
-                and_(
-                    Scan.pending_at < datetime.now(timezone.utc) - timedelta(seconds=mainframe_settings.job_timeout),
-                    Scan.status == Status.PENDING,
-                ),
-            )
-        )
-        .order_by(Scan.pending_at.nulls_first(), Scan.queued_at)
-        .limit(batch)
-        .options(selectinload(Scan.download_urls))
-        .with_for_update()
-    ).all()
+    scans: list[Scan] = []
+    for _ in range(batch):
+        scan = job_cache.get_job()
+        if scan:
+            scans.append(scan)
 
     response_body: list[JobResult] = []
     for scan in scans:
-        scan.status = Status.PENDING
-        scan.pending_at = datetime.now(timezone.utc)
-        scan.pending_by = auth.subject
-
         logger.info(
-            "Job given and status set to pending in database",
+            "Job given",
             package={
                 "name": scan.name,
                 "status": scan.status,
@@ -83,7 +64,5 @@ def get_jobs(
         )
 
         response_body.append(job_result)
-
-    session.commit()
 
     return response_body
