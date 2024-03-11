@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from mainframe.constants import mainframe_settings
@@ -97,3 +97,44 @@ def test_requeue_timeouts(job_cache: JobCache):
     assert scan.name == "abc"
     assert scan.version == "1.0.0"
     assert scan.status == Status.QUEUED
+
+
+def test_overfetch(job_cache: JobCache, db_session: Session):
+    cache_size = job_cache.scan_queue.maxsize
+    for i in range(cache_size - 1):
+        pending_at = datetime.now(UTC) - timedelta(seconds=mainframe_settings.job_timeout + 60)
+        scan = Scan(name=f"package-{i}", version="1.0.0", status=Status.PENDING, pending_at=pending_at)
+        job_cache.pending.append(scan)
+
+    db_session.execute(update(Scan).values(status=Status.FAILED))
+
+    scan1 = Scan(
+        name="abc",
+        version="1.0.0",
+        status=Status.QUEUED,
+        queued_at=datetime.now(UTC) - timedelta(seconds=5),
+        queued_by="remmy",
+    )
+
+    scan2 = Scan(
+        name="def",
+        version="1.0.0",
+        status=Status.QUEUED,
+        queued_at=datetime.now(UTC),
+        queued_by="remmy",
+    )
+
+    db_session.add_all((scan1, scan2))
+    db_session.commit()
+
+    job_cache.refill()
+
+    cached_queued: list[str] = []
+    while True:
+        try:
+            scan = job_cache.scan_queue.get_nowait()
+            cached_queued.append(scan.name)
+        except queue.Empty:
+            break
+
+    assert cached_queued == [f"package-{i}" for i in range(cache_size - 1)] + ["abc"]
