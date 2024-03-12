@@ -114,6 +114,7 @@ class JobCache:
 
             if scan.status == Status.FINISHED:
                 logger.warn("Package is already in a FINISHED state, skipping", **result.model_dump())
+                continue
 
             if isinstance(result, PackageScanResultFail):
                 scan.status = Status.FAILED
