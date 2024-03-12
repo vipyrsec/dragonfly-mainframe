@@ -187,8 +187,8 @@ def _get_packages_metadata(pypi_client: PyPIServices, packages_to_check: set[tup
             return
 
     # IO-bound, so these threads won't take up much CPU. Just spawn as many as
-    # we need to send all requests at once, with at least one to avoid
-    # a ValueError with `len(packages_to_check) == 0`
+    # we need to send all requests at once. We avoid the
+    # `len(packages_to_check) == 0` case by returning early above
     with ThreadPoolExecutor(max_workers=len(packages_to_check)) as tpe:
         yield from filter(None, tpe.map(_get_package_metadata, packages_to_check))
 
