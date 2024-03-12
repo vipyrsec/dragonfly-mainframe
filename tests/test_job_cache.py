@@ -175,3 +175,16 @@ def test_resubmit_result(job_cache: JobCache, db_session: Session):
     scan_after = db_session.scalar(select(Scan).where(Scan.scan_id == scan_before.scan_id))
 
     assert scan_before == scan_after
+
+
+def test_submit_result_nonexistent_package(job_cache: JobCache, db_session: Session):
+    # make sure it doesn't exist
+    query = select(Scan).where(Scan.name == "abc").where(Scan.version == "1.0.0")
+    assert db_session.scalar(query) is None
+
+    result = PackageScanResultFail(name="abc", version="1.0.0", reason="Package too large")
+    job_cache.submit_result(result)
+    job_cache.persist_all_results()
+
+    # make sure it still doesn't exist
+    assert db_session.scalar(query) is None
