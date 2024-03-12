@@ -112,8 +112,8 @@ class JobCache:
                 logger.warn("Results submitted for a package that doesn't exist, skipping", **result.model_dump())
                 continue
 
-            if scan.status == Status.FINISHED:
-                logger.warn("Package is already in a FINISHED state, skipping", **result.model_dump())
+            if scan.status == Status.FINISHED or scan.status == Status.FAILED:
+                logger.warn("Package already has results, skipping", **result.model_dump())
                 continue
 
             if isinstance(result, PackageScanResultFail):
