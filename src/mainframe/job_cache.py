@@ -43,7 +43,7 @@ class JobCache:
                 pending_scan.pending_at = None
                 self.scan_queue.put_nowait(pending_scan)
                 timedout_scans.append(pending_scan)
-                logger.warn(
+                logger.debug(
                     "Timed out package found. Requeueing.", name=pending_scan.name, version=pending_scan.version
                 )
             else:
@@ -55,9 +55,9 @@ class JobCache:
     def refill(self) -> None:
         self._is_refilling = True
         # refill from timed out pending scans first
-        logger.info("Refilling from timed out pending scans")
+        logger.debug("Refilling from timed out pending scans")
         requeued_scans = self.requeue_timeouts()
-        logger.info(f"Moved {len(requeued_scans)} timed out scans from pending to queue")
+        logger.debug(f"Moved {len(requeued_scans)} timed out scans from pending to queue")
 
         # exclude packages that we just put back into the queue
         # and packages that are currently pending from our database query
@@ -82,16 +82,15 @@ class JobCache:
         for scan in scans:
             try:
                 self.scan_queue.put_nowait(scan)
-                logger.info("Put scan into queue.", name=scan.name, version=scan.version)
+                logger.debug("Put scan into queue.", name=scan.name, version=scan.version)
             except queue.Full:
                 # this scenario can happen if some jobs from the timeout have already
                 # been added into the queue. In this case we just ignore the remaining
                 # jobs from the DB since we're already full
-                logger.warn("Overfetched. Ignoring extras.")
+                logger.debug("Overfetched. Ignoring extras.")
                 break
 
-        self._is_refilling = False
-        logger.info("Refilled jobs queue")
+        logger.debug("Refilled jobs queue")
 
     def persist_all_results(self) -> None:
         """Pop off all results and persist them in the database"""
@@ -218,7 +217,7 @@ class JobCache:
         if not self.enabled:
             self.results_queue.put(result, timeout=5)
             self.persist_all_results()
-            logger.info("Caching disabled. Wrote results directly to DB.")
+            logger.debug("Caching disabled. Wrote results directly to DB.")
             return
 
         if scan := next((s for s in self.pending if (s.name, s.version) == (result.name, result.version)), None):
