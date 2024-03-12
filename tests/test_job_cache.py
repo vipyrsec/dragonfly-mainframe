@@ -195,3 +195,28 @@ def test_no_more_jobs(job_cache: JobCache, db_session: Session):
     db_session.execute(update(Scan).values(status=Status.FINISHED))
 
     assert job_cache.get_job() is None
+
+
+def test_persist_on_full(job_cache: JobCache, db_session: Session):
+    scan1 = Scan(name="abc1", version="1.0.0", status=Status.QUEUED, queued_by="remmy", queued_at=datetime.now(UTC))
+    db_session.add(scan1)
+    db_session.commit()
+
+    result1 = PackageScanResultFail(name="abc1", version="1.0.0", reason="Package too large")
+    job_cache.results_queue.put_nowait(result1)
+
+    # Overflow results queue and force it to persist
+    job_cache.results_queue.full = Mock(return_value=True)
+    result2 = PackageScanResultFail(name="abc2", version="1.0.0", reason="Package too large")
+    job_cache.submit_result(result2)
+
+    # check to see if the first package was successfully persisted to the database
+    query = select(Scan).where(Scan.name == "abc1").where(Scan.version == "1.0.0")
+    scan = db_session.scalar(query)
+    assert scan is not None
+    assert scan.name == "abc1"
+    assert scan.version == "1.0.0"
+    assert scan.fail_reason == "Package too large"
+
+    # check to see if the second package is in the queue
+    assert job_cache.results_queue.get_nowait() is result2
