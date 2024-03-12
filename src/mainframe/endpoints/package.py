@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 import datetime as dt
 from typing import Annotated, Optional
 
@@ -169,6 +170,29 @@ def lookup_package_info(
     return data.all()
 
 
+def _deduplicate_packages(packages: list[PackageSpecifier], session: Session) -> set[tuple[str, str]]:
+    name_ver = {(p.name, p.version) for p in packages}
+    scalars = session.scalars(select(Scan).where(tuple_(Scan.name, Scan.version).in_(name_ver)))
+    return name_ver - {(scan.name, scan.version) for scan in scalars.all()}
+
+
+def _get_packages_metadata(pypi_client: PyPIServices, packages_to_check: set[tuple[str, str]]) -> Iterable[Package]:
+    if not packages_to_check:
+        return
+
+    def _get_package_metadata(package: tuple[str, str]) -> Optional[Package]:
+        try:
+            return pypi_client.get_package_metadata(*package)
+        except PackageNotFoundError:
+            return
+
+    # IO-bound, so these threads won't take up much CPU. Just spawn as many as
+    # we need to send all requests at once. We avoid the
+    # `len(packages_to_check) == 0` case by returning early above
+    with ThreadPoolExecutor(max_workers=len(packages_to_check)) as tpe:
+        yield from filter(None, tpe.map(_get_package_metadata, packages_to_check))
+
+
 @router.post(
     "/batch/package",
     responses={
@@ -182,33 +206,20 @@ def batch_queue_package(
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
 ):
-    name_ver = {(p.name, p.version) for p in packages}
+    packages_to_check = _deduplicate_packages(packages, session)
 
-    scalars = session.scalars(select(Scan).where(tuple_(Scan.name, Scan.version).in_(name_ver)))
+    for package_metadata in _get_packages_metadata(pypi_client, packages_to_check):
+        scan = Scan(
+            name=package_metadata.title,
+            version=package_metadata.releases[0].version,
+            status=Status.QUEUED,
+            queued_by=auth.subject,
+            download_urls=[
+                DownloadURL(url=distribution.url) for distribution in package_metadata.releases[0].distributions
+            ],
+        )
 
-    packages_to_check = name_ver - {(scan.name, scan.version) for scan in scalars.all()}
-
-    def _get_package_metadata(package: tuple[str, str]) -> Optional[Package]:
-        try:
-            return pypi_client.get_package_metadata(*package)
-        except PackageNotFoundError:
-            return
-
-    # IO-bound, so these threads won't take up much CPU. Just spawn as many as
-    # we need to send all requests at once
-    with ThreadPoolExecutor(max_workers=len(packages_to_check)) as tpe:
-        for package_metadata in filter(None, tpe.map(_get_package_metadata, packages_to_check)):
-            scan = Scan(
-                name=package_metadata.title,
-                version=package_metadata.releases[0].version,
-                status=Status.QUEUED,
-                queued_by=auth.subject,
-                download_urls=[
-                    DownloadURL(url=distribution.url) for distribution in package_metadata.releases[0].distributions
-                ],
-            )
-
-            session.add(scan)
+        session.add(scan)
 
     session.commit()
 
