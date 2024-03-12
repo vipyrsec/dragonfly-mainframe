@@ -31,7 +31,7 @@ class JobCache:
 
     def requeue_timeouts(self) -> list[Scan]:
         """Send all timed out pending packages back to the queue. Return a list of `Scan`s that were requeued."""
-        TIMEOUT_LIMIT = timedelta(seconds=mainframe_settings.job_timeout)
+        timeout_limit = timedelta(seconds=mainframe_settings.job_timeout)
         timedout_scans: list[Scan] = []
         pending_scans: list[Scan] = []
         for pending_scan in self.pending:
@@ -40,7 +40,7 @@ class JobCache:
 
             pending_for = datetime.now(timezone.utc) - pending_scan.pending_at
 
-            if pending_for > TIMEOUT_LIMIT:
+            if pending_for > timeout_limit:
                 pending_scan.status = Status.QUEUED
                 pending_scan.pending_at = None
                 self.scan_queue.put(pending_scan)
