@@ -188,3 +188,10 @@ def test_submit_result_nonexistent_package(job_cache: JobCache, db_session: Sess
 
     # make sure it still doesn't exist
     assert db_session.scalar(query) is None
+
+
+def test_no_more_jobs(job_cache: JobCache, db_session: Session):
+    # make sure there are no more jobs to give
+    db_session.execute(update(Scan).values(status=Status.FINISHED))
+
+    assert job_cache.get_job() is None
