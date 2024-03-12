@@ -1,4 +1,5 @@
 import queue
+import threading
 from datetime import datetime, timedelta, timezone
 from queue import Queue
 from typing import Optional
@@ -21,9 +22,10 @@ class JobCache:
         self.scan_queue: Queue[Scan] = Queue(maxsize=size)
         self.pending: list[Scan] = []
         self.results_queue: Queue[PackageScanResult | PackageScanResultFail] = Queue(maxsize=size)
+
+        self._refill_lock = threading.Lock()
+        self._presisting_lock = threading.Lock()
         self.enabled = size > 1
-        self._is_refilling = False
-        self._is_persisting = False
 
         self.sessionmaker = sessionmaker
 
@@ -41,7 +43,7 @@ class JobCache:
             if pending_for > TIMEOUT_LIMIT:
                 pending_scan.status = Status.QUEUED
                 pending_scan.pending_at = None
-                self.scan_queue.put_nowait(pending_scan)
+                self.scan_queue.put(pending_scan)
                 timedout_scans.append(pending_scan)
                 logger.debug(
                     "Timed out package found. Requeueing.", name=pending_scan.name, version=pending_scan.version
@@ -53,7 +55,6 @@ class JobCache:
         return timedout_scans
 
     def refill(self) -> None:
-        self._is_refilling = True
         # refill from timed out pending scans first
         logger.debug("Refilling from timed out pending scans")
         requeued_scans = self.requeue_timeouts()
@@ -94,7 +95,6 @@ class JobCache:
 
     def persist_all_results(self) -> None:
         """Pop off all results and persist them in the database"""
-        self._is_persisting = True
         results: list[PackageScanResult | PackageScanResultFail] = []
         while not self.results_queue.empty():
             result = self.results_queue.get(timeout=5)
@@ -154,7 +154,6 @@ class JobCache:
                 )
 
         session.commit()
-        self._is_persisting = False
 
     def fetch_job(self) -> Optional[Scan]:
         """Directly fetch a job from the database. Used only when cache is disabled."""
@@ -193,17 +192,15 @@ class JobCache:
         if not self.enabled:
             return self.fetch_job()
 
-        try:
-            scan = self.scan_queue.get_nowait()
-        except queue.Empty:
-            if not self._is_refilling:
+        with self._refill_lock:
+            if self.scan_queue.empty():
                 self.refill()
 
             # If it's still empty after a refill, there aren't any more jobs in the DB.
-            try:
-                scan = self.scan_queue.get_nowait()
-            except queue.Empty:
+            if self.scan_queue.empty():
                 return None
+            else:
+                scan = self.scan_queue.get()
 
         scan.status = Status.PENDING
         scan.pending_at = datetime.now(timezone.utc)
@@ -215,8 +212,9 @@ class JobCache:
         logger.info("Incoming result", result=result)
 
         if not self.enabled:
-            self.results_queue.put(result, timeout=5)
-            self.persist_all_results()
+            with self._presisting_lock:
+                self.results_queue.put(result)
+                self.persist_all_results()
             logger.debug("Caching disabled. Wrote results directly to DB.")
             return
 
@@ -226,12 +224,10 @@ class JobCache:
         else:
             logger.warn("Scan not found in pending list", name=result.name, version=result.version)
 
-        try:
-            self.results_queue.put_nowait(result)
-        except queue.Full:
-            if not self._is_persisting:
+        with self._presisting_lock:
+            if self.results_queue.full():
                 self.persist_all_results()
                 logger.info("Results queue full, drained and wrote to DB")
-        finally:
+
             self.results_queue.put(result)
             logger.info("Put result in results queue", result=result)
