@@ -22,6 +22,8 @@ class JobCache:
         self.pending: list[Scan] = []
         self.results_queue: Queue[PackageScanResult | PackageScanResultFail] = Queue(maxsize=size)
         self.enabled = size > 1
+        self._is_refilling = False
+        self._is_persisting = False
 
         self.sessionmaker = sessionmaker
 
@@ -51,6 +53,7 @@ class JobCache:
         return timedout_scans
 
     def refill(self) -> None:
+        self._is_refilling = True
         # refill from timed out pending scans first
         logger.info("Refilling from timed out pending scans")
         requeued_scans = self.requeue_timeouts()
@@ -87,10 +90,12 @@ class JobCache:
                 logger.warn("Overfetched. Ignoring extras.")
                 break
 
+        self._is_refilling = False
         logger.info("Refilled jobs queue")
 
     def persist_all_results(self) -> None:
         """Pop off all results and persist them in the database"""
+        self._is_persisting = True
         results: list[PackageScanResult | PackageScanResultFail] = []
         while not self.results_queue.empty():
             result = self.results_queue.get(timeout=5)
@@ -150,6 +155,7 @@ class JobCache:
                 )
 
         session.commit()
+        self._is_persisting = False
 
     def fetch_job(self) -> Optional[Scan]:
         """Directly fetch a job from the database. Used only when cache is disabled."""
@@ -191,7 +197,8 @@ class JobCache:
         try:
             scan = self.scan_queue.get_nowait()
         except queue.Empty:
-            self.refill()
+            if not self._is_refilling:
+                self.refill()
 
             # If it's still empty after a refill, there aren't any more jobs in the DB.
             try:
@@ -223,8 +230,9 @@ class JobCache:
         try:
             self.results_queue.put_nowait(result)
         except queue.Full:
-            self.persist_all_results()
-            logger.info("Results queue full, drained and wrote to DB")
+            if not self._is_persisting:
+                self.persist_all_results()
+                logger.info("Results queue full, drained and wrote to DB")
         finally:
-            self.results_queue.put_nowait(result)
+            self.results_queue.put(result)
             logger.info("Put result in results queue", result=result)
