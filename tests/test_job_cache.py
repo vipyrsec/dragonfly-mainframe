@@ -149,3 +149,29 @@ def test_no_timedout_pendings(job_cache: JobCache):
 
     # check that the package is still pending
     assert ("abc", "1.0.0") in {(s.name, s.version) for s in job_cache.pending}
+
+
+def test_resubmit_result(job_cache: JobCache, db_session: Session):
+    scan_before = Scan(
+        name="abc",
+        version="1.0.0",
+        status=Status.FAILED,
+        queued_at=datetime.now(UTC) - timedelta(seconds=60),
+        queued_by="remmy",
+        pending_at=datetime.now(UTC) - timedelta(seconds=40),
+        pending_by="remmy",
+        finished_at=datetime.now(UTC) - timedelta(seconds=20),
+        finished_by="remmy",
+        fail_reason="Package too large",
+    )
+
+    db_session.add(scan_before)
+    db_session.commit()
+
+    result = PackageScanResultFail(name=scan_before.name, version=scan_before.version, reason="some other fail reason")
+    job_cache.submit_result(result)
+    job_cache.persist_all_results()
+
+    scan_after = db_session.scalar(select(Scan).where(Scan.scan_id == scan_before.scan_id))
+
+    assert scan_before == scan_after
