@@ -138,3 +138,14 @@ def test_overfetch(job_cache: JobCache, db_session: Session):
             break
 
     assert cached_queued == [f"package-{i}" for i in range(cache_size - 1)] + ["abc"]
+
+
+def test_no_timedout_pendings(job_cache: JobCache):
+    # this package is not timed out
+    scan = Scan(name="abc", version="1.0.0", status=Status.PENDING, pending_at=datetime.now(UTC))
+    job_cache.pending.append(scan)
+
+    job_cache.refill()
+
+    # check that the package is still pending
+    assert ("abc", "1.0.0") in {(s.name, s.version) for s in job_cache.pending}
