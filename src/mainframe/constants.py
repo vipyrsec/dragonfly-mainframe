@@ -33,9 +33,14 @@ class Mainframe(EnvConfig):
 
     job_timeout: int = 60 * 2
 
-
 mainframe_settings = Mainframe()  # pyright: ignore
 
+class Keycloak(EnvConfig, env_prefix="kc_"): # pyright: ignore
+    issuer_url: str = "https://keycloak.vipyrsec.com/realms/dragonfly"
+    audience: str = "Dragonfly Mainframe"
+    jwks_uri: str = "https://keycloak.vipyrsec.com/realms/dragonfly/protocol/openid-connect/certs"
+
+keycloak_settings = Keycloak()
 
 class _Sentry(EnvConfig, env_prefix="sentry_"):  # pyright: ignore
     dsn: str = ""
