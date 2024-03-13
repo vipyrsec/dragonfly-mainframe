@@ -10,12 +10,6 @@ from mainframe.custom_exceptions import (
     UnableCredentialsException,
 )
 
-from urllib.request import build_opener, install_opener
-
-opener = build_opener()
-opener.addheaders = [('User-Agent','Dragonfly Mainframe')]
-install_opener(opener)
-
 @dataclass
 class AuthenticationData:
     issuer: str
@@ -44,7 +38,7 @@ class JsonWebToken:
 
     def validate(self) -> AuthenticationData:
         try:
-            jwks_client = jwt.PyJWKClient(keycloak_settings.jwks_uri)
+            jwks_client = jwt.PyJWKClient(keycloak_settings.jwks_uri, headers={"User-Agent": "Dragonfly Mainframe"})
             jwt_signing_key = jwks_client.get_signing_key_from_jwt(self.jwt_access_token).key
             payload = jwt.decode(
                 self.jwt_access_token,
