@@ -47,7 +47,6 @@ class JsonWebToken:
                 audience=keycloak_settings.audience,
                 issuer=keycloak_settings.issuer_url,
             )
-            print(payload)
         except jwt.exceptions.PyJWKClientError:
             raise UnableCredentialsException
         except jwt.exceptions.InvalidTokenError:
