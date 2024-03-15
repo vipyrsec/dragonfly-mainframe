@@ -22,6 +22,7 @@ class Mainframe(EnvConfig):
     auth0_domain: str = ""
     auth0_audience: str = ""
 
+    reporter_url: str = ""
     email_reply_to: str = "support@vipyrsec.com"
     email_sender: str = "system@vipyrsec.com"
     email_recipient: str = "security@pypi.org"
