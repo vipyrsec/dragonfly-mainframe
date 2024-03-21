@@ -8,7 +8,10 @@ from letsbuilda.pypi import PyPIServices
 from msgraph.core import GraphClient
 
 from mainframe.authorization_header_elements import get_bearer_token
+from mainframe.constants import mainframe_settings
 from mainframe.custom_exceptions import PermissionDeniedException
+from mainframe.database import sessionmaker
+from mainframe.job_cache import JobCache
 from mainframe.json_web_token import AuthenticationData, JsonWebToken
 from mainframe.rules import Rules
 from mainframe.utils.microsoft import build_ms_graph_client
@@ -42,6 +45,11 @@ def validate_token_override():
         expires_at=datetime.now() + timedelta(seconds=10),
         grant_type="DEVELOPMENT GRANT TYPE",
     )
+
+
+@cache
+def job_cache() -> JobCache:
+    return JobCache(sessionmaker=sessionmaker, size=mainframe_settings.cache_size)
 
 
 class PermissionsValidator:

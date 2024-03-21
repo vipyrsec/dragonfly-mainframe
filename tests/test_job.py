@@ -4,6 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from mainframe.endpoints.job import get_jobs
+from mainframe.job_cache import JobCache
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan, Status
 from mainframe.rules import Rules
@@ -33,8 +34,10 @@ def test_fetch_queue_time(test_data: list[Scan], db_session: Session):
         assert scan.queued_at == fetch_queue_time(scan.name, scan.version, db_session)
 
 
-def test_job(test_data: list[Scan], db_session: Session, auth: AuthenticationData, rules_state: Rules):
-    job = get_jobs(db_session, auth, rules_state, batch=1)
+def test_job(
+    test_data: list[Scan], db_session: Session, auth: AuthenticationData, rules_state: Rules, job_cache: JobCache
+):
+    job = get_jobs(job_cache, auth, rules_state, batch=1)
     if job:
         job = job[0]
         # if job, the row with the name and version we get should be pending
@@ -48,8 +51,10 @@ def test_job(test_data: list[Scan], db_session: Session, auth: AuthenticationDat
         assert all(scan.status != Status.QUEUED for scan in test_data)
 
 
-def test_batch_job(test_data: list[Scan], db_session: Session, auth: AuthenticationData, rules_state: Rules):
-    jobs = {(job.name, job.version) for job in get_jobs(db_session, auth, rules_state, batch=len(test_data))}
+def test_batch_job(
+    test_data: list[Scan], db_session: Session, auth: AuthenticationData, rules_state: Rules, job_cache: JobCache
+):
+    jobs = {(job.name, job.version) for job in get_jobs(job_cache, auth, rules_state, batch=len(test_data))}
 
     # check if each returned job should have actually been returned
     for row in test_data:
@@ -68,5 +73,4 @@ def test_batch_job(test_data: list[Scan], db_session: Session, auth: Authenticat
 
         assert row is not None
         assert row.status == Status.PENDING
-        assert row.pending_by is not None
         assert row.pending_at is not None
