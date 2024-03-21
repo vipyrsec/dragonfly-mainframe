@@ -116,7 +116,9 @@ def lookup_package_info(
     version: Optional[str] = None,
 ):
     """
-    Lookup information on scanned packages based on name, version, or time scanned.
+    Lookup information on scanned packages based on name, version, or time
+    scanned. If multiple packages are returned, they are ordered with the most
+    recently queued package first.
 
     Args:
         since: A int representing a Unix timestamp representing when to begin the search from.
@@ -156,7 +158,7 @@ def lookup_package_info(
         )
         raise HTTPException(status_code=400)
 
-    query = select(Scan).options(selectinload(Scan.rules))
+    query = select(Scan).order_by(Scan.queued_at.desc()).options(selectinload(Scan.rules))
     if nn_name:
         query = query.where(Scan.name == name)
     if nn_version:
