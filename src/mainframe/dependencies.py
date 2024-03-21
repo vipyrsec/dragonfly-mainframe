@@ -5,18 +5,11 @@ from typing import Annotated
 import httpx
 from fastapi import Depends, Request
 from letsbuilda.pypi import PyPIServices
-from msgraph.core import GraphClient
 
 from mainframe.authorization_header_elements import get_bearer_token
 from mainframe.custom_exceptions import PermissionDeniedException
 from mainframe.json_web_token import AuthenticationData, JsonWebToken
 from mainframe.rules import Rules
-from mainframe.utils.microsoft import build_ms_graph_client
-
-
-@cache
-def get_ms_graph_client() -> GraphClient:  # type: ignore
-    return build_ms_graph_client()  # type: ignore
 
 
 @cache
