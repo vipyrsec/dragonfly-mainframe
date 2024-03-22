@@ -9,7 +9,7 @@ from letsbuilda.pypi.exceptions import PackageNotFoundError
 from sqlalchemy import select, tuple_
 from sqlalchemy.exc import IntegrityError
 from concurrent.futures import ThreadPoolExecutor
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, joinedload
 
 from mainframe.database import get_db
 from mainframe.dependencies import get_pypi_client, validate_token
@@ -43,7 +43,7 @@ def submit_results(
     version = result.version
 
     scan = session.scalar(
-        select(Scan).where(Scan.name == name).where(Scan.version == version).options(selectinload(Scan.rules))
+        select(Scan).where(Scan.name == name).where(Scan.version == version).options(joinedload(Scan.rules))
     )
 
     log = logger.bind(package={"name": name, "version": version})
@@ -158,7 +158,7 @@ def lookup_package_info(
         )
         raise HTTPException(status_code=400)
 
-    query = select(Scan).order_by(Scan.queued_at.desc()).options(selectinload(Scan.rules))
+    query = select(Scan).order_by(Scan.queued_at.desc()).options(joinedload(Scan.rules), joinedload(Scan.download_urls))
     if nn_name:
         query = query.where(Scan.name == name)
     if nn_version:
@@ -169,7 +169,7 @@ def lookup_package_info(
     data = session.scalars(query)
 
     log.info("Package information queried")
-    return data.all()
+    return data.unique().all()
 
 
 def _deduplicate_packages(packages: list[PackageSpecifier], session: Session) -> set[tuple[str, str]]:
