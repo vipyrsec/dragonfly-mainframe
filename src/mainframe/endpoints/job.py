@@ -4,7 +4,7 @@ from typing import Annotated
 import structlog
 from fastapi import APIRouter, Depends
 from sqlalchemy import and_, or_, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, joinedload
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
@@ -53,9 +53,8 @@ def get_jobs(
         )
         .order_by(Scan.pending_at.nulls_first(), Scan.queued_at)
         .limit(batch)
-        .options(selectinload(Scan.download_urls))
-        .with_for_update()
-    ).all()
+        .options(joinedload(Scan.download_urls))
+    ).unique().all()
 
     response_body: list[JobResult] = []
     for scan in scans:

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
 from letsbuilda.pypi import PackageNotFoundError, PyPIServices
 from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, joinedload
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
@@ -44,8 +44,8 @@ def _lookup_package(name: str, version: str, session: Session) -> Scan:
 
     log = logger.bind(package={"name": name, "version": version})
 
-    query = select(Scan).where(Scan.name == name).options(selectinload(Scan.rules))
-    scans = session.scalars(query).all()
+    query = select(Scan).where(Scan.name == name).options(joinedload(Scan.rules))
+    scans = session.scalars(query).unique().all()
 
     if not scans:
         error = HTTPException(404, detail=f"No records for package `{name}` were found in the database")
