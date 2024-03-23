@@ -34,6 +34,8 @@ class Mainframe(EnvConfig):
 
     job_timeout: int = 60 * 2
 
+    score_threshold: int = 5
+
 
 mainframe_settings = Mainframe()  # pyright: ignore
 
