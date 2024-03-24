@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from mainframe.endpoints.job import get_jobs
-from mainframe.endpoints.package import _deduplicate_packages # pyright: ignore [reportPrivateUsage]
+from mainframe.endpoints.package import _deduplicate_packages  # pyright: ignore [reportPrivateUsage]
 from mainframe.endpoints.package import (
     batch_queue_package,
     lookup_package_info,
@@ -137,11 +137,13 @@ def test_batch_queue(db_session: Session, pypi_client: PyPIServices, auth: Authe
     existing_packages = {(p.name, p.version) for p in db_session.scalars(select(Scan))}
     assert (pack.name, pack.version) in existing_packages
 
+
 def test_batch_queue_empty_packages(db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData):
     before = sorted((s.name, s.version) for s in db_session.scalars(select(Scan)))
     batch_queue_package([], db_session, auth, pypi_client)
     after = sorted((s.name, s.version) for s in db_session.scalars(select(Scan)))
     assert before == after
+
 
 @pytest.mark.parametrize("packages", [[PackageSpecifier(name="c", version="1.0.0")], []])
 def test_deduplicate_packages(test_data: list[Scan], packages: list[PackageSpecifier], db_session: Session):
