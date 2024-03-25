@@ -16,6 +16,7 @@ from sqlalchemy import (
     Index,
     Table,
     UniqueConstraint,
+    PrimaryKeyConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (
@@ -50,8 +51,9 @@ class Status(Enum):
 package_rules = Table(
     "package_rules",
     Base.metadata,
-    Column("scan_id", ForeignKey("scans.scan_id"), primary_key=True),
-    Column("rule_id", ForeignKey("rules.id"), primary_key=True),
+    Column("scan_id", ForeignKey("scans.scan_id")),
+    Column("rule_id", ForeignKey("rules.id")),
+    PrimaryKeyConstraint("scan_id", "rule_id")
 )
 
 
