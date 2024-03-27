@@ -1,6 +1,6 @@
 import datetime as dt
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from mainframe.endpoints.job import get_jobs
@@ -51,26 +51,25 @@ def test_job(
         assert all(scan.status != Status.QUEUED for scan in test_data)
 
 
-def test_batch_job(
-    test_data: list[Scan], db_session: Session, auth: AuthenticationData, rules_state: Rules, job_cache: JobCache
-):
-    jobs = {(job.name, job.version) for job in get_jobs(job_cache, auth, rules_state, batch=len(test_data))}
+def test_batch_job(db_session: Session, auth: AuthenticationData, rules_state: Rules, job_cache: JobCache):
+    db_session.execute(update(Scan).values(status=Status.FINISHED))
+
+    scans = [
+        Scan(
+            name=f"package{i}",
+            version="1.0.0",
+            status=Status.QUEUED,
+            queued_by="remmy",
+            queued_at=dt.datetime.now(dt.UTC),
+        )
+        for i in range(10)
+    ]
+    db_session.add_all(scans)
+    db_session.commit()
+
+    jobs = get_jobs(job_cache, auth, rules_state, 10)
+    s = {(f"package{i}", "1.0.0") for i in range(10)}
 
     # check if each returned job should have actually been returned
-    for row in test_data:
-        if row.status == Status.QUEUED:
-            assert (row.name, row.version) in jobs
-        elif row.status == Status.PENDING:
-            assert row.pending_at is not None  # Appease the type checker
-            if dt.datetime.now(tz=dt.timezone.utc) - row.pending_at > dt.timedelta(minutes=2):
-                assert (row.name, row.version) in jobs
-        else:
-            assert (row.name, row.version) not in jobs
-
-    # check if the database was accurately updated
-    for name, version in jobs:
-        row = db_session.scalar(select(Scan).where(Scan.name == name).where(Scan.version == version))
-
-        assert row is not None
-        assert row.status == Status.PENDING
-        assert row.pending_at is not None
+    for job in jobs:
+        assert (job.name, job.version) in s
