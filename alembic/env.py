@@ -14,7 +14,9 @@ config = context.config
 load_dotenv()
 
 # modify the config here because ConfigParser can't handle default values
-config.set_main_option("sqlalchemy.url", os.getenv("DB_URL", "postgresql+psycopg2://postgres:postgres@localhost:5432/dragonfly"))
+config.set_main_option(
+    "sqlalchemy.url", os.getenv("DB_URL", "postgresql+psycopg2://postgres:postgres@localhost:5432/dragonfly")
+)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
