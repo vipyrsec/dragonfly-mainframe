@@ -5,7 +5,7 @@ from queue import Queue
 from typing import Optional
 
 import structlog
-from sqlalchemy import and_, or_, select, tuple_
+from sqlalchemy import select, tuple_
 from sqlalchemy.orm import Session, selectinload, sessionmaker
 
 from mainframe.constants import mainframe_settings
@@ -25,7 +25,6 @@ class JobCache:
 
         self._refill_lock = threading.Lock()
         self._presisting_lock = threading.Lock()
-        self.enabled = size > 1
 
         self.sessionmaker = sessionmaker
 
@@ -156,42 +155,8 @@ class JobCache:
 
         session.commit()
 
-    def fetch_job(self) -> Optional[Scan]:
-        """Directly fetch a job from the database. Used only when cache is disabled."""
-        query = (
-            select(Scan)
-            .where(
-                or_(
-                    Scan.status == Status.QUEUED,
-                    and_(
-                        Scan.pending_at
-                        < datetime.now(timezone.utc) - timedelta(seconds=mainframe_settings.job_timeout),
-                        Scan.status == Status.PENDING,
-                    ),
-                )
-            )
-            .order_by(Scan.pending_at.nulls_first(), Scan.queued_at)
-            .options(selectinload(Scan.download_urls))
-            .with_for_update()
-        )
-
-        session = self.sessionmaker()
-        scan = session.scalar(query)
-        if scan is None:
-            return None
-
-        scan.status = Status.PENDING
-        scan.pending_at = datetime.now(timezone.utc)
-
-        session.commit()
-
-        return scan
-
     def get_job(self) -> Optional[Scan]:
         """Get one job. Refills the cache if necessary."""
-
-        if not self.enabled:
-            return self.fetch_job()
 
         with self._refill_lock:
             if self.scan_queue.empty():
@@ -212,13 +177,6 @@ class JobCache:
     def submit_result(self, result: PackageScanResult | PackageScanResultFail) -> None:
         logger.info("Incoming result", result=result)
 
-        if not self.enabled:
-            with self._presisting_lock:
-                self.results_queue.put(result)
-                self.persist_all_results()
-            logger.debug("Caching disabled. Wrote results directly to DB.")
-            return
-
         if scan := next((s for s in self.pending if (s.name, s.version) == (result.name, result.version)), None):
             self.pending.remove(scan)
             logger.info("Removed scan from pending list", name=scan.name, version=scan.version)
@@ -226,9 +184,9 @@ class JobCache:
             logger.warn("Scan not found in pending list", name=result.name, version=result.version)
 
         with self._presisting_lock:
+            self.results_queue.put(result)
+            logger.info("Put result in results queue", result=result)
+
             if self.results_queue.full():
                 self.persist_all_results()
                 logger.info("Results queue full, drained and wrote to DB")
-
-            self.results_queue.put(result)
-            logger.info("Put result in results queue", result=result)
