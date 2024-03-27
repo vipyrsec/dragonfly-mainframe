@@ -46,7 +46,7 @@ class JsonWebToken:
         try:
             jwks_client = jwt.PyJWKClient(self.jwks_uri)
             jwt_signing_key = jwks_client.get_signing_key_from_jwt(self.jwt_access_token).key
-            payload = jwt.decode( # type: ignore
+            payload = jwt.decode(  # type: ignore
                 self.jwt_access_token,
                 jwt_signing_key,
                 algorithms=self.algorithm,  # type: ignore

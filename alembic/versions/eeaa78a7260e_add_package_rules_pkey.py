@@ -5,12 +5,13 @@ Revises: 6761c4a3421c
 Create Date: 2024-03-23 17:06:28.438393
 
 """
+
 from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision = 'eeaa78a7260e'
-down_revision = '6761c4a3421c'
+revision = "eeaa78a7260e"
+down_revision = "6761c4a3421c"
 branch_labels = None
 depends_on = None
 

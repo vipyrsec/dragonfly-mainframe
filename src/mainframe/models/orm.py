@@ -53,7 +53,7 @@ package_rules = Table(
     Base.metadata,
     Column("scan_id", ForeignKey("scans.scan_id")),
     Column("rule_id", ForeignKey("rules.id")),
-    PrimaryKeyConstraint("scan_id", "rule_id")
+    PrimaryKeyConstraint("scan_id", "rule_id"),
 )
 
 
