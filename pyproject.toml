@@ -22,7 +22,7 @@ dependencies = [
     "requests>=2.30.0",
     "httpx>=0.24.1",
     "psycopg2-binary",
-    "pyjwt==2.8.0",
+    "pyjwt[crypto]==2.8.0",
 ]
 dynamic = ["version"]
 
