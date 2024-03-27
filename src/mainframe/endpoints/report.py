@@ -231,7 +231,13 @@ def report_package(
             extra=dict(yara_rules=rules_matched),
         )
 
-        httpx.post(f"{mainframe_settings.reporter_url}/report/{name}", json=jsonable_encoder(report))
+        response = httpx.post(f"{mainframe_settings.reporter_url}/report/{name}", json=jsonable_encoder(report))
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError:
+            detail = "Dragonfly Reporter service failed"
+            log.error(detail, status=response.status_code, message=response.text)
+            raise HTTPException(400, detail=detail)
 
     log.info(
         "Sent report",
