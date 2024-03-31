@@ -36,7 +36,7 @@ def superuser_engine() -> Engine:
     Otherwise, tests should prefer the `engine` fixture in order to better
     mimic the production user.
     """
-    return create_engine("postgresql+psycopg2://postgres:postgres@db:5432/dragonfly", pool_size=5, max_overflow=17)
+    return create_engine("postgresql+psycopg2://postgres:postgres@db:5432/dragonfly", pool_size=5, max_overflow=10)
 
 
 @pytest.fixture(scope="session")
@@ -47,7 +47,7 @@ def engine(superuser_engine: Engine) -> Engine:
         s.execute(text("GRANT pg_read_all_data TO dragonfly"))
         s.execute(text("GRANT pg_write_all_data TO dragonfly"))
 
-    return create_engine("postgresql+psycopg2://dragonfly:postgres@db:5432/dragonfly", pool_size=5, max_overflow=17)
+    return create_engine("postgresql+psycopg2://dragonfly:postgres@db:5432/dragonfly", pool_size=5, max_overflow=10)
 
 
 @pytest.fixture(params=data, scope="session")
