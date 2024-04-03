@@ -24,21 +24,21 @@ class Package(BaseModel):
 
     scan_id: str
     name: str
-    version: str = ""
-    status: str = ""
+    version: Optional[str]
+    status: Optional[str]
     score: Optional[int]
-    inspector_url: Optional[str] = ""
+    inspector_url: Optional[str]
     rules: list[str] = []
     download_urls: list[str] = []
     queued_at: Optional[datetime]
-    queued_by: str = ""
+    queued_by: Optional[str]
     reported_at: Optional[datetime]
     reported_by: Optional[str]
     pending_at: Optional[datetime]
-    pending_by: Optional[str] = None
+    pending_by: Optional[str]
     finished_at: Optional[datetime]
-    finished_by: Optional[str] = None
-    commit_hash: Optional[str] = ""
+    finished_by: Optional[str]
+    commit_hash: Optional[str]
 
     @classmethod
     def from_db(cls, scan: Scan):

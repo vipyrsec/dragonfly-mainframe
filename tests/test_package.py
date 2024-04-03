@@ -19,7 +19,7 @@ from mainframe.endpoints.package import (
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan, Status
 from mainframe.models.schemas import (
-    Package,
+    Package as ResponsePackage,
     PackageScanResult,
     PackageScanResultFail,
     PackageSpecifier,
@@ -250,7 +250,7 @@ def test_package_from_db():
         queued_at=datetime(2024, 3, 5, 12, 30, 0),
     )
 
-    pkg = Package.from_db(scan)
+    pkg = ResponsePackage.from_db(scan)
 
     assert pkg.name == "pyfoo"
     assert pkg.version == "3.12.2"
@@ -273,7 +273,7 @@ def test_datetime_serialization():
         queued_by="Tina",
     )
 
-    pkg = Package.from_db(scan).model_dump()
+    pkg = ResponsePackage.from_db(scan).model_dump()
     dt = int(datetime(2023, 10, 12, 13, 45, 30).timestamp())
 
     assert pkg.get("queued_at") == dt
