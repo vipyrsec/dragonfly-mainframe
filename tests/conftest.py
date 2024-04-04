@@ -25,12 +25,12 @@ logger = logging.getLogger(__file__)
 
 @pytest.fixture(scope="session")
 def sm(engine: Engine) -> sessionmaker[Session]:
-    return sessionmaker(bind=engine, autoflush=False, join_transaction_mode="create_savepoint", expire_on_commit=False)
+    return sessionmaker(bind=engine, expire_on_commit=False)
 
 
 @pytest.fixture(scope="session")
 def engine() -> Engine:
-    return create_engine(mainframe_settings.db_url)
+    return create_engine(mainframe_settings.db_url, pool_size=5, max_overflow=17)
 
 
 @pytest.fixture(params=data, scope="session")
@@ -38,23 +38,17 @@ def test_data(request: pytest.FixtureRequest) -> list[Scan]:
     return request.param
 
 
-@pytest.fixture(scope="session", autouse=True)
-def initial_populate_db(engine: Engine, sm: sessionmaker[Session], test_data: list[Scan]):
+@pytest.fixture(autouse=True)
+def db_session(engine: Engine, test_data: list[Scan], sm: sessionmaker[Session]) -> Generator[Session, None, None]:
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
+    with sm() as s, s.begin():
+        s.add_all(deepcopy(test_data))
 
-    session = sm()
-    for scan in test_data:
-        session.add(deepcopy(scan))
-    session.commit()
+    with sm() as s:
+        yield s
 
-
-@pytest.fixture(autouse=True)
-def db_session(sm: sessionmaker[Session]) -> Generator[Session, None, None]:
-    session = sm()
-    session.commit = lambda: session.flush()
-    yield session
-    session.rollback()
+    Base.metadata.drop_all(engine)
 
 
 @pytest.fixture(scope="session")

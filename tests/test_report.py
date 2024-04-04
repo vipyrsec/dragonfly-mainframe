@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from copy import deepcopy
 from typing import Optional
 from unittest.mock import MagicMock
 
@@ -256,32 +257,7 @@ def test_report_missing_additional_information(body: ReportPackageBody, scan: Sc
 @pytest.mark.parametrize(
     ("scans", "name", "version", "expected_status_code"),
     [
-        (
-            [
-                Scan(
-                    name="c",
-                    version="1.0.0",
-                    status=Status.FINISHED,
-                    score=0,
-                    inspector_url=None,
-                    rules=[],
-                    download_urls=[],
-                    queued_at=datetime.now() - timedelta(seconds=60),
-                    queued_by="remmy",
-                    pending_at=datetime.now() - timedelta(seconds=30),
-                    pending_by="remmy",
-                    finished_at=datetime.now() - timedelta(seconds=10),
-                    finished_by="remmy",
-                    reported_at=None,
-                    reported_by=None,
-                    fail_reason=None,
-                    commit_hash="test commit hash",
-                )
-            ],
-            "a",
-            "1.0.0",
-            404,
-        ),
+        ([], "a", "1.0.0", 404),
         (
             [
                 Scan(
@@ -377,8 +353,8 @@ def test_report_missing_additional_information(body: ReportPackageBody, scan: Sc
 def test_report_lookup_package_validation(
     db_session: Session, scans: list[Scan], name: str, version: str, expected_status_code: int
 ):
-    db_session.add_all(scans)
-    db_session.commit()
+    with db_session.begin():
+        db_session.add_all(deepcopy(scans))
 
     with pytest.raises(HTTPException) as e:
         _lookup_package(name, version, db_session)
