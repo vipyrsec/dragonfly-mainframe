@@ -9,10 +9,9 @@ import pytest
 from letsbuilda.pypi import PyPIServices
 from letsbuilda.pypi.models import Package
 from letsbuilda.pypi.models.models_package import Distribution, Release
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from mainframe.constants import mainframe_settings
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Base, Scan
 from mainframe.rules import Rules
@@ -29,8 +28,26 @@ def sm(engine: Engine) -> sessionmaker[Session]:
 
 
 @pytest.fixture(scope="session")
-def engine() -> Engine:
-    return create_engine(mainframe_settings.db_url, pool_size=5, max_overflow=17)
+def superuser_engine() -> Engine:
+    """
+    Creates an engine using a user with superuser permissions.
+
+    This should only be used for tests that need superuser permissions.
+    Otherwise, tests should prefer the `engine` fixture in order to better
+    mimic the production user.
+    """
+    return create_engine("postgresql+psycopg2://postgres:postgres@db:5432/dragonfly", pool_size=5, max_overflow=17)
+
+
+@pytest.fixture(scope="session")
+def engine(superuser_engine: Engine) -> Engine:
+    with Session(bind=superuser_engine) as s, s.begin():
+        s.execute(text("DROP USER IF EXISTS dragonfly"))
+        s.execute(text("CREATE USER dragonfly WITH LOGIN PASSWORD 'postgres'"))
+        s.execute(text("GRANT pg_read_all_data TO dragonfly"))
+        s.execute(text("GRANT pg_write_all_data TO dragonfly"))
+
+    return create_engine("postgresql+psycopg2://dragonfly:postgres@db:5432/dragonfly", pool_size=5, max_overflow=17)
 
 
 @pytest.fixture(params=data, scope="session")
@@ -39,16 +56,18 @@ def test_data(request: pytest.FixtureRequest) -> list[Scan]:
 
 
 @pytest.fixture(autouse=True)
-def db_session(engine: Engine, test_data: list[Scan], sm: sessionmaker[Session]) -> Generator[Session, None, None]:
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
+def db_session(
+    superuser_engine: Engine, test_data: list[Scan], sm: sessionmaker[Session]
+) -> Generator[Session, None, None]:
+    Base.metadata.drop_all(superuser_engine)
+    Base.metadata.create_all(superuser_engine)
     with sm() as s, s.begin():
         s.add_all(deepcopy(test_data))
 
     with sm() as s:
         yield s
 
-    Base.metadata.drop_all(engine)
+    Base.metadata.drop_all(superuser_engine)
 
 
 @pytest.fixture(scope="session")
