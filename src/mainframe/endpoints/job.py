@@ -54,6 +54,7 @@ def get_jobs(
         )
         .limit(batch)
         .options(joinedload(Scan.download_urls))
+        .with_for_update(skip_locked=True)
         .cte()
     )
 
