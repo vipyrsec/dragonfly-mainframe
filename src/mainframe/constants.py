@@ -24,7 +24,7 @@ class Mainframe(EnvConfig):
 
     reporter_url: str = ""
 
-    db_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432"
+    db_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/dragonfly"
 
     dragonfly_github_token: str
 
