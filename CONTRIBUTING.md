@@ -140,17 +140,11 @@ You'll need to have the following environment variables set.
 | `JOB_TIMEOUT` | int | 60 \* 2 | The maximum time to wait for clients to respond with job results. After this time has elapsed, the server will begin distributing this job to other clients |
 | | | | |
 | `REPORTER_URL` | str | "" | The url of the reporter microservice |
-| `EMAIL_RECIPIENT` | str | "security@pypi.org" | The recipient address of report emails |
-| `BCC_RECIPIENTS` | set | set() | Additional addresses that should be BCC'd in email reports. Defaults to an empty set. |
 | `DB_URL` | str | "postgresql+psycopg2://postgres:postgres@localhost:5432" | PostgreSQL database connection string |
 | | | | |
 | `SENTRY_DSN` | str | "" | Sentry Data Source Name (DSN) |
 | `SENTRY_ENVIRONMENT` | str | "" | Sentry environment |
 | `SENTRY_RELEASE_PREFIX` | str | "" | Sentry release prefix |
-| | | | |
-| `MICROSOFT_TENANT_ID` | str | "" | Microsoft tenant ID for automated emails |
-| `MICROSOFT_CLIENT_ID` | str | "" | Microsoft client ID for automated emails |
-| `MICROSOFT_CLIENT_SECRET` | str | "" | Microsoft client secret for automated emails |
 
 **NOTE**: Environment variables where the `default` column is empty are required for the application to startup
 
