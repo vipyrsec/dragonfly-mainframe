@@ -5,6 +5,7 @@ Revises:
 Create Date: 2023-05-09 17:10:34.139530
 
 """
+
 import sqlalchemy as sa
 from sqlalchemy import FetchedValue
 
