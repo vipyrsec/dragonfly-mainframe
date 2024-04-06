@@ -27,7 +27,7 @@ ENV GIT_SHA=$git_sha
 
 ENV PYTHONPATH=/app/pkgs
 WORKDIR /app
-COPY --from=builder /app/__pypackages__/3.11/lib pkgs/
+COPY --from=builder /app/__pypackages__/3.12/lib pkgs/
 
 COPY alembic/ alembic/
 COPY alembic.ini ./
