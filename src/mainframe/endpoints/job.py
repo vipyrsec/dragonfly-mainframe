@@ -4,7 +4,7 @@ from typing import Annotated
 import structlog
 from fastapi import APIRouter, Depends
 from sqlalchemy import and_, or_, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, joinedload
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
@@ -40,22 +40,26 @@ def get_jobs(
     packages are always processed after newly queued packages.
     """
 
-    scans = session.scalars(
-        select(Scan)
-        .where(
-            or_(
-                Scan.status == Status.QUEUED,
-                and_(
-                    Scan.pending_at < datetime.now(timezone.utc) - timedelta(seconds=mainframe_settings.job_timeout),
-                    Scan.status == Status.PENDING,
-                ),
+    scans = (
+        session.scalars(
+            select(Scan)
+            .where(
+                or_(
+                    Scan.status == Status.QUEUED,
+                    and_(
+                        Scan.pending_at
+                        < datetime.now(timezone.utc) - timedelta(seconds=mainframe_settings.job_timeout),
+                        Scan.status == Status.PENDING,
+                    ),
+                )
             )
+            .order_by(Scan.pending_at.nulls_first(), Scan.queued_at)
+            .limit(batch)
+            .options(joinedload(Scan.download_urls))
         )
-        .order_by(Scan.pending_at.nulls_first(), Scan.queued_at)
-        .limit(batch)
-        .options(selectinload(Scan.download_urls))
-        .with_for_update()
-    ).all()
+        .unique()
+        .all()
+    )
 
     response_body: list[JobResult] = []
     for scan in scans:

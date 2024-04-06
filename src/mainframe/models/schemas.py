@@ -1,7 +1,8 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
+from enum import Enum
 
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, Field, field_serializer
 
 from mainframe.models.orm import Scan
 
@@ -92,6 +93,34 @@ class ReportPackageBody(PackageSpecifier):
     recipient: Optional[str]
     inspector_url: Optional[str]
     additional_information: Optional[str]
+    use_email: bool = False
+
+
+class EmailReport(PackageSpecifier):
+    """Model for a report using email"""
+
+    rules_matched: list[str]
+    recipient: Optional[str] = None
+    inspector_url: Optional[str]
+    additional_information: Optional[str]
+
+
+# Taken from
+# https://github.com/pypi/warehouse/blob/4d2628560e6e764dc80a026fa080e9cf70446c81/warehouse/observations/models.py#L109-L122
+class ObservationKind(Enum):
+    DependencyConfusion = "is_dependency_confusion"
+    Malware = "is_malware"
+    Spam = "is_spam"
+    Other = "something_else"
+
+
+class ObservationReport(BaseModel):
+    """Model for a report using the PyPI Observation Api"""
+
+    kind: ObservationKind
+    summary: str
+    inspector_url: Optional[str]
+    extra: dict[str, Any] = Field(default_factory=dict)
 
 
 class PackageScanResult(PackageSpecifier):

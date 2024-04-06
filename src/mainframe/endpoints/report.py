@@ -1,61 +1,150 @@
 import datetime as dt
-from textwrap import dedent
-from typing import Annotated
+from typing import Annotated, Optional
 
+import httpx
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
-from letsbuilda.pypi import PyPIServices
-from letsbuilda.pypi.exceptions import PackageNotFoundError
-from msgraph.core import GraphClient
+from fastapi.encoders import jsonable_encoder
+from letsbuilda.pypi import PackageNotFoundError, PyPIServices
 from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, joinedload
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
-from mainframe.dependencies import get_ms_graph_client, get_pypi_client, validate_token
+from mainframe.dependencies import get_pypi_client, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan
-from mainframe.models.schemas import Error, ReportPackageBody
-from mainframe.utils.mailer import send_email
-from mainframe.utils.pypi import file_path_from_inspector_url
+from mainframe.models.schemas import (
+    EmailReport,
+    Error,
+    ObservationKind,
+    ObservationReport,
+    ReportPackageBody,
+)
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
-def send_report_email(
-    graph_client: GraphClient,  # type: ignore
-    *,
-    recipient: str,
-    package_name: str,
-    package_version: str,
-    inspector_url: str,
-    additional_information: str | None,
-    rules_matched: list[str],
-):
-    content = f"""
-        PyPI Malicious Package Report
-        -
-        Package Name: {package_name}
-        Version: {package_version}
-        File path: {file_path_from_inspector_url(inspector_url)}
-        Inspector URL: {inspector_url}
-        Additional Information: {additional_information or "No user description provided"}
-        Yara rules matched: {", ".join(rules_matched) or "No rules matched"}
-    """
-    content = dedent(content)
-
-    send_email(
-        graph_client,  # type: ignore
-        subject=f"Automated PyPI Malware Report: {package_name}@{package_version}",
-        content=content,
-        reply_to_recipients=[mainframe_settings.email_reply_to],
-        sender=mainframe_settings.email_sender,
-        to_recipients=[recipient],
-        bcc_recipients=list(mainframe_settings.bcc_recipients),
-    )
-
-
 router = APIRouter(tags=["report"])
+
+
+def _lookup_package(name: str, version: str, session: Session) -> Scan:
+    """
+    Checks if the package is valid according to our database.
+
+    Returns:
+        True if the package exists in the database.
+
+    Raises:
+        HTTPException: 404 Not Found if the name was not found in the database,
+            or the specified name and version was not found in the database. 409
+            Conflict if another version of the same package has already been
+            reported.
+    """
+
+    log = logger.bind(package={"name": name, "version": version})
+
+    query = select(Scan).where(Scan.name == name).options(joinedload(Scan.rules))
+    scans = session.scalars(query).unique().all()
+
+    if not scans:
+        error = HTTPException(404, detail=f"No records for package `{name}` were found in the database")
+        log.error(
+            f"No records for package {name} found in database", error_message=error.detail, tag="package_not_found_db"
+        )
+        raise error
+
+    for scan in scans:
+        if scan.reported_at is not None:
+            error = HTTPException(
+                409,
+                detail=(
+                    f"Only one version of a package may be reported at a time. "
+                    f"(`{scan.name}@{scan.version}` was already reported)"
+                ),
+            )
+            log.error(
+                "Only one version of a package allowed to be reported at a time",
+                error_message=error.detail,
+                tag="multiple_versions_prohibited",
+            )
+            raise error
+
+    scan = session.scalar(query.where(Scan.version == version))
+    if scan is None:
+        error = HTTPException(
+            404, detail=f"Package `{name}` has records in the database, but none with version `{version}`"
+        )
+        log.error(f"No version {version} for package {name} in database", tag="invalid_version")
+        raise error
+
+    return scan
+
+
+def _validate_inspector_url(name: str, version: str, body_url: Optional[str], scan_url: Optional[str]) -> str:
+    """
+    Coalesce inspector_urls from ReportPackageBody and Scan.
+
+    Returns:
+        The inspector_url for the package.
+
+    Raises:
+        HTTPException: 400 Bad Request if the inspector_url was not passed in
+            `body` and not found in the database.
+    """
+    log = logger.bind(package={"name": name, "version": version})
+
+    inspector_url = body_url or scan_url
+    if inspector_url is None:
+        error = HTTPException(
+            400,
+            detail="inspector_url not given and not found in database",
+        )
+        log.error("Missing inspector_url field", error_message=error.detail, tag="missing_inspector_url")
+        raise error
+
+    return inspector_url
+
+
+def _validate_additional_information(body: ReportPackageBody, scan: Scan):
+    """
+    Validates the additional_information field.
+
+    Returns:
+        None if `body.additional_information` is valid.
+
+    Raises:
+        HTTPException: 400 Bad Request if `additional_information` was required
+            and was not passed
+    """
+    log = logger.bind(package={"name": body.name, "version": body.version})
+
+    if body.additional_information is None:
+        if len(scan.rules) == 0 or body.use_email is False:
+            if len(scan.rules) == 0:
+                detail = (
+                    f"additional_information is a required field as package "
+                    f"`{body.name}@{body.version}` has no matched rules in the database"
+                )
+            else:
+                detail = "additional_information is required when using Observation API"
+
+            error = HTTPException(400, detail=detail)
+            log.error(
+                "Missing additional_information field", error_message=detail, tag="missing_additional_information"
+            )
+            raise error
+
+
+def _validate_pypi(name: str, version: str, pypi_client: PyPIServices):
+    log = logger.bind(package={"name": name, "version": version})
+
+    try:
+        pypi_client.get_package_metadata(name, version)
+    except PackageNotFoundError:
+        error = HTTPException(404, detail="Package not found on PyPI")
+        log.error("Package not found on PyPI", tag="package_not_found_pypi")
+        raise error
 
 
 @router.post(
@@ -68,48 +157,39 @@ router = APIRouter(tags=["report"])
 def report_package(
     body: ReportPackageBody,
     session: Annotated[Session, Depends(get_db)],
-    graph_client: Annotated[GraphClient, Depends(get_ms_graph_client)],  # type: ignore
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
 ):
     """
-    Report a package by sending an email to `recipient` address with the appropriate format
+    Report a package to PyPI.
 
-    Packages that do not exist in the database (e.g it was not queued yet)
-    cannot be reported.
+    The optional `use_email` field can be used to send reports by email. This
+    defaults to `False`.
 
-    Packages that do not exist on PyPI cannot be reported.
+    There are some restrictions on what packages can be reported. They must:
+    - exist in the database
+    - exist on PyPI
+    - not already be reported
 
-    Packages that have already been reported cannot be reported.
+    While the `inspector_url` and `additional_information` fields are optional
+    in the schema, the API requires you to provide them in certain cases. Some
+    of those are outlined below.
 
-    While the `inspector_url` and `additional_information` fields are optional in the schema,
-    the API requires you to provide them in certain cases. Some of those are outlined below.
+    `inspector_url` and `additional_information` both must be provided if the
+    package being reported is in a `QUEUED` or `PENDING` state. That is, the
+    package has not yet been scanned and therefore has no records for
+    `inspector_url` or any matched rules
 
-    If the `recipient` field is not omitted, then that specified email address will be used
-    as the recipient to the report email. If omitted, it will be whatever is configured as
-    the default on the server. This is most likely `security@pypi.org` unless it is
-    overriden in the server configuration.
+    If the package has successfully been scanned (that is, it is in
+    a `FINISHED` state), and it has been determined to be malicious, then
+    neither `inspector_url` nor `additional_information` is required. If the
+    `inspector_url` is omitted, then it will default to a URL that points to
+    the file with the highest total score.
 
-    `inspector_url` and `additional_information` both must be provided if
-    the package being reported is in a `QUEUED` or `PENDING` state. That is, the package
-    has not yet been scanned and therefore has no records for `inspector_url`
-    or any matched rules
-
-    If the package has successfully been scanned (that is, it is in a `FINISHED` state),
-    and it has been determined to be malicious, then neither `inspector_url` nor `additional_information`
-    is required. If the `inspector_url` is omitted, then it will be that of the most malicious file scanned
-    (that is, the file with the highest aggregate yara weight score).
-    If the `additional_information` is omitted, the final e-mail sent to the destination address will read
-    "No user description provided."
-    If either of these fields are included, they override the default value in the database.
-
-    If the package has successfully been scanned (that is, it is in a `FINISHED` state),
-    and it has been determined NOT to be malicious (that is, it has no matched rules),
-    then you must provide `inspector_url` AND `additional_information`.
-
-    In all cases, the API will provide information on what fields it is missing and why.
-    This way, clients may retry the request with the proper information provided
-    if they had not done so properly the first time.
+    If the package has successfully been scanned (that is, it is in
+    a `FINISHED` state), and it has been determined NOT to be malicious (that
+    is, it has no matched rules), then you must provide `inspector_url` AND
+    `additional_information`.
     """
 
     name = body.name
@@ -117,106 +197,55 @@ def report_package(
 
     log = logger.bind(package={"name": name, "version": version})
 
-    try:
-        package_metadata = pypi_client.get_package_metadata(name, version)
-    except PackageNotFoundError:
-        error = HTTPException(404, detail=f"Package `{name}@{version}` was not found on PyPI")
-        log.debug(f"Package {name}@{version} was not found on PyPI", tag="package_not_found_pypi")
-        raise error
+    # Check our database first to avoid unnecessarily using PyPI API.
+    scan = _lookup_package(name, version, session)
+    inspector_url = _validate_inspector_url(name, version, body.inspector_url, scan.inspector_url)
+    _validate_additional_information(body, scan)
 
-    version = package_metadata.releases[0].version
-    log = logger.bind(package={"name": name, "version": version})
+    # If execution reaches here, we must have found a matching scan in our
+    # database. Check if the package we want to report exists on PyPI.
+    _validate_pypi(name, version, pypi_client)
 
-    query = select(Scan).where(Scan.name == name).options(selectinload(Scan.rules))
+    rules_matched: list[str] = [rule.name for rule in scan.rules]
 
-    rows = session.scalars(query).all()
-
-    inspector_url: str | None = None
-    additional_information: str | None = None
-    rules_matched: list[str] = []
-
-    if not rows:
-        error = HTTPException(404, detail=f"No records for package `{name}` were found in the database")
-        log.error(
-            f"No records for package {name} found in database", error_message=error.detail, tag="package_not_found_db"
+    if body.use_email is True:
+        report = EmailReport(
+            name=body.name,
+            version=body.version,
+            rules_matched=rules_matched,
+            recipient=body.recipient,
+            inspector_url=inspector_url,
+            additional_information=body.additional_information,
         )
-        raise error
 
-    for row in rows:
-        if row.reported_at is not None:
-            error = HTTPException(
-                409,
-                detail=(
-                    f"Only one version of a package may be reported at a time. "
-                    f"(`{row.name}@{row.version}` was already reported)"
-                ),
-            )
-            log.error(
-                "Only one version of a package allowed to be reported at a time",
-                error_message=error.detail,
-                tag="multiple_versions_prohibited",
-            )
-            raise error
-
-    row = session.scalar(query.where(Scan.version == version))
-    if row is None:
-        error = HTTPException(
-            404, detail=f"Package `{name}` has records in the database, but none with version `{version}`"
-        )
-        log.debug(f"No version {version} for package {name} in database", tag="invalid_version")
-        raise error
-
-    if body.inspector_url is None:
-        if row.inspector_url is None:
-            error = HTTPException(
-                400,
-                detail=f"inspector_url is a required field as package `{name}@{version}` inspector_url column as null.",
-            )
-            log.error("Missing inspector_url field", error_message=error.detail, tag="missing_inspector_url")
-            raise error
-
-        inspector_url = row.inspector_url
+        httpx.post(f"{mainframe_settings.reporter_url}/report/email", json=jsonable_encoder(report))
     else:
-        inspector_url = body.inspector_url
+        # We previously checked this condition, but the typechecker isn't smart
+        # enough to figure that out
+        assert body.additional_information is not None
 
-    if body.additional_information is None:
-        if len(row.rules) == 0:
-            error = HTTPException(
-                400,
-                detail=(
-                    f"additional_information is a required field as package "
-                    f"`{name}@{version}` has no matched rules in the database"
-                ),
-            )
-            log.debug("Missing additional_information field", tag="missing_additional_information")
-            raise error
+        report = ObservationReport(
+            kind=ObservationKind.Malware,
+            summary=body.additional_information,
+            inspector_url=inspector_url,
+            extra=dict(yara_rules=rules_matched),
+        )
 
-    rules_matched.extend(rule.name for rule in row.rules)
-
-    additional_information = body.additional_information
-
-    send_report_email(
-        graph_client,  # type: ignore
-        recipient=body.recipient or mainframe_settings.email_recipient,
-        package_name=name,
-        package_version=version,
-        inspector_url=inspector_url,
-        additional_information=additional_information,
-        rules_matched=rules_matched,
-    )
+        httpx.post(f"{mainframe_settings.reporter_url}/report/{name}", json=jsonable_encoder(report))
 
     log.info(
         "Sent report",
-        email_data={
+        report_data={
             "package_name": name,
             "package_version": version,
             "inspector_url": inspector_url,
-            "additional_information": additional_information,
+            "additional_information": body.additional_information,
             "rules_matched": rules_matched,
+            "use_email": body.use_email,
         },
         reported_by=auth.subject,
     )
 
-    row.reported_by = auth.subject
-    row.reported_at = dt.datetime.now(dt.timezone.utc)
+    scan.reported_by = auth.subject
+    scan.reported_at = dt.datetime.now(dt.timezone.utc)
     session.commit()

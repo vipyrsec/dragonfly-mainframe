@@ -22,10 +22,7 @@ class Mainframe(EnvConfig):
     auth0_domain: str = ""
     auth0_audience: str = ""
 
-    email_reply_to: str = "support@vipyrsec.com"
-    email_sender: str = "system@vipyrsec.com"
-    email_recipient: str = "security@pypi.org"
-    bcc_recipients: set[str] = set()
+    reporter_url: str = ""
 
     db_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432"
 
@@ -44,12 +41,3 @@ class _Sentry(EnvConfig, env_prefix="sentry_"):  # pyright: ignore
 
 
 Sentry = _Sentry()  # pyright: ignore
-
-
-class Microsoft(EnvConfig, env_prefix="microsoft_"):  # pyright: ignore
-    tenant_id: str = ""
-    client_id: str = ""
-    client_secret: str = ""
-
-
-microsoft_settings = Microsoft()  # pyright: ignore

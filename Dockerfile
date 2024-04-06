@@ -1,4 +1,4 @@
-FROM python:3.11-slim@sha256:edaf703dce209d774af3ff768fc92b1e3b60261e7602126276f9ceb0e3a96874 as builder
+FROM python:3.12-slim@sha256:5dc6f84b5e97bfb0c90abfb7c55f3cacc2cb6687c8f920b64a833a2219875997 as builder
 
 RUN pip install -U pip setuptools wheel
 RUN pip install pdm
@@ -19,7 +19,7 @@ ENV GIT_SHA="testing"
 
 CMD ["pdm", "run", "coverage"]
 
-FROM python:3.11-slim@sha256:edaf703dce209d774af3ff768fc92b1e3b60261e7602126276f9ceb0e3a96874 as prod
+FROM python:3.12-slim@sha256:5dc6f84b5e97bfb0c90abfb7c55f3cacc2cb6687c8f920b64a833a2219875997 as prod
 
 # Define Git SHA build argument for sentry
 ARG git_sha="development"
@@ -27,7 +27,7 @@ ENV GIT_SHA=$git_sha
 
 ENV PYTHONPATH=/app/pkgs
 WORKDIR /app
-COPY --from=builder /app/__pypackages__/3.11/lib pkgs/
+COPY --from=builder /app/__pypackages__/3.12/lib pkgs/
 
 COPY alembic/ alembic/
 COPY alembic.ini ./

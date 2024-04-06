@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from mainframe.endpoints.job import get_jobs
+from mainframe.endpoints.package import _deduplicate_packages  # pyright: ignore [reportPrivateUsage]
 from mainframe.endpoints.package import (
     batch_queue_package,
     lookup_package_info,
@@ -37,11 +38,11 @@ from mainframe.rules import Rules
     ],
 )
 def test_package_lookup(
-        since: Optional[int],
-        name: Optional[str],
-        version: Optional[str],
-        test_data: list[Scan],
-        db_session: Session,
+    since: Optional[int],
+    name: Optional[str],
+    version: Optional[str],
+    test_data: list[Scan],
+    db_session: Session,
 ):
     exp: set[tuple[str, str]] = set()
     for scan in test_data:
@@ -67,10 +68,10 @@ def test_package_lookup(
     ],
 )
 def test_package_lookup_rejects_invalid_combinations(
-        db_session: Session,
-        since: Optional[int],
-        name: Optional[str],
-        version: Optional[str],
+    db_session: Session,
+    since: Optional[int],
+    name: Optional[str],
+    version: Optional[str],
 ):
     """Test that invalid combinations are rejected with a 400 response code."""
 
@@ -131,18 +132,32 @@ def test_handle_fail(db_session: Session, test_data: list[Scan], auth: Authentic
         assert all(scan.status != Status.QUEUED for scan in test_data)
 
 
-def test_batch_queue(db_session: Session, test_data: list[Scan], pypi_client: PyPIServices, auth: AuthenticationData):
-    packages_to_add = [PackageSpecifier(name=scan.name, version=scan.version) for scan in test_data]
-    packages_to_add.append(PackageSpecifier(name="c", version="1.0.0"))
-    batch_queue_package(packages_to_add, db_session, auth, pypi_client)
+def test_batch_queue(db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData):
+    pack = PackageSpecifier(name="c", version="1.0.0")
+    batch_queue_package([pack], db_session, auth, pypi_client)
 
-    existing_packages = {(p.name, p.version) for p in db_session.scalars(select(Scan)).all()}
-    for package in packages_to_add:
-        assert (package.name, package.version) in existing_packages
+    existing_packages = {(p.name, p.version) for p in db_session.scalars(select(Scan))}
+    assert (pack.name, pack.version) in existing_packages
+
+
+def test_batch_queue_empty_packages(db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData):
+    before = sorted((s.name, s.version) for s in db_session.scalars(select(Scan)))
+    batch_queue_package([], db_session, auth, pypi_client)
+    after = sorted((s.name, s.version) for s in db_session.scalars(select(Scan)))
+    assert before == after
+
+
+@pytest.mark.parametrize("packages", [[PackageSpecifier(name="c", version="1.0.0")], []])
+def test_deduplicate_packages(test_data: list[Scan], packages: list[PackageSpecifier], db_session: Session):
+    non_unique = [PackageSpecifier(name=scan.name, version=scan.version) for scan in test_data]
+
+    result = _deduplicate_packages(non_unique + packages, db_session)
+
+    assert sorted(result) == sorted((p.name, p.version) for p in packages)
 
 
 def test_batch_queue_nonexistent_package(
-        db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData, monkeypatch: MonkeyPatch
+    db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData, monkeypatch: MonkeyPatch
 ):
     # Make get_package_metadata always throw PackageNotFoundError to simulate an invalid package
     def _side_effect(name: str, version: str):
@@ -169,7 +184,7 @@ def test_queue(db_session: Session, pypi_client: PyPIServices, auth: Authenticat
 
 
 def test_queue_nonexistent_package(
-        db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData, monkeypatch: MonkeyPatch
+    db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData, monkeypatch: MonkeyPatch
 ):
     # Make get_package_metadata always throw PackageNotFoundError to simulate an invalid package
     def _side_effect(name: str, version: str):
@@ -213,7 +228,7 @@ def test_submit_nonexistent_package(db_session: Session, auth: AuthenticationDat
 
 
 def test_submit_duplicate_package(
-        db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules
+    db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules
 ):
     job = get_jobs(db_session, auth, rules_state, batch=1)
 

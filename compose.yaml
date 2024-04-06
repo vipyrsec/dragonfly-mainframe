@@ -1,13 +1,8 @@
-version: "3.9"
-
 services:
   mainframe:
-    build:
-      context: .
-      dockerfile: Containerfile
-
+    build: .
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -32,6 +27,6 @@ services:
       timeout: 5s
       retries: 10
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_PASSWORD: postgres
