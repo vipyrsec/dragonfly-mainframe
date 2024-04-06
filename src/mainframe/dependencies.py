@@ -13,6 +13,12 @@ from mainframe.rules import Rules
 
 
 @cache
+def get_http_client() -> httpx.Client:
+    http_client = httpx.Client()
+    return http_client
+
+
+@cache
 def get_pypi_client() -> PyPIServices:
     http_client = httpx.Client()
     return PyPIServices(http_client)
