@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Optional
-from unittest.mock import MagicMock
+from unittest.mock import Mock
 
 import httpx
 import pytest
@@ -105,11 +105,12 @@ def test_report(
     db_session.add(scan)
     db_session.commit()
 
-    httpx.post = MagicMock()
+    mock_http_client = Mock(spec=httpx.Client)
+    mock_http_client.post = Mock()
 
-    report_package(body, db_session, auth, pypi_client)
+    report_package(body, db_session, auth, pypi_client, mock_http_client)
 
-    httpx.post.assert_called_once_with(url, json=jsonable_encoder(expected))
+    mock_http_client.post.assert_called_once_with(url, json=jsonable_encoder(expected))
 
     scan = db_session.scalar(select(Scan).where(Scan.name == "c").where(Scan.version == "1.0.0"))
 
@@ -412,3 +413,41 @@ def test_report_lookup_package(db_session: Session):
     res = _lookup_package("c", "1.0.0", db_session)
 
     assert res == scan
+
+
+def test_reporter_service_fail(db_session: Session, auth: AuthenticationData, pypi_client: PyPIServices):
+    scan = Scan(
+        name="abc",
+        version="1.0.0",
+        status=Status.FINISHED,
+        inspector_url="test inspector URL",
+        score=25,
+        queued_at=datetime.now(UTC) - timedelta(seconds=30),
+        queued_by="remmy",
+    )
+    db_session.add(scan)
+    db_session.commit()
+
+    mock_http_client = Mock(spec=httpx.Client)
+    mock_response = Mock(spec=httpx.Response)
+    mock_response.status_code = 400
+
+    def side_effect():
+        raise httpx.HTTPStatusError("Error", request=Mock(), response=mock_response)
+
+    mock_response.raise_for_status = Mock(side_effect=side_effect)
+    mock_http_client.post = Mock(return_value=mock_response)
+
+    body = ReportPackageBody(
+        name="abc",
+        version="1.0.0",
+        recipient=None,
+        inspector_url="test inspector url",
+        additional_information="this is a bad package",
+        use_email=True,
+    )
+
+    with pytest.raises(HTTPException) as err:
+        report_package(body, db_session, auth, pypi_client, mock_http_client)
+
+    assert err.value.status_code == 502

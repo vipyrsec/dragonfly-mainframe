@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
-from mainframe.dependencies import get_pypi_client, validate_token
+from mainframe.dependencies import get_http_client, get_pypi_client, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan
 from mainframe.models.schemas import (
@@ -159,6 +159,7 @@ def report_package(
     session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
+    http_client: Annotated[httpx.Client, Depends(get_http_client)],
 ):
     """
     Report a package to PyPI.
@@ -218,7 +219,14 @@ def report_package(
             additional_information=body.additional_information,
         )
 
-        httpx.post(f"{mainframe_settings.reporter_url}/report/email", json=jsonable_encoder(report))
+        response = http_client.post(f"{mainframe_settings.reporter_url}/report/email", json=jsonable_encoder(report))
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as err:
+            detail = "Dragonfly Reporter service failed"
+            log.error(detail, status=err.response.status_code, message=err.response.text)
+            raise HTTPException(502, detail=detail)
+
     else:
         # We previously checked this condition, but the typechecker isn't smart
         # enough to figure that out
@@ -231,7 +239,7 @@ def report_package(
             extra=dict(yara_rules=rules_matched),
         )
 
-        httpx.post(f"{mainframe_settings.reporter_url}/report/{name}", json=jsonable_encoder(report))
+        http_client.post(f"{mainframe_settings.reporter_url}/report/{name}", json=jsonable_encoder(report))
 
     log.info(
         "Sent report",
