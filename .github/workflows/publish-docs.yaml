@@ -26,7 +26,7 @@ jobs:
       - name: "Setup PDM"
         uses: pdm-project/setup-pdm@c050bdcb2405837648035b6678c75609d53a749f # v4
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: true
 
       - name: "Install dependencies"
