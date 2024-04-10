@@ -24,7 +24,7 @@ logger = logging.getLogger(__file__)
 
 @pytest.fixture(scope="session")
 def sm(engine: Engine) -> sessionmaker[Session]:
-    return sessionmaker(bind=engine, expire_on_commit=False)
+    return sessionmaker(bind=engine, expire_on_commit=False, autobegin=False)
 
 
 @pytest.fixture(scope="session")
