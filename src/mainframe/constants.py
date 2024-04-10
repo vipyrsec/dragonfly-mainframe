@@ -22,12 +22,13 @@ class Mainframe(EnvConfig):
     auth0_domain: str = ""
     auth0_audience: str = ""
 
-    email_reply_to: str = "support@mantissecurity.org"
-    email_sender: str = "system@mantissecurity.org"
-    email_recipient: str = "security@pypi.org"
-    bcc_recipients: set[str] = set()
+    reporter_url: str = ""
 
-    db_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432"
+    db_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/dragonfly"
+    db_connection_pool_max_size: int = 15
+    """The max number of concurrent connections"""
+    db_connection_pool_persistent_size: int = 5
+    """The number of concurrent connections to maintain in the connection pool"""
 
     dragonfly_github_token: str
 
@@ -37,23 +38,10 @@ class Mainframe(EnvConfig):
 mainframe_settings = Mainframe()  # pyright: ignore
 
 
-class _Sentry(EnvConfig):
-    EnvConfig.model_config["env_prefix"] = "sentry_"
-
+class _Sentry(EnvConfig, env_prefix="sentry_"):  # pyright: ignore
     dsn: str = ""
-    environment: str = ""
-    release_prefix: str = ""
+    environment: str = "production"
+    release_prefix: str = "dragonfly-mainframe"
 
 
 Sentry = _Sentry()  # pyright: ignore
-
-
-class Microsoft(EnvConfig):
-    EnvConfig.model_config["env_prefix"] = "microsoft_"
-
-    tenant_id: str
-    client_id: str
-    client_secret: str
-
-
-microsoft_settings = Microsoft()  # pyright: ignore

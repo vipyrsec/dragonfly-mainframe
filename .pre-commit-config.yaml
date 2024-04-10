@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
       - id: check-case-conflict
       - id: check-merge-conflict
@@ -12,21 +12,14 @@ repos:
       - id: mixed-line-ending
         args: [ --fix=lf ]
       - id: end-of-file-fixer
-  - repo: https://github.com/psf/black
-    rev: 23.3.0
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.0
     hooks:
-      - id: black
-        language_version: python3.10
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
-    hooks:
-      - id: isort
-        name: isort (python)
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: "v0.0.267"
-    hooks:
-      - id: ruff
+    - id: ruff-format
+    - id: ruff
+
   - repo: https://github.com/RobertCraigie/pyright-python
-    rev: v1.1.316
+    rev: v1.1.352
     hooks:
     - id: pyright

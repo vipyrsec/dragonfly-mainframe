@@ -2,18 +2,24 @@ from datetime import datetime, timedelta
 from functools import cache
 from typing import Annotated
 
-from fastapi import Depends
-from msgraph.core import GraphClient
+import httpx
+from fastapi import Depends, Request
+from letsbuilda.pypi import PyPIServices
 
 from mainframe.authorization_header_elements import get_bearer_token
 from mainframe.custom_exceptions import PermissionDeniedException
 from mainframe.json_web_token import AuthenticationData, JsonWebToken
-from mainframe.utils.microsoft import build_ms_graph_client
+from mainframe.rules import Rules
 
 
 @cache
-def get_ms_graph_client() -> GraphClient:  # type: ignore
-    return build_ms_graph_client()  # type: ignore
+def get_pypi_client() -> PyPIServices:
+    http_client = httpx.Client()
+    return PyPIServices(http_client)
+
+
+def get_rules(request: Request) -> Rules:
+    return request.app.state.rules
 
 
 def validate_token(token: Annotated[str, Depends(get_bearer_token)]) -> AuthenticationData:

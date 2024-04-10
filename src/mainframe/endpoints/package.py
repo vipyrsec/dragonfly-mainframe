@@ -1,17 +1,18 @@
+from collections.abc import Iterable
 import datetime as dt
 from typing import Annotated, Optional
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request
-from letsbuilda.pypi.async_client import PyPIServices  # type: ignore
+from fastapi import APIRouter, Depends, HTTPException
+from letsbuilda.pypi import Package, PyPIServices  # type: ignore
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from sqlalchemy import select, tuple_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from concurrent.futures import ThreadPoolExecutor
+from sqlalchemy.orm import Session, joinedload
 
 from mainframe.database import get_db
-from mainframe.dependencies import validate_token
+from mainframe.dependencies import get_pypi_client, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.metrics import (
     package_ingest_counter,
@@ -39,32 +40,31 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
         409: {"model": Error},
     },
 )
-async def submit_results(
+def submit_results(
     result: PackageScanResult | PackageScanResultFail,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
 ):
     name = result.name
     version = result.version
 
     package_scanned_counter.inc()
-
-    scan = await session.scalar(
-        select(Scan).where(Scan.name == name).where(Scan.version == version).options(selectinload(Scan.rules))
+    scan = session.scalar(
+        select(Scan).where(Scan.name == name).where(Scan.version == version).options(joinedload(Scan.rules))
     )
 
     log = logger.bind(package={"name": name, "version": version})
 
     if scan is None:
         error = HTTPException(404, f"Package `{name}@{version}` not found in database.")
-        await log.aerror(
+        log.error(
             f"Package {name}@{version} not found in database", error_message=error.detail, tag="package_not_found_db"
         )
         raise error
 
     if scan.status == Status.FINISHED:
         error = HTTPException(409, f"Package `{name}@{version}` is already in a FINISHED state.")
-        await log.aerror(
+        log.error(
             f"Scan {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
         )
         raise error
@@ -74,7 +74,7 @@ async def submit_results(
         scan.fail_reason = result.reason
         package_scan_fail_counter.inc()
 
-        await session.commit()
+        session.commit()
         return
 
     scan.status = Status.FINISHED
@@ -85,7 +85,7 @@ async def submit_results(
     scan.commit_hash = result.commit
 
     # These are the rules that already have an entry in the database
-    rules = (await session.scalars(select(Rule).where(Rule.name.in_(result.rules_matched)))).all()  # type: ignore
+    rules = session.scalars(select(Rule).where(Rule.name.in_(result.rules_matched))).all()
     rule_names = {rule.name for rule in rules}
     scan.rules.extend(rules)
 
@@ -93,7 +93,7 @@ async def submit_results(
     new_rules = [Rule(name=rule_name) for rule_name in result.rules_matched if rule_name not in rule_names]
     scan.rules.extend(new_rules)
 
-    await log.ainfo(
+    log.info(
         "Scan results submitted",
         package={
             "name": name,
@@ -110,7 +110,7 @@ async def submit_results(
     )
 
     package_scan_success_counter.inc()
-    await session.commit()
+    session.commit()
 
 
 @router.get(
@@ -118,14 +118,16 @@ async def submit_results(
     responses={400: {"model": Error, "description": "Invalid parameter combination."}},
     dependencies=[Depends(validate_token)],
 )
-async def lookup_package_info(
-    session: Annotated[AsyncSession, Depends(get_db)],
+def lookup_package_info(
+    session: Annotated[Session, Depends(get_db)],
     since: Optional[int] = None,
     name: Optional[str] = None,
     version: Optional[str] = None,
 ):
     """
-    Lookup information on scanned packages based on name, version, or time scanned.
+    Lookup information on scanned packages based on name, version, or time
+    scanned. If multiple packages are returned, they are ordered with the most
+    recently queued package first.
 
     Args:
         since: A int representing a Unix timestamp representing when to begin the search from.
@@ -159,14 +161,13 @@ async def lookup_package_info(
     )
 
     if (not nn_name and not nn_since) or (nn_version and nn_since):
-        await log.aerror(
+        log.debug(
             "Invalid parameter combination",
-            error_message="Invalid parameter combination.",
             tag="invalid_parameter_combination",
         )
         raise HTTPException(status_code=400)
 
-    query = select(Scan).options(selectinload(Scan.rules))
+    query = select(Scan).order_by(Scan.queued_at.desc()).options(joinedload(Scan.rules), joinedload(Scan.download_urls))
     if nn_name:
         query = query.where(Scan.name == name)
     if nn_version:
@@ -174,10 +175,33 @@ async def lookup_package_info(
     if nn_since:
         query = query.where(Scan.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.timezone.utc))
 
-    data = await session.scalars(query)
+    data = session.scalars(query)
 
-    await log.ainfo("Package information queried")
-    return data.all()
+    log.info("Package information queried")
+    return data.unique().all()
+
+
+def _deduplicate_packages(packages: list[PackageSpecifier], session: Session) -> set[tuple[str, str]]:
+    name_ver = {(p.name, p.version) for p in packages}
+    scalars = session.scalars(select(Scan).where(tuple_(Scan.name, Scan.version).in_(name_ver)))
+    return name_ver - {(scan.name, scan.version) for scan in scalars.all()}
+
+
+def _get_packages_metadata(pypi_client: PyPIServices, packages_to_check: set[tuple[str, str]]) -> Iterable[Package]:
+    if not packages_to_check:
+        return
+
+    def _get_package_metadata(package: tuple[str, str]) -> Optional[Package]:
+        try:
+            return pypi_client.get_package_metadata(*package)
+        except PackageNotFoundError:
+            return
+
+    # IO-bound, so these threads won't take up much CPU. Just spawn as many as
+    # we need to send all requests at once. We avoid the
+    # `len(packages_to_check) == 0` case by returning early above
+    with ThreadPoolExecutor(max_workers=len(packages_to_check)) as tpe:
+        yield from filter(None, tpe.map(_get_package_metadata, packages_to_check))
 
 
 @router.post(
@@ -187,21 +211,15 @@ async def lookup_package_info(
         404: {"model": Error},
     },
 )
-async def batch_queue_package(
+def batch_queue_package(
     packages: list[PackageSpecifier],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
-    request: Request,
+    pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
 ):
-    pypi_client: PyPIServices = request.app.state.pypi_client
+    packages_to_check = _deduplicate_packages(packages, session)
 
-    valid_packages: list[Scan] = []
-    for package in packages:
-        try:
-            package_metadata = await pypi_client.get_package_metadata(package.name, package.version)
-        except PackageNotFoundError:
-            continue
-
+    for package_metadata in _get_packages_metadata(pypi_client, packages_to_check):
         scan = Scan(
             name=package_metadata.title,
             version=package_metadata.releases[0].version,
@@ -212,20 +230,10 @@ async def batch_queue_package(
             ],
         )
 
-        valid_packages.append(scan)
+        package_ingest_counter.inc()
+        session.add(scan)
 
-    scalars = await session.scalars(
-        select(Scan).where(tuple_(Scan.name, Scan.version).in_([(s.name, s.version) for s in valid_packages]))
-    )
-
-    existing_rows = {(scan.name, scan.version) for scan in scalars.all()}
-
-    for scan in valid_packages:
-        if (scan.name, scan.version) not in existing_rows:
-            session.add(scan)
-            package_ingest_counter.inc()
-
-    await session.commit()
+    session.commit()
 
 
 @router.post(
@@ -235,11 +243,11 @@ async def batch_queue_package(
         404: {"model": Error},
     },
 )
-async def queue_package(
+def queue_package(
     package: PackageSpecifier,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
-    request: Request,
+    pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
 ) -> QueuePackageResponse:
     """
     Queue a package to be scanned when the next runner is available
@@ -257,12 +265,11 @@ async def queue_package(
 
     log = logger.bind(package={"name": name, "version": version})
 
-    pypi_client: PyPIServices = request.app.state.pypi_client
     try:
-        package_metadata = await pypi_client.get_package_metadata(name, version)
+        package_metadata = pypi_client.get_package_metadata(name, version)
     except PackageNotFoundError:
         error = HTTPException(404, detail=f"Package {name}@{version} was not found on PyPI")
-        await log.aerror(
+        log.error(
             f"Package {name}@{version} was not found on PyPI", error_message=error.detail, tag="package_not_found_pypi"
         )
         raise error
@@ -283,13 +290,13 @@ async def queue_package(
     session.add(new_package)
 
     try:
-        await session.commit()
+        session.commit()
         package_ingest_counter.inc()
     except IntegrityError:
-        await log.warn(f"Package {name}@{version} already queued for scanning.", tag="already_queued")
+        log.warn(f"Package {name}@{version} already queued for scanning.", tag="already_queued")
         raise HTTPException(409, f"Package {name}@{version} is already queued for scanning")
 
-    await log.ainfo(
+    log.info(
         "Added new package",
         package={
             "name": name,

@@ -1,20 +1,19 @@
-import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
 from typing import Awaitable, Callable
-from unittest.mock import MagicMock
 
-import aiohttp
+import httpx
 import sentry_sdk
 import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
 from asgi_correlation_id.context import correlation_id
-from fastapi import FastAPI, Request, Response
-from letsbuilda.pypi.async_client import PyPIServices
+from fastapi import Depends, FastAPI, Request, Response
+from letsbuilda.pypi import PyPIServices
+from sentry_sdk.integrations.logging import LoggingIntegration
+from structlog_sentry import SentryProcessor
 
 from mainframe.constants import GIT_SHA, Sentry
-from mainframe.database import async_session
 from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
 from mainframe.metrics import metrics_app, request_counter, request_time  # type: ignore
@@ -31,6 +30,7 @@ def configure_logger():
         structlog.stdlib.add_log_level,
         structlog.stdlib.PositionalArgumentsFormatter(),
         structlog.stdlib.ExtraAdder(),
+        SentryProcessor(event_level=logging.ERROR, level=logging.DEBUG),
         structlog.processors.format_exc_info,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
@@ -89,9 +89,10 @@ sentry_sdk.init(
     dsn=Sentry.dsn,
     environment=Sentry.environment,
     send_default_pii=True,
-    traces_sample_rate=0.0025,
-    profiles_sample_rate=0.0025,
+    traces_sample_rate=0.05,
+    profiles_sample_rate=0.05,
     release=f"{Sentry.release_prefix}@{GIT_SHA}",
+    integrations=[LoggingIntegration(event_level=None, level=None)],
 )
 
 
@@ -99,20 +100,12 @@ sentry_sdk.init(
 async def lifespan(app_: FastAPI):
     """Load the state for the app"""
 
-    http_session = aiohttp.ClientSession()
-    pypi_client = PyPIServices(http_session)
-    db_session = async_session()
-    rules = await fetch_rules(http_session=http_session)
-    await db_session.close()
-
-    if GIT_SHA == "testing":
-        fut: asyncio.Future[MagicMock] = asyncio.Future()
-        fut.set_result(MagicMock(return_value=MagicMock()))
-        pypi_client.get_package_metadata = MagicMock(return_value=fut)
-        pypi_client.get_package_metadata.return_value.urls = [MagicMock(url=None), MagicMock(url=None)]
+    http_client = httpx.Client()
+    pypi_client = PyPIServices(http_client)
+    rules = fetch_rules(http_client)
 
     app_.state.rules = rules
-    app_.state.http_session = http_session
+    app_.state.http_session = http_client
     app_.state.pypi_client = pypi_client
 
     configure_logger()
@@ -185,6 +178,7 @@ app.add_middleware(CorrelationIdMiddleware)
 @app.get("/", tags=["metadata"])
 async def metadata() -> ServerMetadata:
     """Get server metadata"""
+
     rules: Rules = app.state.rules
     return ServerMetadata(
         server_commit=GIT_SHA,
@@ -192,10 +186,10 @@ async def metadata() -> ServerMetadata:
     )
 
 
-@app.post("/update-rules/", tags=["rules"])
+@app.post("/update-rules/", tags=["rules"], dependencies=[Depends(validate_token)])
 async def update_rules():
     """Update the rules"""
-    rules = await fetch_rules(app.state.http_session)
+    rules = fetch_rules(app.state.http_session)
     app.state.rules = rules
 
 

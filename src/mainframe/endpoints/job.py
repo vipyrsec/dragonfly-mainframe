@@ -2,27 +2,27 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 from sqlalchemy import and_, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Session, joinedload
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
-from mainframe.dependencies import validate_token
+from mainframe.dependencies import get_rules, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan, Status
 from mainframe.models.schemas import JobResult
+from mainframe.rules import Rules
 
 router = APIRouter(tags=["job"])
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 @router.post("/jobs")
-async def get_jobs(
-    session: Annotated[AsyncSession, Depends(get_db)],
+def get_jobs(
+    session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
-    request: Request,
+    state: Annotated[Rules, Depends(get_rules)],
     batch: int = 1,
 ) -> list[JobResult]:
     """
@@ -40,24 +40,26 @@ async def get_jobs(
     packages are always processed after newly queued packages.
     """
 
-    scalars = await session.scalars(
-        select(Scan)
-        .where(
-            or_(
-                Scan.status == Status.QUEUED,
-                and_(
-                    Scan.pending_at < datetime.now(timezone.utc) - timedelta(seconds=mainframe_settings.job_timeout),
-                    Scan.status == Status.PENDING,
-                ),
+    scans = (
+        session.scalars(
+            select(Scan)
+            .where(
+                or_(
+                    Scan.status == Status.QUEUED,
+                    and_(
+                        Scan.pending_at
+                        < datetime.now(timezone.utc) - timedelta(seconds=mainframe_settings.job_timeout),
+                        Scan.status == Status.PENDING,
+                    ),
+                )
             )
+            .order_by(Scan.pending_at.nulls_first(), Scan.queued_at)
+            .limit(batch)
+            .options(joinedload(Scan.download_urls))
         )
-        .order_by(Scan.pending_at.nulls_first(), Scan.queued_at)
-        .limit(batch)
-        .options(selectinload(Scan.download_urls))
-        .with_for_update()
+        .unique()
+        .all()
     )
-
-    scans = scalars.all()
 
     response_body: list[JobResult] = []
     for scan in scans:
@@ -65,7 +67,7 @@ async def get_jobs(
         scan.pending_at = datetime.now(timezone.utc)
         scan.pending_by = auth.subject
 
-        await logger.ainfo(
+        logger.info(
             "Job given and status set to pending in database",
             package={
                 "name": scan.name,
@@ -81,11 +83,11 @@ async def get_jobs(
             name=scan.name,
             version=scan.version,
             distributions=[dist.url for dist in scan.download_urls],
-            hash=request.app.state.rules.rules_commit,
+            hash=state.rules_commit,
         )
 
         response_body.append(job_result)
 
-    await session.commit()
+    session.commit()
 
     return response_body
