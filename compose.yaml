@@ -9,7 +9,7 @@ services:
     tty: true
     restart: always
     environment:
-      DB_URL: postgresql+psycopg2://postgres:postgres@db:5432
+      DB_URL: "postgresql+psycopg2://postgres:postgres@db:5432/dragonfly"
       MICROSOFT_TENANT_ID: tenant_id
       MICROSOFT_CLIENT_ID: client_id
       MICROSOFT_CLIENT_SECRET: client_secret
@@ -30,3 +30,4 @@ services:
       - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dragonfly

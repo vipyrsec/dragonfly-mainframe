@@ -141,6 +141,8 @@ You'll need to have the following environment variables set.
 | | | | |
 | `REPORTER_URL` | str | "" | The url of the reporter microservice |
 | `DB_URL` | str | "postgresql+psycopg2://postgres:postgres@localhost:5432" | PostgreSQL database connection string |
+| `DB_CONNECTION_POOL_MAX_SIZE` | int | 15 | The max number of concurrent database connections |
+| `DB_CONNECTION_POOL_PERSISTENT_SIZE` | int | 5 | The number of concurrent database connections to maintain in the connection pool |
 | | | | |
 | `SENTRY_DSN` | str | "" | Sentry Data Source Name (DSN) |
 | `SENTRY_ENVIRONMENT` | str | "" | Sentry environment |
