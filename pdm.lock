@@ -5,7 +5,7 @@
 groups = ["default", "docs", "lint", "logs", "test"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.4.1"
-content_hash = "sha256:0e91ea74d329b77ad1686be7d7e05790e258b345d655f499b371be8277d1e5e4"
+content_hash = "sha256:3f6a3f44fdf0707854ded9679a955464de96ba7001a88c148f5c8f86da6f7a96"
 
 [[package]]
 name = "alabaster"
