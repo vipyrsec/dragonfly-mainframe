@@ -12,7 +12,7 @@ engine = create_engine(
     pool_size=mainframe_settings.db_connection_pool_persistent_size,
     max_overflow=mainframe_settings.db_connection_pool_max_size - mainframe_settings.db_connection_pool_persistent_size,
 )
-sessionmaker = sessionmaker(bind=engine, expire_on_commit=False)
+sessionmaker = sessionmaker(bind=engine, expire_on_commit=False, autobegin=False)
 
 
 def get_db() -> Generator[Session, None, None]:
