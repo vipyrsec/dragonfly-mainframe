@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from copy import deepcopy
 from typing import Optional
 from unittest.mock import MagicMock
 
@@ -10,7 +11,7 @@ from letsbuilda.pypi import PyPIServices
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from pytest import MonkeyPatch
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from mainframe.endpoints.report import (
     _lookup_package,  # pyright: ignore [reportPrivateUsage]
@@ -75,6 +76,7 @@ from mainframe.models.schemas import (
     ],
 )
 def test_report(
+    sm: sessionmaker[Session],
     db_session: Session,
     auth: AuthenticationData,
     pypi_client: PyPIServices,
@@ -102,20 +104,21 @@ def test_report(
         commit_hash="test commit hash",
     )
 
-    db_session.add(scan)
-    db_session.commit()
+    with db_session.begin():
+        db_session.add(scan)
 
     httpx.post = MagicMock()
 
-    report_package(body, db_session, auth, pypi_client)
+    report_package(body, sm(), auth, pypi_client)
 
     httpx.post.assert_called_once_with(url, json=jsonable_encoder(expected))
 
-    scan = db_session.scalar(select(Scan).where(Scan.name == "c").where(Scan.version == "1.0.0"))
+    with sm() as sess, sess.begin():
+        s = sess.scalar(select(Scan).where(Scan.name == "c").where(Scan.version == "1.0.0"))
 
-    assert scan is not None
-    assert scan.reported_by == auth.subject
-    assert scan.reported_at is not None
+    assert s is not None
+    assert s.reported_by == auth.subject
+    assert s.reported_at is not None
 
 
 def test_report_package_not_on_pypi(
@@ -159,8 +162,8 @@ def test_report_invalid_version(db_session: Session):
         fail_reason=None,
         commit_hash="test commit hash",
     )
-    db_session.add(scan)
-    db_session.commit()
+    with db_session.begin():
+        db_session.add(scan)
 
     with pytest.raises(HTTPException) as e:
         _lookup_package("c", "2.0.0", db_session)
@@ -256,32 +259,7 @@ def test_report_missing_additional_information(body: ReportPackageBody, scan: Sc
 @pytest.mark.parametrize(
     ("scans", "name", "version", "expected_status_code"),
     [
-        (
-            [
-                Scan(
-                    name="c",
-                    version="1.0.0",
-                    status=Status.FINISHED,
-                    score=0,
-                    inspector_url=None,
-                    rules=[],
-                    download_urls=[],
-                    queued_at=datetime.now() - timedelta(seconds=60),
-                    queued_by="remmy",
-                    pending_at=datetime.now() - timedelta(seconds=30),
-                    pending_by="remmy",
-                    finished_at=datetime.now() - timedelta(seconds=10),
-                    finished_by="remmy",
-                    reported_at=None,
-                    reported_by=None,
-                    fail_reason=None,
-                    commit_hash="test commit hash",
-                )
-            ],
-            "a",
-            "1.0.0",
-            404,
-        ),
+        ([], "a", "1.0.0", 404),
         (
             [
                 Scan(
@@ -377,8 +355,8 @@ def test_report_missing_additional_information(body: ReportPackageBody, scan: Sc
 def test_report_lookup_package_validation(
     db_session: Session, scans: list[Scan], name: str, version: str, expected_status_code: int
 ):
-    db_session.add_all(scans)
-    db_session.commit()
+    with db_session.begin():
+        db_session.add_all(deepcopy(scans))
 
     with pytest.raises(HTTPException) as e:
         _lookup_package(name, version, db_session)
@@ -406,8 +384,8 @@ def test_report_lookup_package(db_session: Session):
         commit_hash="test commit hash",
     )
 
-    db_session.add(scan)
-    db_session.commit()
+    with db_session.begin():
+        db_session.add(scan)
 
     res = _lookup_package("c", "1.0.0", db_session)
 

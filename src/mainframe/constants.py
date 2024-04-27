@@ -24,7 +24,11 @@ class Mainframe(EnvConfig):
 
     reporter_url: str = ""
 
-    db_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432"
+    db_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/dragonfly"
+    db_connection_pool_max_size: int = 15
+    """The max number of concurrent connections"""
+    db_connection_pool_persistent_size: int = 5
+    """The number of concurrent connections to maintain in the connection pool"""
 
     dragonfly_github_token: str
 
