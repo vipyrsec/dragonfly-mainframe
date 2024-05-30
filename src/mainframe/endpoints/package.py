@@ -23,6 +23,8 @@ from mainframe.models.schemas import (
     QueuePackageResponse,
 )
 
+from mainframe.metrics import package_success, package_fails, packages_ingested
+
 router = APIRouter(tags=["package"])
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -69,6 +71,7 @@ def submit_results(
             scan.fail_reason = result.reason
 
             session.commit()
+            package_fails.add(1)
             return
 
         scan.status = Status.FINISHED
@@ -102,6 +105,8 @@ def submit_results(
         },
         tag="scan_submitted",
     )
+
+    package_success.add(1)
 
 
 @router.get(
@@ -211,6 +216,7 @@ def batch_queue_package(
     with session, session.begin():
         packages_to_check = _deduplicate_packages(packages, session)
 
+        scans: list[Scan] = []
         for package_metadata in _get_packages_metadata(pypi_client, packages_to_check):
             scan = Scan(
                 name=package_metadata.title,
@@ -222,7 +228,10 @@ def batch_queue_package(
                 ],
             )
 
-            session.add(scan)
+            scans.append(scan)
+
+        session.add_all(scans)
+        packages_ingested.add(len(scans))
 
 
 @router.post(
@@ -295,4 +304,5 @@ def queue_package(
         tag="package_added",
     )
 
+    packages_ingested.add(1)
     return QueuePackageResponse(id=str(new_package.scan_id))

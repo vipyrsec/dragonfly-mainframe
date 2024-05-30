@@ -12,6 +12,7 @@ from fastapi import Depends, FastAPI, Request, Response
 from letsbuilda.pypi import PyPIServices
 from sentry_sdk.integrations.logging import LoggingIntegration
 from structlog_sentry import SentryProcessor
+import logfire
 
 from mainframe.constants import GIT_SHA, Sentry
 from mainframe.dependencies import validate_token, validate_token_override
@@ -23,6 +24,9 @@ from . import __version__
 
 
 def configure_logger():
+    logfire.configure(send_to_logfire="if-token-present")
+    logfire.instrument_httpx()
+
     # Define the shared processors, regardless of whether API is running in prod or dev.
     shared_processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
@@ -41,6 +45,7 @@ def configure_logger():
                 structlog.processors.CallsiteParameter.LINENO,
             }
         ),
+        logfire.StructlogProcessor(),
     ]
 
     structlog.configure(
@@ -118,6 +123,8 @@ app = FastAPI(
     description="A service that provides a REST API for managing rules.",
     version=__version__,
 )
+
+logfire.instrument_fastapi(app)
 
 if GIT_SHA in ("development", "testing"):
     app.dependency_overrides[validate_token] = validate_token_override
