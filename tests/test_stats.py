@@ -27,9 +27,8 @@ def test_stats(db_session: Session):
         fail_reason=None,
         commit_hash="test commit hash",
     )
-
-    db_session.add(scan)
-    db_session.commit()
+    with db_session.begin():
+        db_session.add(scan)
 
     stats = get_stats(db_session)
     assert stats.ingested == 1

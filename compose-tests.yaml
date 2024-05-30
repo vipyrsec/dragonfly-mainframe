@@ -1,11 +1,9 @@
-version: "3.9"
-
 services:
   mainframe:
     build:
       target: test
-      dockerfile: Containerfile
       args:
         GIT_SHA: testing
+
   db:
-    command: "-c fsync=off -c full_page_writes=off"
+    command: "-c fsync=off -c full_page_writes=off -c max_connections=25"

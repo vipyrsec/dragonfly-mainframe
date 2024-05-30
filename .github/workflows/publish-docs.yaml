@@ -21,12 +21,12 @@ jobs:
 
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
 
       - name: "Setup PDM"
-        uses: pdm-project/setup-pdm@c050bdcb2405837648035b6678c75609d53a749f # v4
+        uses: pdm-project/setup-pdm@568ddd69406b30de1774ec0044b73ae06e716aa4 # v4
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: true
 
       - name: "Install dependencies"
@@ -54,4 +54,4 @@ jobs:
     steps:
       - name: "Deploy to GitHub Pages"
         id: deployment
-        uses: actions/deploy-pages@decdde0ac072f6dcbe43649d82d9c635fff5b4e4 # v4.0.4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

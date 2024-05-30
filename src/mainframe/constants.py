@@ -22,12 +22,13 @@ class Mainframe(EnvConfig):
     auth0_domain: str = ""
     auth0_audience: str = ""
 
-    email_reply_to: str = "support@vipyrsec.com"
-    email_sender: str = "system@vipyrsec.com"
-    email_recipient: str = "security@pypi.org"
-    bcc_recipients: set[str] = set()
+    reporter_url: str = ""
 
-    db_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432"
+    db_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/dragonfly"
+    db_connection_pool_max_size: int = 15
+    """The max number of concurrent connections"""
+    db_connection_pool_persistent_size: int = 5
+    """The number of concurrent connections to maintain in the connection pool"""
 
     dragonfly_github_token: str
 
@@ -44,12 +45,3 @@ class _Sentry(EnvConfig, env_prefix="sentry_"):  # pyright: ignore
 
 
 Sentry = _Sentry()  # pyright: ignore
-
-
-class Microsoft(EnvConfig, env_prefix="microsoft_"):  # pyright: ignore
-    tenant_id: str = ""
-    client_id: str = ""
-    client_secret: str = ""
-
-
-microsoft_settings = Microsoft()  # pyright: ignore

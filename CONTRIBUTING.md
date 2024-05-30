@@ -139,17 +139,14 @@ You'll need to have the following environment variables set.
 | `DRAGONFLY_GITHUB_TOKEN` | str | | Github PAT for accessing YARA rules in the security-intelligence repository |
 | `JOB_TIMEOUT` | int | 60 \* 2 | The maximum time to wait for clients to respond with job results. After this time has elapsed, the server will begin distributing this job to other clients |
 | | | | |
-| `EMAIL_RECIPIENT` | str | "security@pypi.org" | The recipient address of report emails |
-| `BCC_RECIPIENTS` | set | set() | Additional addresses that should be BCC'd in email reports. Defaults to an empty set. |
+| `REPORTER_URL` | str | "" | The url of the reporter microservice |
 | `DB_URL` | str | "postgresql+psycopg2://postgres:postgres@localhost:5432" | PostgreSQL database connection string |
+| `DB_CONNECTION_POOL_MAX_SIZE` | int | 15 | The max number of concurrent database connections |
+| `DB_CONNECTION_POOL_PERSISTENT_SIZE` | int | 5 | The number of concurrent database connections to maintain in the connection pool |
 | | | | |
 | `SENTRY_DSN` | str | "" | Sentry Data Source Name (DSN) |
 | `SENTRY_ENVIRONMENT` | str | "" | Sentry environment |
 | `SENTRY_RELEASE_PREFIX` | str | "" | Sentry release prefix |
-| | | | |
-| `MICROSOFT_TENANT_ID` | str | "" | Microsoft tenant ID for automated emails |
-| `MICROSOFT_CLIENT_ID` | str | "" | Microsoft client ID for automated emails |
-| `MICROSOFT_CLIENT_SECRET` | str | "" | Microsoft client secret for automated emails |
 
 **NOTE**: Environment variables where the `default` column is empty are required for the application to startup
 

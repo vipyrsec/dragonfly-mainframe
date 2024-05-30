@@ -5,6 +5,7 @@ Revises: 883af2539440
 Create Date: 2023-06-20 16:56:21.809460
 
 """
+
 import uuid
 
 import sqlalchemy as sa

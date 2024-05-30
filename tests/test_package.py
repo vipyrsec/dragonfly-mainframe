@@ -6,9 +6,10 @@ from letsbuilda.pypi import PyPIServices
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from pytest import MonkeyPatch
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from mainframe.endpoints.job import get_jobs
+from mainframe.endpoints.package import _deduplicate_packages  # pyright: ignore [reportPrivateUsage]
 from mainframe.endpoints.package import (
     batch_queue_package,
     lookup_package_info,
@@ -95,7 +96,10 @@ def test_handle_success(db_session: Session, test_data: list[Scan], auth: Authen
         )
         submit_results(body, db_session, auth)
 
-        record = db_session.scalar(select(Scan).where(Scan.name == name).where(Scan.version == version))
+        with db_session.begin():
+            record = db_session.scalar(
+                select(Scan).where(Scan.name == name).where(Scan.version == version).options(joinedload(Scan.rules))
+            )
 
         assert record is not None
         assert record.score == 2
@@ -116,27 +120,46 @@ def test_handle_fail(db_session: Session, test_data: list[Scan], auth: Authentic
 
         submit_results(PackageScanResultFail(name=name, version=version, reason=reason), db_session, auth)
 
-        record = db_session.scalar(
-            select(Scan)
-            .where(Scan.name == name)
-            .where(Scan.version == version)
-            .where(Scan.status == Status.FAILED)
-            .where(Scan.fail_reason == reason)
-        )
+        with db_session.begin():
+            record = db_session.scalar(
+                select(Scan)
+                .where(Scan.name == name)
+                .where(Scan.version == version)
+                .where(Scan.status == Status.FAILED)
+                .where(Scan.fail_reason == reason)
+            )
 
         assert record is not None
     else:
         assert all(scan.status != Status.QUEUED for scan in test_data)
 
 
-def test_batch_queue(db_session: Session, test_data: list[Scan], pypi_client: PyPIServices, auth: AuthenticationData):
-    packages_to_add = [PackageSpecifier(name=scan.name, version=scan.version) for scan in test_data]
-    packages_to_add.append(PackageSpecifier(name="c", version="1.0.0"))
-    batch_queue_package(packages_to_add, db_session, auth, pypi_client)
+def test_batch_queue(db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData):
+    pack = PackageSpecifier(name="c", version="1.0.0")
+    batch_queue_package([pack], db_session, auth, pypi_client)
 
-    existing_packages = {(p.name, p.version) for p in db_session.scalars(select(Scan)).all()}
-    for package in packages_to_add:
-        assert (package.name, package.version) in existing_packages
+    with db_session.begin():
+        existing_packages = {(p.name, p.version) for p in db_session.scalars(select(Scan))}
+    assert (pack.name, pack.version) in existing_packages
+
+
+def test_batch_queue_empty_packages(db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData):
+    with db_session.begin():
+        before = sorted((s.name, s.version) for s in db_session.scalars(select(Scan)))
+    batch_queue_package([], db_session, auth, pypi_client)
+    with db_session.begin():
+        after = sorted((s.name, s.version) for s in db_session.scalars(select(Scan)))
+    assert before == after
+
+
+@pytest.mark.parametrize("packages", [[PackageSpecifier(name="c", version="1.0.0")], []])
+def test_deduplicate_packages(test_data: list[Scan], packages: list[PackageSpecifier], db_session: Session):
+    non_unique = [PackageSpecifier(name=scan.name, version=scan.version) for scan in test_data]
+
+    with db_session.begin():
+        result = _deduplicate_packages(non_unique + packages, db_session)
+
+    assert sorted(result) == sorted((p.name, p.version) for p in packages)
 
 
 def test_batch_queue_nonexistent_package(
@@ -151,7 +174,8 @@ def test_batch_queue_nonexistent_package(
     package_to_add = PackageSpecifier(name="c", version="1.0.0")
     batch_queue_package([package_to_add], db_session, auth, pypi_client)
 
-    existing_packages = {(p.name, p.version) for p in db_session.scalars(select(Scan)).all()}
+    with db_session.begin():
+        existing_packages = {(p.name, p.version) for p in db_session.scalars(select(Scan)).all()}
     assert ("c", "1.0.0") not in existing_packages
 
 
@@ -159,11 +183,13 @@ def test_queue(db_session: Session, pypi_client: PyPIServices, auth: Authenticat
     package = PackageSpecifier(name="c", version="1.0.0")
     query = select(Scan).where(Scan.name == package.name).where(Scan.version == package.version)
 
-    assert db_session.scalar(query) is None
+    with db_session.begin():
+        assert db_session.scalar(query) is None
 
     queue_package(package, db_session, auth, pypi_client)
 
-    assert db_session.scalar(query) is not None
+    with db_session.begin():
+        assert db_session.scalar(query) is not None
 
 
 def test_queue_nonexistent_package(
@@ -182,7 +208,8 @@ def test_queue_nonexistent_package(
         queue_package(package, db_session, auth, pypi_client)
     assert e.value.status_code == 404
 
-    assert db_session.scalar(query) is None
+    with db_session.begin():
+        assert db_session.scalar(query) is None
 
 
 def test_queue_duplicate_package(db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData):
