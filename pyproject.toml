@@ -19,7 +19,6 @@ dependencies = [
     "asgi-correlation-id>=4.2.0",
     "sentry-sdk[fastapi]>=1.25.1",
     "structlog-sentry>=2.0.3",
-    "requests>=2.30.0",
     "httpx>=0.24.1",
     "psycopg2-binary",
     "pyjwt[crypto]==2.8.0",
