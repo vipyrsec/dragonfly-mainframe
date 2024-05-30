@@ -8,7 +8,7 @@ requires-python = ">=3.12,<3.13"
 license = { text = "MIT" }
 
 dependencies = [
-    "fastapi>=0.95.1",
+    "fastapi-slim>=0.95.1",
     "pydantic-settings>=2.0.0",
     "uvicorn[standard]>=0.22.0",
     "SQLAlchemy>=2.0.12",
@@ -17,7 +17,7 @@ dependencies = [
     "letsbuilda-pypi>=5.1.0",
     "structlog>=23.1.0",
     "asgi-correlation-id>=4.2.0",
-    "sentry-sdk[fastapi]>=1.25.1",
+    "sentry-sdk>=1.25.1",
     "structlog-sentry>=2.0.3",
     "httpx>=0.24.1",
     "psycopg2-binary",

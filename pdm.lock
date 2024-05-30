@@ -5,7 +5,7 @@
 groups = ["default", "docs", "lint", "logs", "test"]
 strategy = []
 lock_version = "4.5.0"
-content_hash = "sha256:eb4b8c94f2b39ffd46d0e50854c2d73bdd6c1e50979d3f05f575340a07341f50"
+content_hash = "sha256:59e5d03244c2707f58ef439e5c5df5b750f6cce5711dbe2a0ca164fb297b89bf"
 
 [[metadata.targets]]
 requires_python = ">=3.12,<3.13"
@@ -509,6 +509,21 @@ dependencies = [
 files = [
     {file = "fastapi_cli-0.0.4-py3-none-any.whl", hash = "sha256:a2552f3a7ae64058cdbb530be6fa6dbfc975dc165e4fa66d224c3d396e25e809"},
     {file = "fastapi_cli-0.0.4.tar.gz", hash = "sha256:e2e9ffaffc1f7767f488d6da34b6f5a377751c996f397902eb6abb99a67bde32"},
+]
+
+[[package]]
+name = "fastapi-slim"
+version = "0.112.0"
+requires_python = ">=3.8"
+summary = "FastAPI framework, high performance, easy to learn, fast to code, ready for production"
+dependencies = [
+    "pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4",
+    "starlette<0.38.0,>=0.37.2",
+    "typing-extensions>=4.8.0",
+]
+files = [
+    {file = "fastapi_slim-0.112.0-py3-none-any.whl", hash = "sha256:7663edfbb5036d641aa45b4f5dad341cf78d98885216e78743a8cdd39a38883e"},
+    {file = "fastapi_slim-0.112.0.tar.gz", hash = "sha256:2420f700b7dc2d1a6d02c7230f7aa2ae9fa0320d8d481094062ff717659c0843"},
 ]
 
 [[package]]
@@ -1376,21 +1391,6 @@ summary = "Python client for Sentry (https://sentry.io)"
 dependencies = [
     "certifi",
     "urllib3>=1.26.11",
-]
-files = [
-    {file = "sentry_sdk-2.11.0-py2.py3-none-any.whl", hash = "sha256:d964710e2dbe015d9dc4ff0ad16225d68c3b36936b742a6fe0504565b760a3b7"},
-    {file = "sentry_sdk-2.11.0.tar.gz", hash = "sha256:4ca16e9f5c7c6bc2fb2d5c956219f4926b148e511fffdbbde711dc94f1e0468f"},
-]
-
-[[package]]
-name = "sentry-sdk"
-version = "2.11.0"
-extras = ["fastapi"]
-requires_python = ">=3.6"
-summary = "Python client for Sentry (https://sentry.io)"
-dependencies = [
-    "fastapi>=0.79.0",
-    "sentry-sdk==2.11.0",
 ]
 files = [
     {file = "sentry_sdk-2.11.0-py2.py3-none-any.whl", hash = "sha256:d964710e2dbe015d9dc4ff0ad16225d68c3b36936b742a6fe0504565b760a3b7"},
