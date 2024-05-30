@@ -5,8 +5,8 @@ RUN pip install pdm
 
 WORKDIR /app
 COPY pyproject.toml pdm.lock ./
-RUN mkdir __pypackages__ && pdm install --prod --no-lock --no-editable
 COPY src/ src/
+RUN mkdir __pypackages__ && pdm install --prod --no-lock --no-editable
 RUN pdm install --prod --no-lock --no-editable
 
 FROM builder as test
