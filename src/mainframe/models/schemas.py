@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ServerMetadata(BaseModel):
@@ -25,11 +25,10 @@ class PackageSpecifier(BaseModel):
     version: A str of the package version to scan.
     """
 
+    model_config = ConfigDict(frozen=True)
+
     name: str
     version: str
-
-    class Config:
-        frozen = True
 
 
 class ReportPackageBody(PackageSpecifier):
