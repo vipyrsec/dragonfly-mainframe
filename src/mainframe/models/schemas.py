@@ -63,8 +63,7 @@ class Package(BaseModel):
             commit_hash=scan.commit_hash,
         )
 
-    @
-    (
+    @field_serializer(
         "queued_at",
         "pending_at",
         "finished_at",
