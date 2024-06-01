@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Optional
 from enum import Enum
 
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 from mainframe.models.orm import Scan
 
@@ -63,7 +63,8 @@ class Package(BaseModel):
             commit_hash=scan.commit_hash,
         )
 
-    @field_serializer(
+    @
+    (
         "queued_at",
         "pending_at",
         "finished_at",
@@ -82,11 +83,10 @@ class PackageSpecifier(BaseModel):
     version: A str of the package version to scan.
     """
 
+    model_config = ConfigDict(frozen=True)
+
     name: str
     version: str
-
-    class Config:
-        frozen = True
 
 
 class ReportPackageBody(PackageSpecifier):
