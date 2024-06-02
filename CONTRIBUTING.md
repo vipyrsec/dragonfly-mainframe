@@ -75,12 +75,12 @@ which will invoke `docker compose` for you.
 We use `pytest` to run our tests. Tests go in the `tests/` directory.
 The tests for each python module should go in a separate tests file.
 
-We use `requests` for making requests to the API. Use the fixture `api_url` for the URL to make requests to.
+We use `httpx` for making requests to the API. Use the fixture `api_url` for the URL to make requests to.
 For example:
 
 ```py
 def test_root(api_url: str):
-    r = requests.get(api_url)
+    r = httpx.get(api_url)
     assert r.status_code == 200
 ```
 
@@ -91,7 +91,7 @@ For example:
 
 ```py
 def test_query(api_url: str, db_session: Session):
-    r = requests.get(api_url + "/package?name=a&version=0.1.0")
+    r = httpx.get(api_url + "/package?name=a&version=0.1.0")
     data = r.json()
     assert r["name"] == "a"
 ```
