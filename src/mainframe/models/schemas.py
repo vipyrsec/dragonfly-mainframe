@@ -47,7 +47,7 @@ class Package(BaseModel):
             scan_id=str(scan.scan_id),
             name=scan.name,
             version=scan.version,
-            status=str(scan.status),
+            status=scan.status.name.lower(),
             score=scan.score,  # pyright: ignore
             inspector_url=scan.inspector_url,
             rules=[rule.name for rule in scan.rules],
