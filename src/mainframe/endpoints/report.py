@@ -22,6 +22,8 @@ from mainframe.models.schemas import (
     ReportPackageBody,
 )
 
+from mainframe.metrics import packages_reported
+
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
@@ -253,3 +255,5 @@ def report_package(
         },
         reported_by=auth.subject,
     )
+
+    packages_reported.add(1)
