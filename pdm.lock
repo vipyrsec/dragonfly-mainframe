@@ -3,10 +3,9 @@
 
 [metadata]
 groups = ["default", "docs", "lint", "logs", "test"]
-cross_platform = true
-static_urls = false
-lock_version = "4.3"
-content_hash = "sha256:8cd50b3ef3f2320fb8ec5fd858ec600cb842630354be64735939bed8702f13f0"
+strategy = ["cross_platform"]
+lock_version = "4.4.1"
+content_hash = "sha256:daacebbf52736be40bd8a73ccdbed911eeccf3b4cd19b74026554591e8d9074f"
 
 [[package]]
 name = "alabaster"
@@ -571,7 +570,7 @@ files = [
 
 [[package]]
 name = "logfire"
-version = "0.37.0"
+version = "0.39.0"
 summary = "The best Python observability tool! 🪵🔥"
 dependencies = [
     "executing>=2.0.1",
@@ -583,24 +582,24 @@ dependencies = [
     "typing-extensions>=4.1.0",
 ]
 files = [
-    {file = "logfire-0.37.0-py2.py3-none-any.whl", hash = "sha256:73b3008bd4aa9a6460b72a81aff6d96b9f042e7902860846e531bb4419eceadf"},
-    {file = "logfire-0.37.0.tar.gz", hash = "sha256:64ddff69db795826d6e6d662673d787fad4eaa7a175acd11a9ebc0b5121653d7"},
+    {file = "logfire-0.39.0-py2.py3-none-any.whl", hash = "sha256:eb3e4bc4f8389b475143de55b167c6c1109466a968fc6c0027c622242388e976"},
+    {file = "logfire-0.39.0.tar.gz", hash = "sha256:560acaa5906f673810f4281b329cc0f1f01ee511a673529580faf1a86734bea7"},
 ]
 
 [[package]]
 name = "logfire"
-version = "0.37.0"
+version = "0.39.0"
 extras = ["fastapi", "httpx", "sqlalchemy"]
 summary = "The best Python observability tool! 🪵🔥"
 dependencies = [
-    "logfire==0.37.0",
+    "logfire==0.39.0",
     "opentelemetry-instrumentation-fastapi>=0.42b0",
     "opentelemetry-instrumentation-httpx>=0.42b0",
     "opentelemetry-instrumentation-sqlalchemy>=0.42b0",
 ]
 files = [
-    {file = "logfire-0.37.0-py2.py3-none-any.whl", hash = "sha256:73b3008bd4aa9a6460b72a81aff6d96b9f042e7902860846e531bb4419eceadf"},
-    {file = "logfire-0.37.0.tar.gz", hash = "sha256:64ddff69db795826d6e6d662673d787fad4eaa7a175acd11a9ebc0b5121653d7"},
+    {file = "logfire-0.39.0-py2.py3-none-any.whl", hash = "sha256:eb3e4bc4f8389b475143de55b167c6c1109466a968fc6c0027c622242388e976"},
+    {file = "logfire-0.39.0.tar.gz", hash = "sha256:560acaa5906f673810f4281b329cc0f1f01ee511a673529580faf1a86734bea7"},
 ]
 
 [[package]]
@@ -1399,7 +1398,7 @@ version = "2.0.29"
 requires_python = ">=3.7"
 summary = "Database Abstraction Library"
 dependencies = [
-    "greenlet!=0.4.17; platform_machine == \"aarch64\" or (platform_machine == \"ppc64le\" or (platform_machine == \"x86_64\" or (platform_machine == \"amd64\" or (platform_machine == \"AMD64\" or (platform_machine == \"win32\" or platform_machine == \"WIN32\")))))",
+    "greenlet!=0.4.17; platform_machine == \"win32\" or platform_machine == \"WIN32\" or platform_machine == \"AMD64\" or platform_machine == \"amd64\" or platform_machine == \"x86_64\" or platform_machine == \"ppc64le\" or platform_machine == \"aarch64\"",
     "typing-extensions>=4.6.0",
 ]
 files = [
@@ -1498,7 +1497,7 @@ dependencies = [
     "python-dotenv>=0.13",
     "pyyaml>=5.1",
     "uvicorn==0.29.0",
-    "uvloop!=0.15.0,!=0.15.1,>=0.14.0; sys_platform != \"win32\" and (sys_platform != \"cygwin\" and platform_python_implementation != \"PyPy\")",
+    "uvloop!=0.15.0,!=0.15.1,>=0.14.0; (sys_platform != \"cygwin\" and sys_platform != \"win32\") and platform_python_implementation != \"PyPy\"",
     "watchfiles>=0.13",
     "websockets>=10.4",
 ]
