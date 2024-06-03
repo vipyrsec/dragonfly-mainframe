@@ -23,7 +23,7 @@ from mainframe.models.schemas import (
     QueuePackageResponse,
 )
 
-from mainframe.metrics import package_success, package_fails, packages_ingested
+from mainframe.logfire import package_success, package_fails, packages_ingested
 
 router = APIRouter(tags=["package"])
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()

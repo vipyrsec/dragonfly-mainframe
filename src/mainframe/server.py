@@ -24,7 +24,6 @@ from . import __version__
 
 
 def configure_logger():
-    logfire.configure(send_to_logfire="if-token-present")
     logfire.instrument_httpx()
 
     # Define the shared processors, regardless of whether API is running in prod or dev.

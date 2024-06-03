@@ -1,5 +1,7 @@
 import logfire
 
+logfire.configure(send_to_logfire="if-token-present")
+
 package_success = logfire.metric_counter(
     name="package_success", description="Number of successful packages scanned", unit="packages"
 )
