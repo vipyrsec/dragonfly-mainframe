@@ -22,7 +22,7 @@ from mainframe.models.schemas import (
     ReportPackageBody,
 )
 
-from mainframe.logfire import packages_reported
+from mainframe.metrics import packages_reported
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
