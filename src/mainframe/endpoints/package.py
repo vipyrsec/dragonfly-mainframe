@@ -4,6 +4,7 @@ from typing import Annotated, Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi_pagination import Page, paginate
 from letsbuilda.pypi import Package as PyPIPackage, PyPIServices  # type: ignore
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from sqlalchemy import select, tuple_
@@ -120,7 +121,7 @@ def lookup_package_info(
     since: Optional[int] = None,
     name: Optional[str] = None,
     version: Optional[str] = None,
-):
+) -> Page[Package]:
     """
     Lookup information on scanned packages based on name, version, or time
     scanned. If multiple packages are returned, they are ordered with the most
@@ -177,7 +178,7 @@ def lookup_package_info(
         packages = [Package.from_db(result) for result in data]
         log.info("Package information queried")
 
-    return packages
+    return paginate(packages)
 
 
 def _deduplicate_packages(packages: list[PackageSpecifier], session: Session) -> set[tuple[str, str]]:

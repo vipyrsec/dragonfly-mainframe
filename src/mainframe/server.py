@@ -9,6 +9,7 @@ import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
 from asgi_correlation_id.context import correlation_id
 from fastapi import Depends, FastAPI, Request, Response
+from fastapi_pagination import add_pagination
 from letsbuilda.pypi import PyPIServices
 from sentry_sdk.integrations.logging import LoggingIntegration
 from structlog_sentry import SentryProcessor
@@ -124,6 +125,7 @@ app = FastAPI(
     description="A service that provides a REST API for managing rules.",
     version=__version__,
 )
+add_pagination(app)
 
 logfire.instrument_fastapi(app)
 
