@@ -33,7 +33,6 @@ def validate_token_override():
         audience="DEVELOPMENT AUDIENCE",
         issued_at=datetime.now() - timedelta(seconds=10),
         expires_at=datetime.now() + timedelta(seconds=10),
-        grant_type="DEVELOPMENT GRANT TYPE",
     )
 
 
