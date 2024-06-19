@@ -125,7 +125,6 @@ app = FastAPI(
     description="A service that provides a REST API for managing rules.",
     version=__version__,
 )
-add_pagination(app)
 
 logfire.instrument_fastapi(app)
 
@@ -200,3 +199,5 @@ async def update_rules():
 
 for router in routers:
     app.include_router(router)
+
+add_pagination(app)
