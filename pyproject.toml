@@ -24,6 +24,7 @@ dependencies = [
     "psycopg2-binary",
     "pyjwt[crypto]==2.8.0",
     "logfire[fastapi,sqlalchemy,httpx]>=0.39.0",
+    "fastapi-pagination>=0.12.25",
 ]
 dynamic = ["version"]
 

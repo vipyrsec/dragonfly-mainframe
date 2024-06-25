@@ -29,33 +29,33 @@ from mainframe.rules import Rules
 
 
 @pytest.mark.parametrize(
-    "since,name,version",
+    "since,name,version, page, size",
     [
-        (0, "a", None),
-        (0, None, None),
-        (0, "b", None),
-        (None, "a", "0.1.0"),
+        (0, "a", None, 1, 50),
+        (0, None, None, 1, 50),
+        (0, "b", None, 1, 50),
+        (None, "a", "0.1.0", 1, 50),
     ],
 )
 def test_package_lookup(
     since: Optional[int],
     name: Optional[str],
     version: Optional[str],
+    page: int,
+    size: int,
     test_data: list[Scan],
     db_session: Session,
 ):
-    exp: set[tuple[str, str]] = set()
-    for scan in test_data:
-        if since is not None and (scan.finished_at is None or since > int(scan.finished_at.timestamp())):
-            continue
-        if name is not None and scan.name != name:
-            continue
-        if version is not None and scan.version != version:
-            continue
-        exp.add((scan.name, scan.version))
+    expected_scans = [
+        (scan.name, scan.version)
+        for scan in test_data
+        if (since is None or (scan.finished_at is not None and since <= int(scan.finished_at.timestamp())))
+        and (name is None or scan.name == name)
+        and (version is None or scan.version == version)
+    ]
 
-    scans = lookup_package_info(db_session, since, name, version)
-    assert exp == {(scan.name, scan.version) for scan in scans}
+    actual_scans = lookup_package_info(db_session, since, name, version, page, size)
+    assert set(expected_scans) == {(scan.name, scan.version) for scan in actual_scans.items}
 
 
 @pytest.mark.parametrize(
