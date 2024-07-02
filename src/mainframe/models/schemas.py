@@ -1,8 +1,8 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Optional, Self
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
 
 from mainframe.models.orm import Scan
 
@@ -18,6 +18,12 @@ class Error(BaseModel):
     """Error"""
 
     detail: str
+
+
+class EchoResponse(BaseModel):
+    """Reponse from PyPI's echo endpoint."""
+
+    username: str
 
 
 class Package(BaseModel):
@@ -95,6 +101,15 @@ class ReportPackageBody(PackageSpecifier):
     use_email: bool = False
 
 
+class ReportPayload(BaseModel):
+    name: str
+    version: str
+    rules_matched: list[str]
+    inspector_url: str
+    additional_information: Optional[str] = None
+    recipient: Optional[str] = None
+
+
 class EmailReport(PackageSpecifier):
     """Model for a report using email"""
 
@@ -120,6 +135,20 @@ class ObservationReport(BaseModel):
     summary: str
     inspector_url: Optional[str]
     extra: dict[str, Any] = Field(default_factory=dict)
+
+
+class Observation(BaseModel):
+    kind: ObservationKind
+    summary: str
+    inspector_url: Optional[str] = ""
+    extra: dict[str, Any] = {}
+
+    @model_validator(mode="after")
+    def model_validator(self) -> Self:
+        if self.kind == ObservationKind.Malware:
+            assert self.inspector_url is not None, "inspector_url is required when kind is malware"
+
+        return self
 
 
 class PackageScanResult(PackageSpecifier):

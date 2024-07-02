@@ -22,7 +22,7 @@ class Mainframe(EnvConfig):
     auth0_domain: str = ""
     auth0_audience: str = ""
 
-    reporter_url: str = ""
+    # reporter_url: str = "" # Deprecar
 
     db_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/dragonfly"
     db_connection_pool_max_size: int = 15
@@ -37,6 +37,15 @@ class Mainframe(EnvConfig):
 
 mainframe_settings = Mainframe()  # pyright: ignore
 
+
+class PyPI(EnvConfig):  # pyright: ignore
+    """Environment variables for PyPI."""
+
+    pypi_base_url: str = "https://pypi.org/danger-api"
+    pypi_api_token: str = ""
+
+
+pypi = PyPI()
 
 class _Sentry(EnvConfig, env_prefix="sentry_"):  # pyright: ignore
     dsn: str = ""
