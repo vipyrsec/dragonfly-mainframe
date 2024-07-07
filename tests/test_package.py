@@ -271,7 +271,6 @@ def test_package_from_db():
     scan = Scan(
         name="pyfoo",
         version="3.12.2",
-        status=Status.FINISHED,
         score=14,
         queued_by="Ryan",
         reported_by="Ryan",
@@ -294,7 +293,6 @@ def test_datetime_serialization():
     scan = Scan(
         name="Pyfoo",
         version="3.13.0",
-        status=Status.FINISHED,
         queued_at=datetime(2023, 10, 12, 13, 45, 30),
         pending_at=datetime(2023, 10, 12, 13, 45, 30),
         finished_at=datetime(2023, 10, 12, 13, 45, 30),
