@@ -275,9 +275,6 @@ def queue_package(
         )
         raise error
 
-    version = package_metadata.releases[0].version  # Use latest version if not provided
-    log = logger.bind(package={"name": name, "version": version})
-
     new_package = Scan(
         name=name,
         version=version,
