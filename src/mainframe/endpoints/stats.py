@@ -44,9 +44,8 @@ def _get_failed_packages(session: Session) -> int:
 
 @router.get("/stats", dependencies=[Depends(validate_token)])
 def get_stats(session: Annotated[Session, Depends(get_db)]) -> StatsResponse:
-    with session, session.begin():
-        return StatsResponse(
-            ingested=_get_package_ingest(session),
-            average_scan_time=_get_average_scan_time(session),
-            failed=_get_failed_packages(session),
-        )
+    return StatsResponse(
+        ingested=_get_package_ingest(session),
+        average_scan_time=_get_average_scan_time(session),
+        failed=_get_failed_packages(session),
+    )

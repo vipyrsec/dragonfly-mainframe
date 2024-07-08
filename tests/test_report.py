@@ -11,7 +11,7 @@ from letsbuilda.pypi import PyPIServices
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from pytest import MonkeyPatch
 from sqlalchemy import select
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session
 
 from mainframe.endpoints.report import (
     _lookup_package,  # pyright: ignore [reportPrivateUsage]
@@ -76,7 +76,6 @@ from mainframe.models.schemas import (
     ],
 )
 def test_report(
-    sm: sessionmaker[Session],
     db_session: Session,
     auth: AuthenticationData,
     pypi_client: PyPIServices,
@@ -104,21 +103,20 @@ def test_report(
         commit_hash="test commit hash",
     )
 
-    with db_session.begin():
-        db_session.add(scan)
+    db_session.add(scan)
+    db_session.commit()
 
     httpx.post = MagicMock()
 
-    report_package(body, sm(), auth, pypi_client)
+    report_package(body, db_session, auth, pypi_client)
 
     httpx.post.assert_called_once_with(url, json=jsonable_encoder(expected))
 
-    with sm() as sess, sess.begin():
-        s = sess.scalar(select(Scan).where(Scan.name == "c").where(Scan.version == "1.0.0"))
+    scan = db_session.scalar(select(Scan).where(Scan.name == "c").where(Scan.version == "1.0.0"))
 
-    assert s is not None
-    assert s.reported_by == auth.subject
-    assert s.reported_at is not None
+    assert scan is not None
+    assert scan.reported_by == auth.subject
+    assert scan.reported_at is not None
 
 
 def test_report_package_not_on_pypi(
@@ -162,8 +160,9 @@ def test_report_invalid_version(db_session: Session):
         fail_reason=None,
         commit_hash="test commit hash",
     )
-    with db_session.begin():
-        db_session.add(scan)
+
+    db_session.add(scan)
+    db_session.commit()
 
     with pytest.raises(HTTPException) as e:
         _lookup_package("c", "2.0.0", db_session)
@@ -384,8 +383,8 @@ def test_report_lookup_package(db_session: Session):
         commit_hash="test commit hash",
     )
 
-    with db_session.begin():
-        db_session.add(scan)
+    db_session.add(scan)
+    db_session.commit()
 
     res = _lookup_package("c", "1.0.0", db_session)
 
