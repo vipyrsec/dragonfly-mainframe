@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Optional
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, Field, field_serializer
 
 from mainframe.models.orm import Scan
 
@@ -82,10 +82,11 @@ class PackageSpecifier(BaseModel):
     version: A str of the package version to scan.
     """
 
-    model_config = ConfigDict(frozen=True)
-
     name: str
     version: str
+
+    class Config:
+        fozen = True
 
 
 class ReportPackageBody(PackageSpecifier):
