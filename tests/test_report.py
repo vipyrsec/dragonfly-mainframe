@@ -160,7 +160,6 @@ def test_report_invalid_version(db_session: Session):
         fail_reason=None,
         commit_hash="test commit hash",
     )
-
     db_session.add(scan)
     db_session.commit()
 

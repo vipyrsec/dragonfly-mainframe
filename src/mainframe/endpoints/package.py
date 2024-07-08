@@ -166,9 +166,10 @@ def lookup_package_info(
     if nn_since:
         query = query.where(Scan.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.timezone.utc))
 
-    data = session.scalars(query).unique().all()
+    data = session.scalars(query)
 
-    return data
+    log.info("Package information queried")
+    return data.unique().all()
 
 
 def _deduplicate_packages(packages: list[PackageSpecifier], session: Session) -> set[tuple[str, str]]:

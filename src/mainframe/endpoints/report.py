@@ -233,11 +233,6 @@ def report_package(
 
         httpx.post(f"{mainframe_settings.reporter_url}/report/{name}", json=jsonable_encoder(report))
 
-    scan.reported_by = auth.subject
-    scan.reported_at = dt.datetime.now(dt.timezone.utc)
-
-    session.commit()
-
     log.info(
         "Sent report",
         report_data={
@@ -250,3 +245,7 @@ def report_package(
         },
         reported_by=auth.subject,
     )
+
+    scan.reported_by = auth.subject
+    scan.reported_at = dt.datetime.now(dt.timezone.utc)
+    session.commit()
