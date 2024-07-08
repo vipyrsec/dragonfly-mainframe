@@ -86,7 +86,7 @@ class PackageSpecifier(BaseModel):
     version: str
 
     class Config:
-        fozen = True
+        frozen = True
 
 
 class ReportPackageBody(PackageSpecifier):
