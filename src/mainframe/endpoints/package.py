@@ -4,7 +4,7 @@ from typing import Annotated, Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
-from letsbuilda.pypi import Package as PyPIPackage, PyPIServices  # type: ignore
+from letsbuilda.pypi import Package, PyPIServices  # type: ignore
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from sqlalchemy import select, tuple_
 from sqlalchemy.exc import IntegrityError
@@ -17,7 +17,6 @@ from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import DownloadURL, Rule, Scan, Status
 from mainframe.models.schemas import (
     Error,
-    Package,
     PackageScanResult,
     PackageScanResultFail,
     PackageSpecifier,
@@ -169,10 +168,8 @@ def lookup_package_info(
 
     with session, session.begin():
         data = session.scalars(query).unique().all()
-        packages = [Package.from_db(result) for result in data]
-        log.info("Package information queried")
 
-    return packages
+    return data
 
 
 def _deduplicate_packages(packages: list[PackageSpecifier], session: Session) -> set[tuple[str, str]]:
@@ -181,11 +178,11 @@ def _deduplicate_packages(packages: list[PackageSpecifier], session: Session) ->
     return name_ver - {(scan.name, scan.version) for scan in scalars.all()}
 
 
-def _get_packages_metadata(pypi_client: PyPIServices, packages_to_check: set[tuple[str, str]]) -> Iterable[PyPIPackage]:
+def _get_packages_metadata(pypi_client: PyPIServices, packages_to_check: set[tuple[str, str]]) -> Iterable[Package]:
     if not packages_to_check:
         return
 
-    def _get_package_metadata(package: tuple[str, str]) -> Optional[PyPIPackage]:
+    def _get_package_metadata(package: tuple[str, str]) -> Optional[Package]:
         try:
             return pypi_client.get_package_metadata(*package)
         except PackageNotFoundError:

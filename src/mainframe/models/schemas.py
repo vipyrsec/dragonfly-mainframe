@@ -1,10 +1,7 @@
-from datetime import datetime
-from typing import Any, Optional
 from enum import Enum
+from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
-
-from mainframe.models.orm import Scan
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ServerMetadata(BaseModel):
@@ -18,60 +15,6 @@ class Error(BaseModel):
     """Error"""
 
     detail: str
-
-
-class Package(BaseModel):
-    """Model representing a package queried from the database."""
-
-    scan_id: str
-    name: str
-    version: Optional[str]
-    status: Optional[str]
-    score: Optional[int]
-    inspector_url: Optional[str]
-    rules: list[str] = []
-    download_urls: list[str] = []
-    queued_at: Optional[datetime]
-    queued_by: Optional[str]
-    reported_at: Optional[datetime]
-    reported_by: Optional[str]
-    pending_at: Optional[datetime]
-    pending_by: Optional[str]
-    finished_at: Optional[datetime]
-    finished_by: Optional[str]
-    commit_hash: Optional[str]
-
-    @classmethod
-    def from_db(cls, scan: Scan):
-        return cls(
-            scan_id=str(scan.scan_id),
-            name=scan.name,
-            version=scan.version,
-            status=str(scan.status),
-            score=scan.score,  # pyright: ignore
-            inspector_url=scan.inspector_url,
-            rules=[rule.name for rule in scan.rules],
-            download_urls=[url.url for url in scan.download_urls],
-            reported_at=scan.reported_at,
-            reported_by=scan.reported_by,
-            queued_at=scan.queued_at,
-            queued_by=scan.queued_by,
-            pending_at=scan.pending_at,
-            pending_by=scan.pending_by,
-            finished_at=scan.finished_at,
-            finished_by=scan.finished_by,
-            commit_hash=scan.commit_hash,
-        )
-
-    @field_serializer(
-        "queued_at",
-        "pending_at",
-        "finished_at",
-        "reported_at",
-    )
-    def serialize_dt(self, dt: Optional[datetime], _info):  # pyright: ignore
-        if dt:
-            return int(dt.timestamp())
 
 
 class PackageSpecifier(BaseModel):
