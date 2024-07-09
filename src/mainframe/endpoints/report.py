@@ -45,8 +45,7 @@ def _lookup_package(name: str, version: str, session: Session) -> Scan:
     log = logger.bind(package={"name": name, "version": version})
 
     query = select(Scan).where(Scan.name == name).options(joinedload(Scan.rules))
-    with session.begin():
-        scans = session.scalars(query).unique().all()
+    scans = session.scalars(query).unique().all()
 
     if not scans:
         error = HTTPException(404, detail=f"No records for package `{name}` were found in the database")
@@ -71,8 +70,7 @@ def _lookup_package(name: str, version: str, session: Session) -> Scan:
             )
             raise error
 
-    with session.begin():
-        scan = session.scalar(query.where(Scan.version == version))
+    scan = session.scalar(query.where(Scan.version == version))
     if scan is None:
         error = HTTPException(
             404, detail=f"Package `{name}` has records in the database, but none with version `{version}`"
@@ -235,12 +233,6 @@ def report_package(
 
         httpx.post(f"{mainframe_settings.reporter_url}/report/{name}", json=jsonable_encoder(report))
 
-    with session.begin():
-        scan.reported_by = auth.subject
-        scan.reported_at = dt.datetime.now(dt.timezone.utc)
-
-    session.close()
-
     log.info(
         "Sent report",
         report_data={
@@ -253,3 +245,7 @@ def report_package(
         },
         reported_by=auth.subject,
     )
+
+    scan.reported_by = auth.subject
+    scan.reported_at = dt.datetime.now(dt.timezone.utc)
+    session.commit()

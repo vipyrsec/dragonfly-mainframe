@@ -10,8 +10,7 @@ from mainframe.rules import Rules
 
 
 def oldest_queued_package(db_session: Session):
-    with db_session.begin():
-        return db_session.scalar(select(func.min(Scan.queued_at)).where(Scan.status == Status.QUEUED))
+    return db_session.scalar(select(func.min(Scan.queued_at)).where(Scan.status == Status.QUEUED))
 
 
 def test_min_queue_date_of_queued_rows(test_data: list[Scan], db_session: Session):
@@ -26,8 +25,7 @@ def test_min_queue_date_of_queued_rows(test_data: list[Scan], db_session: Sessio
 
 
 def fetch_queue_time(name: str, version: str, db_session: Session) -> dt.datetime | None:
-    with db_session.begin():
-        return db_session.scalar(select(Scan.queued_at).where(Scan.name == name).where(Scan.version == version))
+    return db_session.scalar(select(Scan.queued_at).where(Scan.name == name).where(Scan.version == version))
 
 
 def test_fetch_queue_time(test_data: list[Scan], db_session: Session):
@@ -65,11 +63,10 @@ def test_batch_job(test_data: list[Scan], db_session: Session, auth: Authenticat
             assert (row.name, row.version) not in jobs
 
     # check if the database was accurately updated
-    with db_session.begin():
-        for name, version in jobs:
-            row = db_session.scalar(select(Scan).where(Scan.name == name).where(Scan.version == version))
+    for name, version in jobs:
+        row = db_session.scalar(select(Scan).where(Scan.name == name).where(Scan.version == version))
 
-            assert row is not None
-            assert row.status == Status.PENDING
-            assert row.pending_by is not None
-            assert row.pending_at is not None
+        assert row is not None
+        assert row.status == Status.PENDING
+        assert row.pending_by is not None
+        assert row.pending_at is not None
