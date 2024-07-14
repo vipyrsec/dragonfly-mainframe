@@ -40,53 +40,54 @@ def get_jobs(
     packages are always processed after newly queued packages.
     """
 
-    with session, session.begin():
-        scans = (
-            session.scalars(
-                select(Scan)
-                .where(
-                    or_(
-                        Scan.status == Status.QUEUED,
-                        and_(
-                            Scan.pending_at
-                            < datetime.now(timezone.utc) - timedelta(seconds=mainframe_settings.job_timeout),
-                            Scan.status == Status.PENDING,
-                        ),
-                    )
+    scans = (
+        session.scalars(
+            select(Scan)
+            .where(
+                or_(
+                    Scan.status == Status.QUEUED,
+                    and_(
+                        Scan.pending_at
+                        < datetime.now(timezone.utc) - timedelta(seconds=mainframe_settings.job_timeout),
+                        Scan.status == Status.PENDING,
+                    ),
                 )
-                .order_by(Scan.pending_at.nulls_first(), Scan.queued_at)
-                .limit(batch)
-                .options(joinedload(Scan.download_urls))
             )
-            .unique()
-            .all()
+            .order_by(Scan.pending_at.nulls_first(), Scan.queued_at)
+            .limit(batch)
+            .options(joinedload(Scan.download_urls))
+        )
+        .unique()
+        .all()
+    )
+
+    response_body: list[JobResult] = []
+    for scan in scans:
+        scan.status = Status.PENDING
+        scan.pending_at = datetime.now(timezone.utc)
+        scan.pending_by = auth.subject
+
+        logger.info(
+            "Job given and status set to pending in database",
+            package={
+                "name": scan.name,
+                "status": scan.status,
+                "pending_at": scan.pending_at,
+                "pending_by": auth.subject,
+                "version": scan.version,
+            },
+            tag="job_given",
         )
 
-        response_body: list[JobResult] = []
-        for scan in scans:
-            scan.status = Status.PENDING
-            scan.pending_at = datetime.now(timezone.utc)
-            scan.pending_by = auth.subject
+        job_result = JobResult(
+            name=scan.name,
+            version=scan.version,
+            distributions=[dist.url for dist in scan.download_urls],
+            hash=state.rules_commit,
+        )
 
-            logger.info(
-                "Job given and status set to pending in database",
-                package={
-                    "name": scan.name,
-                    "status": scan.status,
-                    "pending_at": scan.pending_at,
-                    "pending_by": auth.subject,
-                    "version": scan.version,
-                },
-                tag="job_given",
-            )
+        response_body.append(job_result)
 
-            job_result = JobResult(
-                name=scan.name,
-                version=scan.version,
-                distributions=[dist.url for dist in scan.download_urls],
-                hash=state.rules_commit,
-            )
-
-            response_body.append(job_result)
+    session.commit()
 
     return response_body

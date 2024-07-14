@@ -4,7 +4,7 @@ from typing import Annotated, Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
-from letsbuilda.pypi import Package as PyPIPackage, PyPIServices  # type: ignore
+from letsbuilda.pypi import Package, PyPIServices  # type: ignore
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from sqlalchemy import select, tuple_
 from sqlalchemy.exc import IntegrityError
@@ -17,14 +17,11 @@ from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import DownloadURL, Rule, Scan, Status
 from mainframe.models.schemas import (
     Error,
-    Package,
     PackageScanResult,
     PackageScanResultFail,
     PackageSpecifier,
     QueuePackageResponse,
 )
-
-from mainframe.metrics import package_success, package_fails, packages_ingested
 
 router = APIRouter(tags=["package"])
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -45,10 +42,9 @@ def submit_results(
     name = result.name
     version = result.version
 
-    with session.begin():
-        scan = session.scalar(
-            select(Scan).where(Scan.name == name).where(Scan.version == version).options(joinedload(Scan.rules))
-        )
+    scan = session.scalar(
+        select(Scan).where(Scan.name == name).where(Scan.version == version).options(joinedload(Scan.rules))
+    )
 
     log = logger.bind(package={"name": name, "version": version})
 
@@ -66,30 +62,28 @@ def submit_results(
         )
         raise error
 
-    with session, session.begin():
-        if isinstance(result, PackageScanResultFail):
-            scan.status = Status.FAILED
-            scan.fail_reason = result.reason
+    if isinstance(result, PackageScanResultFail):
+        scan.status = Status.FAILED
+        scan.fail_reason = result.reason
 
-            session.commit()
-            package_fails.add(1)
-            return
+        session.commit()
+        return
 
-        scan.status = Status.FINISHED
-        scan.finished_at = dt.datetime.now(dt.timezone.utc)
-        scan.inspector_url = result.inspector_url
-        scan.score = result.score
-        scan.finished_by = auth.subject
-        scan.commit_hash = result.commit
+    scan.status = Status.FINISHED
+    scan.finished_at = dt.datetime.now(dt.timezone.utc)
+    scan.inspector_url = result.inspector_url
+    scan.score = result.score
+    scan.finished_by = auth.subject
+    scan.commit_hash = result.commit
 
-        # These are the rules that already have an entry in the database
-        rules = session.scalars(select(Rule).where(Rule.name.in_(result.rules_matched))).all()
-        rule_names = {rule.name for rule in rules}
-        scan.rules.extend(rules)
+    # These are the rules that already have an entry in the database
+    rules = session.scalars(select(Rule).where(Rule.name.in_(result.rules_matched))).all()
+    rule_names = {rule.name for rule in rules}
+    scan.rules.extend(rules)
 
-        # These are the rules that had to be created
-        new_rules = [Rule(name=rule_name) for rule_name in result.rules_matched if rule_name not in rule_names]
-        scan.rules.extend(new_rules)
+    # These are the rules that had to be created
+    new_rules = [Rule(name=rule_name) for rule_name in result.rules_matched if rule_name not in rule_names]
+    scan.rules.extend(new_rules)
 
     log.info(
         "Scan results submitted",
@@ -107,7 +101,7 @@ def submit_results(
         tag="scan_submitted",
     )
 
-    package_success.add(1)
+    session.commit()
 
 
 @router.get(
@@ -172,12 +166,10 @@ def lookup_package_info(
     if nn_since:
         query = query.where(Scan.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.timezone.utc))
 
-    with session, session.begin():
-        data = session.scalars(query).unique().all()
-        packages = [Package.from_db(result) for result in data]
-        log.info("Package information queried")
+    data = session.scalars(query)
 
-    return packages
+    log.info("Package information queried")
+    return data.unique().all()
 
 
 def _deduplicate_packages(packages: list[PackageSpecifier], session: Session) -> set[tuple[str, str]]:
@@ -186,11 +178,11 @@ def _deduplicate_packages(packages: list[PackageSpecifier], session: Session) ->
     return name_ver - {(scan.name, scan.version) for scan in scalars.all()}
 
 
-def _get_packages_metadata(pypi_client: PyPIServices, packages_to_check: set[tuple[str, str]]) -> Iterable[PyPIPackage]:
+def _get_packages_metadata(pypi_client: PyPIServices, packages_to_check: set[tuple[str, str]]) -> Iterable[Package]:
     if not packages_to_check:
         return
 
-    def _get_package_metadata(package: tuple[str, str]) -> Optional[PyPIPackage]:
+    def _get_package_metadata(package: tuple[str, str]) -> Optional[Package]:
         try:
             return pypi_client.get_package_metadata(*package)
         except PackageNotFoundError:
@@ -216,25 +208,22 @@ def batch_queue_package(
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
 ):
-    with session, session.begin():
-        packages_to_check = _deduplicate_packages(packages, session)
+    packages_to_check = _deduplicate_packages(packages, session)
 
-        scans: list[Scan] = []
-        for package_metadata in _get_packages_metadata(pypi_client, packages_to_check):
-            scan = Scan(
-                name=package_metadata.title,
-                version=package_metadata.releases[0].version,
-                status=Status.QUEUED,
-                queued_by=auth.subject,
-                download_urls=[
-                    DownloadURL(url=distribution.url) for distribution in package_metadata.releases[0].distributions
-                ],
-            )
+    for package_metadata in _get_packages_metadata(pypi_client, packages_to_check):
+        scan = Scan(
+            name=package_metadata.title,
+            version=package_metadata.releases[0].version,
+            status=Status.QUEUED,
+            queued_by=auth.subject,
+            download_urls=[
+                DownloadURL(url=distribution.url) for distribution in package_metadata.releases[0].distributions
+            ],
+        )
 
-            scans.append(scan)
+        session.add(scan)
 
-        session.add_all(scans)
-        packages_ingested.add(len(scans))
+    session.commit()
 
 
 @router.post(
@@ -288,9 +277,10 @@ def queue_package(
         ],
     )
 
+    session.add(new_package)
+
     try:
-        with session, session.begin():
-            session.add(new_package)
+        session.commit()
     except IntegrityError:
         log.warn(f"Package {name}@{version} already queued for scanning.", tag="already_queued")
         raise HTTPException(409, f"Package {name}@{version} is already queued for scanning")
@@ -307,5 +297,4 @@ def queue_package(
         tag="package_added",
     )
 
-    packages_ingested.add(1)
     return QueuePackageResponse(id=str(new_package.scan_id))
