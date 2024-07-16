@@ -83,9 +83,20 @@ def submit_results(
         rule_names = {rule.name for rule in rules}
         scan.rules.extend(rules)
 
-        # These are the rules that had to be created
+        for rule in rules:
+            if rule not in scan.rules:
+                scan.rules.append(rule)
+
+        # Rules that are not in the database yet
         new_rules = [Rule(name=rule_name) for rule_name in result.rules_matched if rule_name not in rule_names]
         scan.rules.extend(new_rules)
+
+        try:
+            session.commit()
+        except IntegrityError:
+            session.rollback()
+            log.error("400", "Duplicate rule names found in the database", tag="duplicate_rule_names")
+            raise HTTPException(400, "Duplicate rule names found in the database")
 
     log.info(
         "Scan results submitted",
