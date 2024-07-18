@@ -34,6 +34,8 @@ class Mainframe(EnvConfig):
 
     job_timeout: int = 60 * 2
 
+    enable_json_logging: bool = False
+
 
 mainframe_settings = Mainframe()  # pyright: ignore
 
