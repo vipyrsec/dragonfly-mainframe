@@ -13,7 +13,7 @@ from letsbuilda.pypi import PyPIServices
 from sentry_sdk.integrations.logging import LoggingIntegration
 from structlog_sentry import SentryProcessor
 
-from mainframe.constants import GIT_SHA, Sentry
+from mainframe.constants import GIT_SHA, Sentry, mainframe_settings
 from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
 from mainframe.models.schemas import ServerMetadata
@@ -49,17 +49,10 @@ def configure_logger():
         cache_logger_on_first_use=True,
     )
 
-    # log_renderer: structlog.types.Processor
-    # # If running in production, render logs with JSON.
-    # if mainframe_settings.production:
-    #     log_renderer = structlog.processors.JSONRenderer()
-    # else:
-    #     # If running in a development environment, pretty print logs
-    #     log_renderer = structlog.dev.ConsoleRenderer()
-
-    # TODO: Once infra for log aggregation is up and running, remove this and go back to
-    # TODO: JSON logging in production.
-    log_renderer = structlog.dev.ConsoleRenderer(colors=False)
+    if mainframe_settings.enable_json_logging is True:
+        log_renderer = structlog.processors.JSONRenderer()
+    else:
+        log_renderer = structlog.dev.ConsoleRenderer(colors=False)
 
     formatter = structlog.stdlib.ProcessorFormatter(
         foreign_pre_chain=shared_processors,
