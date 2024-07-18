@@ -13,7 +13,7 @@ from letsbuilda.pypi import PyPIServices
 from sentry_sdk.integrations.logging import LoggingIntegration
 from structlog_sentry import SentryProcessor
 
-from mainframe.constants import GIT_SHA, Sentry
+from mainframe.constants import GIT_SHA, Sentry, mainframe_settings
 from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
 from mainframe.models.schemas import ServerMetadata
@@ -49,10 +49,10 @@ def configure_logger():
         cache_logger_on_first_use=True,
     )
 
-    if GIT_SHA in ("development", "testing"):
-        log_renderer = structlog.dev.ConsoleRenderer(colors=False)
-    else:
+    if mainframe_settings.enable_json_logging is True:
         log_renderer = structlog.processors.JSONRenderer()
+    else:
+        log_renderer = structlog.dev.ConsoleRenderer(colors=False)
 
     formatter = structlog.stdlib.ProcessorFormatter(
         foreign_pre_chain=shared_processors,
