@@ -1,4 +1,5 @@
 from typing import Optional
+import datetime
 
 import pytest
 from fastapi import HTTPException
@@ -19,6 +20,7 @@ from mainframe.endpoints.package import (
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan, Status
 from mainframe.models.schemas import (
+    Package,
     PackageScanResult,
     PackageScanResultFail,
     PackageSpecifier,
@@ -261,3 +263,47 @@ def test_submit_duplicate_package(
 
     else:
         assert all(scan.status != Status.QUEUED for scan in test_data)
+
+
+def test_package_from_db():
+    scan = Scan(
+        name="pyfoo",
+        version="3.12.2",
+        status=Status.FINISHED,
+        score=14,
+        queued_by="Ryan",
+        reported_by="Ryan",
+        queued_at=datetime.datetime(2024, 3, 5, 12, 30, 0),
+    )
+
+    pkg = Package.from_db(scan)
+
+    assert pkg.name == "pyfoo"
+    assert pkg.version == "3.12.2"
+    assert pkg.score == 14
+    assert pkg.queued_by == "Ryan"
+    assert pkg.reported_by == "Ryan"
+    assert pkg.queued_at == datetime.datetime(2024, 3, 5, 12, 30, 0)
+
+
+def test_datetime_serialization():
+    """Test that the datetime fields are serialized correctly."""
+
+    scan = Scan(
+        name="Pyfoo",
+        version="3.13.0",
+        status=Status.FINISHED,
+        queued_at=datetime.datetime(2023, 10, 12, 13, 45, 30),
+        pending_at=datetime.datetime(2023, 10, 12, 13, 45, 30),
+        finished_at=datetime.datetime(2023, 10, 12, 13, 45, 30),
+        reported_at=datetime.datetime(2023, 10, 12, 13, 45, 30),
+        queued_by="Tina",
+    )
+
+    pkg = Package.from_db(scan).model_dump()
+    dt = int(datetime.datetime(2023, 10, 12, 13, 45, 30).timestamp())
+
+    assert pkg.get("queued_at") == dt
+    assert pkg.get("pending_at") == dt
+    assert pkg.get("finished_at") == dt
+    assert pkg.get("reported_at") == dt
