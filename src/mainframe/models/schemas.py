@@ -2,7 +2,7 @@ import datetime
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field, field_serializer, ConfigDict
 
 from .orm import Scan
 
@@ -85,11 +85,10 @@ class PackageSpecifier(BaseModel):
     version: A str of the package version to scan.
     """
 
+    model_config = ConfigDict(frozen=True)
+
     name: str
     version: str
-
-    class Config:
-        frozen = True
 
 
 class ReportPackageBody(PackageSpecifier):
