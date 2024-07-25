@@ -1,0 +1,24 @@
+[handlers.default]
+level = "DEBUG"
+class = "logging.StreamHandler"
+formatter = "json"       # switch to json in production.
+
+[loggers.""]
+handlers = ["default"]
+level = "DEBUG"
+propogate = true
+
+[loggers.uvicorn]
+handlers = ["default"]
+level = "DEBUG"
+propogate = true
+
+[loggers."uvicorn.error"]
+handlers = ["default"]
+level = "DEBUG"
+propogate = true
+
+[loggers."uvicorn.access"]
+handlers = ["default"]
+level = "DEBUG"
+propogate = true
