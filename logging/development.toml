@@ -1,0 +1,19 @@
+[handlers.default]
+level = "DEBUG"
+class = "logging.StreamHandler"
+formatter = "development"
+
+[loggers.""]
+handlers = ["default"]
+level = "DEBUG"
+propagate = true
+
+[loggers."sqlalchemy.engine"]
+handlers = ["default"]
+level = "INFO"
+propagate = true
+
+[loggers."sqlalchemy.pool"]
+handlers = ["default"]
+level = "DEBUG"
+propagate = true

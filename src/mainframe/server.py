@@ -14,7 +14,7 @@ from structlog_sentry import SentryProcessor
 from logging_config import configure_logger
 from logging_config.middleware import LoggingMiddleware
 
-from mainframe.constants import GIT_SHA, Sentry
+from mainframe.constants import GIT_SHA, Sentry, mainframe_settings
 from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
 from mainframe.models.schemas import ServerMetadata
@@ -31,18 +31,10 @@ def add_correlation(logger: logging.Logger, method_name: str, event_dict: dict[s
 
 
 def setup_logging():
-    with open("src/logger.toml", "rb") as f:
+    with open(mainframe_settings.log_config_file, "rb") as f:
         data = tomllib.load(f)
 
     configure_logger(data, [add_correlation, SentryProcessor(event_level=logging.ERROR, level=logging.DEBUG)])
-
-    # Disable uvicorn's logging
-    for _log in ["uvicorn", "uvicorn.error"]:
-        logging.getLogger(_log).handlers.clear()
-        logging.getLogger(_log).propagate = True
-
-    logging.getLogger("uvicorn.access").handlers.clear()
-    logging.getLogger("uvicorn.access").propagate = False
 
 
 sentry_sdk.init(

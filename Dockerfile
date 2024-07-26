@@ -33,6 +33,7 @@ COPY alembic/ alembic/
 COPY alembic.ini ./
 COPY src/ src/
 COPY entrypoint.sh ./
+COPY logging/ logging/
 RUN chmod +x entrypoint.sh
 
 CMD ["sh", "./entrypoint.sh"]
