@@ -3,6 +3,9 @@ FROM python:3.12-slim@sha256:f11725aba18c19664a408902103365eaf8013823ffc56270f92
 RUN pip install -U pip setuptools wheel
 RUN pip install pdm
 
+RUN apt-get -y update
+RUN apt-get -y install git
+
 WORKDIR /app
 COPY pyproject.toml pdm.lock ./
 RUN mkdir __pypackages__ && pdm install --prod --no-lock --no-editable
