@@ -3,6 +3,9 @@ FROM python:3.12-slim@sha256:6bab0b6977b98f24a1c65855a1592152f3c4268afd19adc4da3
 RUN pip install -U pip setuptools wheel
 RUN pip install pdm
 
+RUN apt-get -y update
+RUN apt-get -y install git
+
 WORKDIR /app
 COPY pyproject.toml pdm.lock ./
 RUN mkdir __pypackages__ && pdm install --prod --no-lock --no-editable
@@ -33,6 +36,7 @@ COPY alembic/ alembic/
 COPY alembic.ini ./
 COPY src/ src/
 COPY entrypoint.sh ./
+COPY logging/ logging/
 RUN chmod +x entrypoint.sh
 
 CMD ["sh", "./entrypoint.sh"]

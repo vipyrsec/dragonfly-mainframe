@@ -1,17 +1,18 @@
 import logging
-import time
+import logging.config
+import tomllib
 from contextlib import asynccontextmanager
-from typing import Awaitable, Callable
+from typing import Any
 
 import httpx
 import sentry_sdk
-import structlog
-from asgi_correlation_id import CorrelationIdMiddleware
-from asgi_correlation_id.context import correlation_id
-from fastapi import Depends, FastAPI, Request, Response
+from asgi_correlation_id import CorrelationIdMiddleware, correlation_id
+from fastapi import Depends, FastAPI
 from letsbuilda.pypi import PyPIServices
 from sentry_sdk.integrations.logging import LoggingIntegration
 from structlog_sentry import SentryProcessor
+from logging_config import configure_logger
+from logging_config.middleware import LoggingMiddleware
 
 from mainframe.constants import GIT_SHA, Sentry, mainframe_settings
 from mainframe.dependencies import validate_token, validate_token_override
@@ -22,59 +23,18 @@ from mainframe.rules import Rules, fetch_rules
 from . import __version__
 
 
-def configure_logger():
-    # Define the shared processors, regardless of whether API is running in prod or dev.
-    shared_processors: list[structlog.types.Processor] = [
-        structlog.contextvars.merge_contextvars,
-        structlog.stdlib.add_log_level,
-        structlog.stdlib.PositionalArgumentsFormatter(),
-        structlog.stdlib.ExtraAdder(),
-        SentryProcessor(event_level=logging.ERROR, level=logging.DEBUG),
-        structlog.processors.format_exc_info,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.CallsiteParameterAdder(
-            {
-                structlog.processors.CallsiteParameter.FILENAME,
-                structlog.processors.CallsiteParameter.FUNC_NAME,
-                structlog.processors.CallsiteParameter.MODULE,
-                structlog.processors.CallsiteParameter.LINENO,
-            }
-        ),
-    ]
+def add_correlation(logger: logging.Logger, method_name: str, event_dict: dict[str, Any]) -> dict[str, Any]:
+    """Add request id to log message."""
+    if request_id := correlation_id.get():
+        event_dict["request_id"] = request_id
+    return event_dict
 
-    structlog.configure(
-        processors=shared_processors + [structlog.stdlib.ProcessorFormatter.wrap_for_formatter],
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
 
-    if mainframe_settings.enable_json_logging is True:
-        log_renderer = structlog.processors.JSONRenderer()
-    else:
-        log_renderer = structlog.dev.ConsoleRenderer(colors=False)
+def setup_logging():
+    with open(mainframe_settings.log_config_file, "rb") as f:
+        data = tomllib.load(f)
 
-    formatter = structlog.stdlib.ProcessorFormatter(
-        foreign_pre_chain=shared_processors,
-        processors=[
-            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-            log_renderer,
-        ],
-    )
-
-    handler = logging.StreamHandler()
-    handler.setFormatter(formatter)
-    root_logger = logging.getLogger()
-    root_logger.addHandler(handler)
-    root_logger.setLevel(logging.DEBUG)
-
-    # Disable uvicorn's logging
-    for _log in ["uvicorn", "uvicorn.error"]:
-        logging.getLogger(_log).handlers.clear()
-        logging.getLogger(_log).propagate = True
-
-    logging.getLogger("uvicorn.access").handlers.clear()
-    logging.getLogger("uvicorn.access").propagate = False
+    configure_logger(data, [add_correlation, SentryProcessor(event_level=logging.ERROR, level=logging.DEBUG)])
 
 
 sentry_sdk.init(
@@ -100,7 +60,7 @@ async def lifespan(app_: FastAPI):
     app_.state.http_session = http_client
     app_.state.pypi_client = pypi_client
 
-    configure_logger()
+    setup_logging()
 
     yield
 
@@ -116,51 +76,8 @@ if GIT_SHA in ("development", "testing"):
     app.dependency_overrides[validate_token] = validate_token_override
 
 
-@app.middleware("http")
-async def logging_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
-    structlog.contextvars.clear_contextvars()
-
-    request_id = correlation_id.get() or ""
-    url = request.url
-    client_host = request.client.host if request.client else ""
-    client_port = request.client.port if request.client else ""
-    structlog.contextvars.bind_contextvars(
-        request_id=request_id,
-        url=url,
-        network={"client": {"ip": client_host, "port": client_port}},
-    )
-
-    start_time = time.perf_counter_ns()
-    logger: structlog.stdlib.BoundLogger = structlog.get_logger()
-
-    response: Response = Response(status_code=500)
-    try:
-        response = await call_next(request)
-    except Exception:
-        logger.exception("Uncaught exception")
-        raise
-    finally:
-        process_time = time.perf_counter_ns() - start_time
-        status_code = response.status_code
-        http_method = request.method
-        http_version = request.scope["http_version"]
-        await logger.ainfo(
-            f'{client_host}:{client_port} - "{http_method} {url} HTTP/{http_version}" {status_code}',
-            http={
-                "url": str(url),
-                "status_code": status_code,
-                "method": http_method,
-                "request_id": request_id,
-                "version": http_version,
-            },
-            duration=process_time,
-            tag="request",
-        )
-
-        return response
-
-
 app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(LoggingMiddleware)
 
 
 @app.get("/", tags=["metadata"])

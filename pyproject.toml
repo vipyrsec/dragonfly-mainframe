@@ -23,6 +23,7 @@ dependencies = [
     "httpx>=0.24.1",
     "psycopg2-binary",
     "pyjwt[crypto]==2.8.0",
+    "dragonfly-logging-config @ git+https://github.com/vipyrsec/dragonfly-logging-config",
 ]
 dynamic = ["version"]
 
