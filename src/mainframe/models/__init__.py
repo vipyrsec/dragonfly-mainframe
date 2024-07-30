@@ -10,6 +10,7 @@ class Pydantic[T: BaseModel](TypeDecorator[T]):
     """TypeDecorator to convert between Pydantic models and JSONB."""
 
     impl = JSONB
+    cache_ok = True
 
     def __init__(self, pydantic_type: Type[T]):
         super().__init__()
