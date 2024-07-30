@@ -89,7 +89,7 @@ def test_package_lookup_rejects_invalid_combinations(
 def test_package_lookup_files(db_session: Session):
     """Test that `lookup_package_info` returns detailed file information."""
 
-    range_ = Range(start=0, end=5)
+    range_ = Range(start=0, end=4)
     match = Match(range=range_, data=[0xDE, 0xAD, 0xBE, 0xEF])
     pattern = PatternMatch(identifier="$pat", matches=[match])
     rule = RuleMatch(identifier="rule1", patterns=[pattern], metadata={"author": "remmy", "score": 5})
@@ -120,7 +120,7 @@ def test_handle_success(db_session: Session, test_data: list[Scan], auth: Authen
         name = job.name
         version = job.version
 
-        range_ = Range(start=0, end=5)
+        range_ = Range(start=0, end=4)
         match = Match(range=range_, data=[0xDE, 0xAD, 0xBE, 0xEF])
         pattern = PatternMatch(identifier="$pat", matches=[match])
         rule = RuleMatch(identifier="rule1", patterns=[pattern], metadata={"author": "remmy", "score": 5})
