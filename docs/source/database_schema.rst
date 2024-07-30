@@ -85,4 +85,3 @@ Database Schema
    :width: 800px
    :align: center
 
-
