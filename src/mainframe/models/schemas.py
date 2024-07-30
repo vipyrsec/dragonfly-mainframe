@@ -13,7 +13,7 @@ type MetaValue = int | float | bool | str | bytes
 
 
 class Range(BaseModel):
-    """Represents the range in the source file that was matched."""
+    """Represents the inclusive range in the source file that was matched."""
 
     start: int
     end: int
@@ -34,7 +34,7 @@ class PatternMatch(BaseModel):
 
 
 class RuleMatch(BaseModel):
-    """Represents details information on a single rule match."""
+    """Represents the matches of a rule on a file"""
 
     identifier: str
     patterns: list[PatternMatch]
