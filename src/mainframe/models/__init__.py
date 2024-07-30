@@ -14,7 +14,7 @@ class Pydantic[T: BaseModel](TypeDecorator[T]):
 
     def __init__(self, pydantic_type: Type[T]):
         super().__init__()
-        self.PydanticType = pydantic_type
+        self.pydantic_type = pydantic_type
 
     def process_bind_param(self, value: Optional[T], dialect: Dialect) -> dict[str, Any]:
         if value:
@@ -24,4 +24,4 @@ class Pydantic[T: BaseModel](TypeDecorator[T]):
 
     def process_result_value(self, value: Any, dialect: Dialect) -> Optional[T]:
         if value:
-            return self.PydanticType.model_validate(value)
+            return self.pydantic_type.model_validate(value)
