@@ -84,4 +84,3 @@ Database Schema
    :alt: ER Diagram
    :width: 800px
    :align: center
-
