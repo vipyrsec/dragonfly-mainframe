@@ -17,6 +17,9 @@ jobs:
     steps:
       - name: "Checkout repository"
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+        with:
+          # needed to diff with the main branch later
+          fetch-depth: 0
 
       - name: "Setup PDM"
         uses: pdm-project/setup-pdm@568ddd69406b30de1774ec0044b73ae06e716aa4 # v4
@@ -32,15 +35,13 @@ jobs:
         run: |
           #!/bin/bash
           set -euo pipefail
-          default_branch="${{ github.event.repository.default_branch }}"
 
           # we need to find the down revision of the first migration made in this PR,
           # which should be the head of main. to do this, we are going to import the
           # migration file which will set globals that we can easily read
           #
           # see https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
-          previous_head_revision=`
-          git diff --name-only $default_branch -- alembic/versions | xargs pdm run python -c '
+          git diff --name-only origin/main -- alembic/versions | xargs pdm run python -c '
           import importlib.util
           import sys
           spec = importlib.util.spec_from_file_location("rev", sys.argv[1])
@@ -57,13 +58,24 @@ jobs:
               revs.add(revision)
           head ,= down_revs - revs
           print(head)
-          '`
+          ' > phr
+          previous_head_revision=$(cat phr)
 
           # `alembic upgrade --sql` outputs logs to stderr and the sql to stdout, so
           # make temp files to get both parts
           pdm run alembic upgrade --sql $previous_head_revision:head > sql 2> summary
-          echo "MIGRATION='$(cat summary sql)'" >> $GITHUB_OUTPUT
 
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "MIGRATION<<$EOF" >> $GITHUB_OUTPUT
+          echo "$(cat summary sql)" >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
+
+          pdm run alembic downgrade --sql head:$previous_head_revision > sql 2> summary
+
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "DOWN_MIGRATION<<$EOF" >> $GITHUB_OUTPUT
+          echo "$(cat summary sql)" >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
 
       - name: "Comment on PR"
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # 7.0.1
@@ -73,9 +85,14 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `### \`alembic upgrade --sql ...\`
+              body: `## \`alembic upgrade --sql $prev_head:head\`
               \`\`\`
               ${{ steps.sql.outputs.MIGRATION }}
+              \`\`\`
+
+              ## \`alembic downgrade --sql head:$prev_head\`
+              \`\`\`
+              ${{ steps.sql.outputs.DOWN_MIGRATION }}
               \`\`\`
               `
             })
