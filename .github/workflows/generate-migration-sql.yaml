@@ -1,6 +1,8 @@
 # Generate migration as SQL if necessary
 # https://github.com/actions/github-script#comment-on-an-issue
 
+name: "Migration as SQL"
+
 on:
   workflow_dispatch:
   pull_request:
