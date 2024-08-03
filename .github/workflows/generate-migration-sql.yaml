@@ -41,21 +41,23 @@ jobs:
           # migration file which will set globals that we can easily read
           #
           # see https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
-          git diff --name-only origin/main -- alembic/versions | xargs pdm run python -c '
+          # input will be newline separated paths to revision files
+          git diff --name-only origin/main -- alembic/versions | pdm run python -c '
           import importlib.util
           import sys
-          spec = importlib.util.spec_from_file_location("rev", sys.argv[1])
-          module = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(module)
-          print(f"{module.revision},{module.down_revision}")
-          ' | pdm run python -c '
-          import sys
+
           down_revs = set()
           revs = set()
-          lines = (line.split(",") for line in sys.stdin)
-          for revision, down_revision in lines:
-              down_revs.add(down_revision)
-              revs.add(revision)
+
+          # git diff outputs an extra newline at the end
+          for i, path in enumerate(sys.stdin.read().rstrip().split("\n")):
+              spec = importlib.util.spec_from_file_location(f"rev", path)
+              module = importlib.util.module_from_spec(spec)
+              spec.loader.exec_module(module)
+              down_revs.add(module.down_revision)
+              revs.add(module.revision)
+          # the previous head revision is the down revision that does not appear
+          # in the list of revisions changed in this PR
           head ,= down_revs - revs
           print(head)
           ' > phr
