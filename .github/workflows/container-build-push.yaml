@@ -11,12 +11,15 @@ on:
 permissions:
   contents: read
   packages: write
-  # This is used to complete the identity challenge
-  # with sigstore/fulcio.
+
+  # This is used to complete the identity challenge with sigstore/fulcio.
   id-token: write
+
+  # This is used to attest build provenance
+  attestations: write
 
 jobs:
   build-push:
-    uses: darbiadev/.github/.github/workflows/docker-build-push.yaml@12e07d61ed37c908baa73f8d5550281b3ed9cddd # v13.1.2
+    uses: darbiadev/.github/.github/workflows/docker-build-push.yaml@12e07d61ed37c908baa73f8d5550281b3ed9cddd  # v13.1.2
     with:
       file-name: Dockerfile
