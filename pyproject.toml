@@ -123,6 +123,7 @@ reportUntypedNamedTuple = "error"
 [tool.coverage.run]
 branch = false
 omit = [
+  "__pypackages__/*",
   "src/mainframe/custom_exceptions.py",
   "src/mainframe/database.py",
   "src/mainframe/dependencies.py",
