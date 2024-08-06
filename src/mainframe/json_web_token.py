@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 import jwt
 
@@ -18,7 +18,7 @@ class AuthenticationData:
     audience: str
     issued_at: datetime
     expires_at: datetime
-    grant_type: str
+    grant_type: Optional[str]
 
     @classmethod
     def from_dict(cls, data: dict[Any, Any]):
@@ -28,7 +28,7 @@ class AuthenticationData:
             audience=data["aud"],
             issued_at=datetime.fromtimestamp(data["iat"]),
             expires_at=datetime.fromtimestamp(data["exp"]),
-            grant_type=data["gty"],
+            grant_type=data.get("gty"),
         )
 
 
