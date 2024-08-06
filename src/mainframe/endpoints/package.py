@@ -119,7 +119,7 @@ def lookup_package_info(
     name: Optional[str] = None,
     version: Optional[str] = None,
     page: int = 1,
-    size: int = 50,
+    size: int = 100,
 ) -> Page[Package]:
     """
     Lookup information on scanned packages based on name, version, or time
