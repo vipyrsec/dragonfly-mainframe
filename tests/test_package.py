@@ -54,16 +54,16 @@ def test_package_lookup(
     test_data: list[Scan],
     db_session: Session,
 ):
-    expected_scans = [
+    expected_scans = {
         (scan.name, scan.version)
         for scan in test_data
         if (since is None or (scan.finished_at is not None and since <= int(scan.finished_at.timestamp())))
         and (name is None or scan.name == name)
         and (version is None or scan.version == version)
-    ]
+    }
 
     actual_scans = lookup_package_info(db_session, since, name, version, page, size)
-    assert set(expected_scans) == {(scan.name, scan.version) for scan in actual_scans.items}
+    assert expected_scans == {(scan.name, scan.version) for scan in actual_scans.items}
 
 
 @pytest.mark.parametrize(
@@ -109,7 +109,7 @@ def test_package_lookup_files(db_session: Session):
     with db_session.begin():
         db_session.add(scan)
 
-    package = lookup_package_info(db_session, name="abc", version="1.0.0")[0]
+    package = lookup_package_info(db_session, name="abc", version="1.0.0").items[0]
 
     assert package.distributions == distros
 
