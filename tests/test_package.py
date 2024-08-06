@@ -46,16 +46,16 @@ def test_package_lookup(
     test_data: list[Scan],
     db_session: Session,
 ):
-    expected_scans = [
+    expected_scans = {
         (scan.name, scan.version)
         for scan in test_data
         if (since is None or (scan.finished_at is not None and since <= int(scan.finished_at.timestamp())))
         and (name is None or scan.name == name)
         and (version is None or scan.version == version)
-    ]
+    }
 
     actual_scans = lookup_package_info(db_session, since, name, version, page, size)
-    assert set(expected_scans) == {(scan.name, scan.version) for scan in actual_scans.items}
+    assert expected_scans == {(scan.name, scan.version) for scan in actual_scans.items}
 
 
 @pytest.mark.parametrize(

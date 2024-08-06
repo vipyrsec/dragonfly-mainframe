@@ -177,7 +177,6 @@ def lookup_package_info(
         query = query.where(Scan.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.timezone.utc))
 
     with session, session.begin():
-        log.info("Package info queried")
         params = Params(page=page, size=size)
         return paginate(
             session, query, params=params, transformer=lambda items: [Package.from_db(item) for item in items]
