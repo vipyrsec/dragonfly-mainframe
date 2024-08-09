@@ -34,7 +34,7 @@ class Mainframe(EnvConfig):
 
     job_timeout: int = 60 * 2
 
-    enable_json_logging: bool = False
+    log_config_file: str = "logging/development.toml"
 
 
 mainframe_settings = Mainframe()  # pyright: ignore

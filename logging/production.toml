@@ -1,0 +1,9 @@
+[handlers.default]
+level = "INFO"
+class = "logging.StreamHandler"
+formatter = "json"
+
+[loggers.""]
+handlers = ["default"]
+level = "INFO"
+propagate = true
