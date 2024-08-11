@@ -28,7 +28,7 @@ from sqlalchemy.orm import (
 )
 
 from mainframe.models import Pydantic
-from mainframe.models.schemas import Files
+from mainframe.models.schemas import Distributions
 
 
 class Base(MappedAsDataclass, DeclarativeBase, kw_only=True):
@@ -102,7 +102,7 @@ class Scan(Base):
 
     commit_hash: Mapped[Optional[str]] = mapped_column(default=None)
 
-    files: Mapped[Optional[Files]] = mapped_column(Pydantic(Files), default=None)
+    distributions: Mapped[Optional[Distributions]] = mapped_column(Pydantic(Distributions), default=None)
 
 
 Index(None, Scan.status, postgresql_where=or_(Scan.status == Status.QUEUED, Scan.status == Status.PENDING))
