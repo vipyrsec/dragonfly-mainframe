@@ -1,100 +1,118 @@
-# Generate migration as SQL if necessary
-# https://github.com/actions/github-script#comment-on-an-issue
-
-name: "Migration as SQL"
+---
+name: Migration as SQL
 
 on:
-  workflow_dispatch:
   pull_request:
     paths:
       - alembic/versions/**
 
+permissions:
+  # To post the migration SQL as a PR comment
+  pull-requests: write
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
   comment:
-    runs-on: ubuntu-22.04
     permissions:
       pull-requests: write
+
+    runs-on: ubuntu-24.04
     steps:
-      - name: "Checkout repository"
+      - name: Checkout (base)
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
         with:
-          # needed to diff with the main branch later
-          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
 
-      - name: "Setup PDM"
-        uses: pdm-project/setup-pdm@568ddd69406b30de1774ec0044b73ae06e716aa4 # v4
+      - name: Setup PDM
+        uses: pdm-project/setup-pdm@568ddd69406b30de1774ec0044b73ae06e716aa4  # v4
         with:
-          python-version: "3.12"
+          python-version: '3.12'
           cache: true
 
-      - name: "Install dependencies"
+      - name: Install dependencies
         run: pdm install --dev
 
-      - name: "Generate SQL"
-        id: "sql"
+      - name: Get the base migration revision
         run: |
-          #!/bin/bash
+          #!/usr/bin/env bash
           set -euo pipefail
 
-          # we need to find the down revision of the first migration made in this PR,
-          # which should be the head of main. to do this, we are going to import the
-          # migration file which will set globals that we can easily read
-          #
-          # see https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
-          # input will be newline separated paths to revision files
-          git diff --name-only origin/main -- alembic/versions | pdm run python -c '
-          import importlib.util
-          import sys
+          base_head="$(pdm run alembic heads | awk '{printf $1}')"
+          if [ "$(echo base_head | wc -l)" -gt 1 ]; then
+            echo >&2 'Multiple heads are not supported'
+            exit 1
+          fi
 
-          down_revs = set()
-          revs = set()
+          echo "Base migration revision: ${base_head}"
+          echo "BASE_MIGRATION_REVISION=${base_head}" >>"${GITHUB_ENV}"
 
-          # git diff outputs an extra newline at the end
-          for i, path in enumerate(sys.stdin.read().rstrip().split("\n")):
-              spec = importlib.util.spec_from_file_location(f"rev", path)
-              module = importlib.util.module_from_spec(spec)
-              spec.loader.exec_module(module)
-              down_revs.add(module.down_revision)
-              revs.add(module.revision)
-          # the previous head revision is the down revision that does not appear
-          # in the list of revisions changed in this PR
-          head ,= down_revs - revs
-          print(head)
-          ' > phr
-          previous_head_revision=$(cat phr)
+      - name: Checkout (HEAD)
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+        with:
+          clean: false
+          ref: ${{ github.event.pull_request.head.sha }}
 
-          # `alembic upgrade --sql` outputs logs to stderr and the sql to stdout, so
-          # make temp files to get both parts
-          pdm run alembic upgrade --sql $previous_head_revision:head > sql 2> summary
+      - name: Generate SQL
+        id: sql
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
 
-          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "MIGRATION<<$EOF" >> $GITHUB_OUTPUT
-          echo "$(cat summary sql)" >> $GITHUB_OUTPUT
-          echo "$EOF" >> $GITHUB_OUTPUT
+          base="${BASE_MIGRATION_REVISION}"
+          EOF="$(dd if=/dev/urandom bs=15 count=1 status=none | base64)"
 
-          pdm run alembic downgrade --sql head:$previous_head_revision > sql 2> summary
+          # `alembic upgrade --sql` outputs the SQL to stdout, and the logs to stderr
+          pdm run alembic upgrade --sql "${base}:head" >up.sql 2>up.log
 
-          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "DOWN_MIGRATION<<$EOF" >> $GITHUB_OUTPUT
-          echo "$(cat summary sql)" >> $GITHUB_OUTPUT
-          echo "$EOF" >> $GITHUB_OUTPUT
+          echo "UP_MIGRATION_SQL<<${EOF}" >"${GITHUB_OUTPUT}"
+          cat up.sql >>"${GITHUB_OUTPUT}"
+          echo "${EOF}" >>"${GITHUB_OUTPUT}"
 
-      - name: "Comment on PR"
+          echo "UP_MIGRATION_LOGS<<${EOF}" >>"${GITHUB_OUTPUT}"
+          cat up.log >>"${GITHUB_OUTPUT}"
+          echo "${EOF}" >>"${GITHUB_OUTPUT}"
+
+          # `alembic downgrade --sql` outputs the SQL to stdout, and the logs to stderr
+          pdm run alembic downgrade --sql "head:${base}" >down.sql 2>down.log
+
+          echo "DOWN_MIGRATION_SQL<<${EOF}" >>"${GITHUB_OUTPUT}"
+          cat down.sql >>"${GITHUB_OUTPUT}"
+          echo "${EOF}" >>"${GITHUB_OUTPUT}"
+
+          echo "DOWN_MIGRATION_LOGS<<${EOF}" >>"${GITHUB_OUTPUT}"
+          cat down.log >>"${GITHUB_OUTPUT}"
+          echo "${EOF}" >>"${GITHUB_OUTPUT}"
+
+      - name: Comment on PR
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # 7.0.1
         with:
-          script: |
+          script: |-
+            "use strict";
+
+            const comment = `
+            ### \`alembic upgrade --sql $base:head\`
+            \`\`\`
+            ${{ steps.sql.outputs.UP_MIGRATION_LOGS }}
+            \`\`\`
+            \`\`\`sql
+            ${{ steps.sql.outputs.UP_MIGRATION_SQL }}
+            \`\`\`
+
+            ### \`alembic downgrade --sql head:$base\`
+            \`\`\`
+            ${{ steps.sql.outputs.DOWN_MIGRATION_LOGS }}
+            \`\`\`
+            \`\`\`sql
+            ${{ steps.sql.outputs.DOWN_MIGRATION_SQL }}
+            \`\`\`
+            `;
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `## \`alembic upgrade --sql $prev_head:head\`
-              \`\`\`
-              ${{ steps.sql.outputs.MIGRATION }}
-              \`\`\`
-
-              ## \`alembic downgrade --sql head:$prev_head\`
-              \`\`\`
-              ${{ steps.sql.outputs.DOWN_MIGRATION }}
-              \`\`\`
-              `
-            })
+              body: comment,
+            });
