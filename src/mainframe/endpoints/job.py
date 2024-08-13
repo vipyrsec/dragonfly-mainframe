@@ -94,7 +94,7 @@ SELECT
     updated.queued_by,
     updated.pending_at
 FROM updated
-JOIN download_urls ON download_urls.scan_id = updated.scan_id
+LEFT JOIN download_urls ON download_urls.scan_id = updated.scan_id
 """).columns(
         DownloadURL.id,
         DownloadURL.scan_id,
