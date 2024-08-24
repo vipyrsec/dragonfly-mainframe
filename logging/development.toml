@@ -11,9 +11,9 @@ propagate = true
 [loggers."sqlalchemy.engine"]
 handlers = ["default"]
 level = "INFO"
-propagate = true
+propagate = false
 
 [loggers."sqlalchemy.pool"]
 handlers = ["default"]
 level = "DEBUG"
-propagate = true
+propagate = false
