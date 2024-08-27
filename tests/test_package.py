@@ -20,18 +20,10 @@ from mainframe.endpoints.package import (
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan, Status
 from mainframe.models.schemas import (
-    Distribution,
-    Distributions,
-    File,
-    Files,
-    Match,
     Package,
     PackageScanResult,
     PackageScanResultFail,
     PackageSpecifier,
-    PatternMatch,
-    Range,
-    RuleMatch,
 )
 from mainframe.rules import Rules
 
@@ -88,32 +80,6 @@ def test_package_lookup_rejects_invalid_combinations(
     assert e.value.status_code == 400
 
 
-def test_package_lookup_files(db_session: Session):
-    """Test that `lookup_package_info` returns detailed file information."""
-
-    range_ = Range(start=0, end=4)
-    match = Match(range=range_, data=[0xDE, 0xAD, 0xBE, 0xEF])
-    pattern = PatternMatch(identifier="$pat", matches=[match])
-    rule = RuleMatch(identifier="rule1", patterns=[pattern], metadata={"author": "remmy", "score": 5})
-    file = File(path="dist1/a/b.py", matches=[rule])
-    files = Files([file])
-    distros = Distributions([Distribution(download_url="http://example.com", files=files)])
-    scan = Scan(
-        name="abc",
-        version="1.0.0",
-        status=Status.FINISHED,
-        queued_by="remmy",
-        distributions=distros,
-    )
-
-    with db_session.begin():
-        db_session.add(scan)
-
-    package = lookup_package_info(db_session, name="abc", version="1.0.0")[0]
-
-    assert package.distributions == distros
-
-
 def test_handle_success(db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules):
     job = get_jobs(db_session, auth, rules_state, batch=1)
 
@@ -122,14 +88,6 @@ def test_handle_success(db_session: Session, test_data: list[Scan], auth: Authen
         name = job.name
         version = job.version
 
-        range_ = Range(start=0, end=4)
-        match = Match(range=range_, data=[0xDE, 0xAD, 0xBE, 0xEF])
-        pattern = PatternMatch(identifier="$pat", matches=[match])
-        rule = RuleMatch(identifier="rule1", patterns=[pattern], metadata={"author": "remmy", "score": 5})
-        file = File(path="dist1/a/b.py", matches=[rule])
-        files = Files([file])
-        distros = Distributions([Distribution(download_url="http://example.com", files=files)])
-
         body = PackageScanResult(
             name=job.name,
             version=job.version,
@@ -137,7 +95,6 @@ def test_handle_success(db_session: Session, test_data: list[Scan], auth: Authen
             score=2,
             inspector_url="test inspector url",
             rules_matched=["a", "b", "c"],
-            distributions=distros,
         )
         submit_results(body, db_session, auth)
 
@@ -150,7 +107,6 @@ def test_handle_success(db_session: Session, test_data: list[Scan], auth: Authen
         assert record.score == 2
         assert record.inspector_url == "test inspector url"
         assert {rule.name for rule in record.rules} == {"a", "b", "c"}
-        assert record.distributions == distros
     else:
         assert all(scan.status != Status.QUEUED for scan in test_data)
 
