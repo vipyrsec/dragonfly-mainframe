@@ -20,8 +20,6 @@ from mainframe.endpoints.package import (
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan, Status
 from mainframe.models.schemas import (
-    Distribution,
-    Distributions,
     File,
     Files,
     Match,
@@ -97,21 +95,21 @@ def test_package_lookup_files(db_session: Session):
     rule = RuleMatch(identifier="rule1", patterns=[pattern], metadata={"author": "remmy", "score": 5})
     file = File(path="dist1/a/b.py", matches=[rule])
     files = Files([file])
-    distros = Distributions([Distribution(download_url="http://example.com", files=files)])
     scan = Scan(
         name="abc",
         version="1.0.0",
         status=Status.FINISHED,
         queued_by="remmy",
-        distributions=distros,
+        files=files,
     )
 
     with db_session.begin():
         db_session.add(scan)
+        db_session.commit()
 
     package = lookup_package_info(db_session, name="abc", version="1.0.0")[0]
 
-    assert package.distributions == distros
+    assert package.files == files
 
 
 def test_handle_success(db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules):
@@ -128,7 +126,6 @@ def test_handle_success(db_session: Session, test_data: list[Scan], auth: Authen
         rule = RuleMatch(identifier="rule1", patterns=[pattern], metadata={"author": "remmy", "score": 5})
         file = File(path="dist1/a/b.py", matches=[rule])
         files = Files([file])
-        distros = Distributions([Distribution(download_url="http://example.com", files=files)])
 
         body = PackageScanResult(
             name=job.name,
@@ -137,7 +134,7 @@ def test_handle_success(db_session: Session, test_data: list[Scan], auth: Authen
             score=2,
             inspector_url="test inspector url",
             rules_matched=["a", "b", "c"],
-            distributions=distros,
+            files=files,
         )
         submit_results(body, db_session, auth)
 
@@ -150,7 +147,7 @@ def test_handle_success(db_session: Session, test_data: list[Scan], auth: Authen
         assert record.score == 2
         assert record.inspector_url == "test inspector url"
         assert {rule.name for rule in record.rules} == {"a", "b", "c"}
-        assert record.distributions == distros
+        assert record.files == files
     else:
         assert all(scan.status != Status.QUEUED for scan in test_data)
 

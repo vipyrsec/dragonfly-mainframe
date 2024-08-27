@@ -48,15 +48,7 @@ class File(BaseModel):
     matches: list[RuleMatch]
 
 
-Files = list[File]
-
-
-class Distribution(BaseModel):
-    download_url: str
-    files: Files
-
-
-Distributions = RootModel[list[Distribution]]
+Files = RootModel[list[File]]
 
 
 class ServerMetadata(BaseModel):
@@ -96,7 +88,7 @@ class Package(BaseModel):
 
     commit_hash: Optional[str]
 
-    distributions: Optional[Distributions]
+    files: Optional[Files]
 
     @classmethod
     def from_db(cls, scan: Scan):
@@ -118,7 +110,7 @@ class Package(BaseModel):
             finished_at=scan.finished_at,
             finished_by=scan.finished_by,
             commit_hash=scan.commit_hash,
-            distributions=scan.distributions,
+            files=scan.files,
         )
 
     @field_serializer(
@@ -187,7 +179,7 @@ class PackageScanResult(PackageSpecifier):
     score: int = 0
     inspector_url: Optional[str] = None
     rules_matched: list[str] = []
-    distributions: Optional[Distributions] = None
+    files: Optional[Files] = None
 
 
 class PackageScanResultFail(PackageSpecifier):
