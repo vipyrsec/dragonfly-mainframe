@@ -1,54 +1,10 @@
-from __future__ import annotations
-
 import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Annotated, Any, Optional
+from typing import Any, Optional
 
-from pydantic import BaseModel, Field, field_serializer, ConfigDict, RootModel
+from pydantic import BaseModel, Field, field_serializer, ConfigDict
 
-if TYPE_CHECKING:
-    from mainframe.models.orm import Scan
-
-type MetaValue = int | float | bool | str | bytes
-
-
-class Range(BaseModel):
-    """Represents the inclusive range in the source file that was matched."""
-
-    start: int
-    end: int
-
-
-class Match(BaseModel):
-    """Represents a specific match by a pattern in a rule."""
-
-    range: Range
-    data: list[Annotated[int, Field(ge=0, lt=256)]]
-
-
-class PatternMatch(BaseModel):
-    """Represents the data matched by a pattern inside a rule."""
-
-    identifier: str
-    matches: list[Match]
-
-
-class RuleMatch(BaseModel):
-    """Represents the matches of a rule on a file"""
-
-    identifier: str
-    patterns: list[PatternMatch]
-    metadata: dict[str, MetaValue]
-
-
-class File(BaseModel):
-    """Represents a file and the rule matches for it."""
-
-    path: str
-    matches: list[RuleMatch]
-
-
-Files = RootModel[list[File]]
+from .orm import Scan
 
 
 class ServerMetadata(BaseModel):
@@ -88,8 +44,6 @@ class Package(BaseModel):
 
     commit_hash: Optional[str]
 
-    files: Optional[Files]
-
     @classmethod
     def from_db(cls, scan: Scan):
         return cls(
@@ -110,7 +64,6 @@ class Package(BaseModel):
             finished_at=scan.finished_at,
             finished_by=scan.finished_by,
             commit_hash=scan.commit_hash,
-            files=scan.files,
         )
 
     @field_serializer(
@@ -179,7 +132,6 @@ class PackageScanResult(PackageSpecifier):
     score: int = 0
     inspector_url: Optional[str] = None
     rules_matched: list[str] = []
-    files: Optional[Files] = None
 
 
 class PackageScanResultFail(PackageSpecifier):
