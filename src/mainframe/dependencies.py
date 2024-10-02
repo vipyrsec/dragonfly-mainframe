@@ -18,6 +18,10 @@ def get_pypi_client() -> PyPIServices:
     return PyPIServices(http_client)
 
 
+def get_httpx_client(request: Request) -> httpx.Client:
+    return request.app.state.http_session
+
+
 def get_rules(request: Request) -> Rules:
     return request.app.state.rules
 

@@ -7,9 +7,6 @@ import httpx
 import pytest
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
-from letsbuilda.pypi import PyPIServices
-from letsbuilda.pypi.exceptions import PackageNotFoundError
-from pytest import MonkeyPatch
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -79,7 +76,6 @@ def test_report(
     sm: sessionmaker[Session],
     db_session: Session,
     auth: AuthenticationData,
-    pypi_client: PyPIServices,
     body: ReportPackageBody,
     url: str,
     expected: EmailReport | ObservationReport,
@@ -107,11 +103,11 @@ def test_report(
     with db_session.begin():
         db_session.add(scan)
 
-    httpx.post = MagicMock()
+    mock_httpx_client = MagicMock()
 
-    report_package(body, sm(), auth, pypi_client)
+    report_package(body, sm(), auth, mock_httpx_client)
 
-    httpx.post.assert_called_once_with(url, json=jsonable_encoder(expected))
+    mock_httpx_client.post.assert_called_once_with(url, json=jsonable_encoder(expected))
 
     with sm() as sess, sess.begin():
         s = sess.scalar(select(Scan).where(Scan.name == "c").where(Scan.version == "1.0.0"))
@@ -121,18 +117,12 @@ def test_report(
     assert s.reported_at is not None
 
 
-def test_report_package_not_on_pypi(
-    pypi_client: PyPIServices,
-    monkeypatch: MonkeyPatch,
-):
-    # Make get_package_metadata always throw PackageNotFoundError to simulate an invalid package
-    def _side_effect(name: str, version: str):
-        raise PackageNotFoundError(name, version)
-
-    monkeypatch.setattr(pypi_client, "get_package_metadata", _side_effect)
+def test_report_package_not_on_pypi():
+    mock_httpx_client = MagicMock(spec=httpx.Client)
+    mock_httpx_client.configure_mock(**{"get.return_value.status_code": 404})
 
     with pytest.raises(HTTPException) as e:
-        _validate_pypi("c", "1.0.0", pypi_client)
+        _validate_pypi("c", "1.0.0", mock_httpx_client)
     assert e.value.status_code == 404
 
 
