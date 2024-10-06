@@ -1,15 +1,14 @@
-import datetime as dt
+from collections.abc import Sequence
 from typing import Annotated, Optional
 
 import httpx
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
 
 from mainframe.constants import mainframe_settings
-from mainframe.database import get_db
+from mainframe.custom_exceptions import PackageNotFound, PackageAlreadyReported
+from mainframe.database import StorageProtocol, get_storage
 from mainframe.dependencies import get_httpx_client, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan
@@ -27,57 +26,50 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 router = APIRouter(tags=["report"])
 
 
-def _lookup_package(name: str, version: str, session: Session) -> Scan:
+def get_reported_version(scans: Sequence[Scan]) -> Optional[Scan]:
     """
-    Checks if the package is valid according to our database.
+    Get the version of this scan that was reported.
 
     Returns:
-        True if the package exists in the database.
-
-    Raises:
-        HTTPException: 404 Not Found if the name was not found in the database,
-            or the specified name and version was not found in the database. 409
-            Conflict if another version of the same package has already been
-            reported.
+        `Scan`: The scan record that was reported
+        `None`: No versions of this package were reported
     """
-
-    log = logger.bind(package={"name": name, "version": version})
-
-    query = select(Scan).where(Scan.name == name).options(joinedload(Scan.rules))
-    with session.begin():
-        scans = session.scalars(query).unique().all()
-
-    if not scans:
-        error = HTTPException(404, detail=f"No records for package `{name}` were found in the database")
-        log.error(
-            f"No records for package {name} found in database", error_message=error.detail, tag="package_not_found_db"
-        )
-        raise error
 
     for scan in scans:
         if scan.reported_at is not None:
-            error = HTTPException(
-                409,
-                detail=(
-                    f"Only one version of a package may be reported at a time. "
-                    f"(`{scan.name}@{scan.version}` was already reported)"
-                ),
-            )
-            log.error(
-                "Only one version of a package allowed to be reported at a time",
-                error_message=error.detail,
-                tag="multiple_versions_prohibited",
-            )
-            raise error
+            return scan
 
-    with session.begin():
-        scan = session.scalar(query.where(Scan.version == version))
+    return None
+
+
+def validate_package(name: str, version: str, scans: Sequence[Scan]) -> Scan:
+    """
+    Checks if the package is valid according to our database.
+    A package is considered valid if there exists a scan with the given name
+    and version, and that no other versions have been reported.
+
+    Arguments:
+        name: The name of the package to validate
+        version: The version of the package to validate
+        scans: The sequence of Scan records in the database where name=name
+
+    Returns:
+        `Scan`: The validated `Scan` object
+
+    Raises:
+        PackageNotFound: The given name and version combination
+        PackageAlreadyReported: The package was already reported
+    """
+
+    if not scans:
+        raise PackageNotFound(name=name, version=version)
+
+    if scan := get_reported_version(scans):
+        raise PackageAlreadyReported(name=scan.name, reported_version=scan.version)
+
+    scan = next((s for s in scans if (s.name, s.version) == (name, version)), None)
     if scan is None:
-        error = HTTPException(
-            404, detail=f"Package `{name}` has records in the database, but none with version `{version}`"
-        )
-        log.error(f"No version {version} for package {name} in database", tag="invalid_version")
-        raise error
+        raise PackageNotFound(name=name, version=version)
 
     return scan
 
@@ -156,7 +148,7 @@ def _validate_pypi(name: str, version: str, http_client: httpx.Client):
 )
 def report_package(
     body: ReportPackageBody,
-    session: Annotated[Session, Depends(get_db)],
+    database: Annotated[StorageProtocol, Depends(get_storage)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     httpx_client: Annotated[httpx.Client, Depends(get_httpx_client)],
 ):
@@ -198,7 +190,24 @@ def report_package(
     log = logger.bind(package={"name": name, "version": version})
 
     # Check our database first to avoid unnecessarily using PyPI API.
-    scan = _lookup_package(name, version, session)
+    try:
+        scans = database.lookup_packages(name)
+        scan = validate_package(name, version, scans)
+    except PackageNotFound as e:
+        detail = f"No records for package `{e.name} v{e.version}` were found in the database"
+        error = HTTPException(404, detail=detail)
+        log.error(detail, error_message=detail, tag="package_not_found_db")
+
+        raise error
+    except PackageAlreadyReported as e:
+        detail = (
+            f"Only one version of a package may be reported at a time "
+            f"(`{e.name}@{e.reported_version}` was already reported)"
+        )
+        error = HTTPException(409, detail=detail)
+        log.error(detail, error_message=error.detail, tag="multiple_versions_prohibited")
+
+        raise error
     inspector_url = _validate_inspector_url(name, version, body.inspector_url, scan.inspector_url)
     _validate_additional_information(body, scan)
 
@@ -233,11 +242,7 @@ def report_package(
 
         httpx_client.post(f"{mainframe_settings.reporter_url}/report/{name}", json=jsonable_encoder(report))
 
-    with session.begin():
-        scan.reported_by = auth.subject
-        scan.reported_at = dt.datetime.now(dt.timezone.utc)
-
-    session.close()
+    database.mark_reported(scan=scan, subject=auth.subject)
 
     log.info(
         "Sent report",
