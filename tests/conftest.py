@@ -23,6 +23,7 @@ from .test_data import data
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__file__)
 
+
 class MockDatabase(StorageProtocol):
     def __init__(self) -> None:
         self.db: list[Scan] = []
@@ -50,9 +51,11 @@ class MockDatabase(StorageProtocol):
                 scan.reported_by = subject
                 scan.reported_at = datetime.now()
 
+
 @pytest.fixture
 def mock_database() -> MockDatabase:
     return MockDatabase()
+
 
 @pytest.fixture(scope="session")
 def sm(engine: Engine) -> sessionmaker[Session]:
@@ -80,6 +83,20 @@ def engine(superuser_engine: Engine) -> Engine:
         s.execute(text("GRANT pg_write_all_data TO dragonfly"))
 
     return create_engine("postgresql+psycopg2://dragonfly:postgres@db:5432/dragonfly", pool_size=5, max_overflow=10)
+
+
+@pytest.fixture
+def storage(
+    superuser_engine: Engine, test_data: list[Scan], sm: sessionmaker[Session]
+) -> Generator[DatabaseStorage, None, None]:
+    Base.metadata.drop_all(superuser_engine)
+    Base.metadata.create_all(superuser_engine)
+    with sm() as s, s.begin():
+        s.add_all(deepcopy(test_data))
+
+    yield DatabaseStorage(sm)
+
+    Base.metadata.drop_all(superuser_engine)
 
 
 @pytest.fixture(params=data, scope="session")
