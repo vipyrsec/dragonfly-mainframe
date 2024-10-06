@@ -128,6 +128,7 @@ def test_report_package_not_on_pypi():
 
     assert e.value.status_code == 404
 
+
 def test_report_package_not_found(auth: AuthenticationData, mock_database: MockDatabase):
     body = ReportPackageBody(
         name="this-package-does-not-exist",
@@ -141,6 +142,46 @@ def test_report_package_not_found(auth: AuthenticationData, mock_database: MockD
         report_package(body, mock_database, auth, MagicMock())
 
     assert e.value.status_code == 404
+
+
+@pytest.mark.parametrize("version", ["1.0.0", "1.0.1"])
+def test_report_package_already_reported(auth: AuthenticationData, mock_database: MockDatabase, version: str):
+    scan = Scan(
+        name="c",
+        version="1.0.0",
+        status=Status.FINISHED,
+        score=10,
+        inspector_url="test inspector url",
+        rules=[Rule(name="rule 1"), Rule(name="rule 2")],
+        download_urls=[DownloadURL(url="test download url")],
+        queued_at=datetime.now() - timedelta(seconds=60),
+        queued_by="remmy",
+        pending_at=datetime.now() - timedelta(seconds=30),
+        pending_by="remmy",
+        finished_at=datetime.now() - timedelta(seconds=15),
+        finished_by="remmy",
+        reported_at=datetime.now(),
+        reported_by="fishy",
+        fail_reason=None,
+        commit_hash="test commit hash",
+    )
+
+    mock_database.add(scan)
+
+    body = ReportPackageBody(
+        name="c",
+        version=version,
+        recipient=None,
+        inspector_url=None,
+        additional_information="this package is bad",
+    )
+
+    with pytest.raises(HTTPException) as e:
+        report_package(body, mock_database, auth, MagicMock())
+
+    assert e.value.status_code == 409
+
+
 def test_report(auth: AuthenticationData, mock_database: MockDatabase):
     scan = Scan(
         name="c",
