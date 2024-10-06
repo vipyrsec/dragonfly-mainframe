@@ -13,7 +13,6 @@ services:
       MICROSOFT_TENANT_ID: tenant_id
       MICROSOFT_CLIENT_ID: client_id
       MICROSOFT_CLIENT_SECRET: client_secret
-      EMAIL_RECIPIENT: email_recipient
       DRAGONFLY_GITHUB_TOKEN: test
     volumes:
       - "./src:/app/src"
