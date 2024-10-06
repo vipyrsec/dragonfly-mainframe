@@ -1,11 +1,10 @@
-from collections.abc import Sequence, Generator
+from collections.abc import Sequence
 import datetime as dt
+from functools import cache
 from typing import Generator, Optional
-from typing import Optional
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy import create_engine, select
+from sqlalchemy import orm
 from sqlalchemy.orm import Session, joinedload, sessionmaker
 
 from mainframe.constants import mainframe_settings
@@ -28,6 +27,8 @@ def get_db() -> Generator[Session, None, None]:
         yield session
     finally:
         session.close()
+
+
 class StorageProtocol(Protocol):
     def lookup_packages(
         self, name: Optional[str] = None, version: Optional[str] = None, since: Optional[dt.datetime] = None
@@ -98,3 +99,8 @@ class DatabaseStorage(StorageProtocol):
         with session, session.begin():
             scan.reported_by = subject
             scan.reported_at = dt.datetime.now()
+
+
+@cache
+def get_storage() -> DatabaseStorage:
+    return DatabaseStorage(sessionmaker)
