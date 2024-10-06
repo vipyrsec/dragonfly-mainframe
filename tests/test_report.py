@@ -7,9 +7,8 @@ import pytest
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 
+from mainframe.custom_exceptions import PackageAlreadyReported, PackageNotFound
 from mainframe.endpoints.report import (
-    PackageAlreadyReported,
-    PackageNotFound,
     validate_package,
     get_reported_version,
 )
