@@ -5,6 +5,8 @@ from typing import Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session, joinedload, sessionmaker
 
 from mainframe.constants import mainframe_settings
 from mainframe.models.orm import Scan
@@ -64,3 +66,35 @@ class StorageProtocol(Protocol):
     def mark_reported(self, *, scan: Scan, subject: str) -> None:
         """Mark the given `Scan` record as reported by `subject`."""
         ...
+
+
+class DatabaseStorage(StorageProtocol):
+    def __init__(self, sessionmaker: orm.sessionmaker[Session]):
+        self.sessionmaker = sessionmaker
+
+    def get_session(self) -> Session:
+        return self.sessionmaker()
+
+    def lookup_packages(
+        self, name: Optional[str] = None, version: Optional[str] = None, since: Optional[dt.datetime] = None
+    ) -> Sequence[Scan]:
+        query = (
+            select(Scan).order_by(Scan.queued_at.desc()).options(joinedload(Scan.rules), joinedload(Scan.download_urls))
+        )
+
+        if name:
+            query = query.where(Scan.name == name)
+        if version:
+            query = query.where(Scan.version == version)
+        if since:
+            query = query.where(Scan.finished_at >= since)
+
+        session = self.get_session()
+        with session, session.begin():
+            return session.scalars(query).unique().all()
+
+    def mark_reported(self, *, scan: Scan, subject: str) -> None:
+        session = self.get_session()
+        with session, session.begin():
+            scan.reported_by = subject
+            scan.reported_at = dt.datetime.now()
