@@ -55,7 +55,7 @@ def test_data(request: pytest.FixtureRequest) -> list[Scan]:
     return request.param
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def db_session(
     superuser_engine: Engine, test_data: list[Scan], sm: sessionmaker[Session]
 ) -> Generator[Session, None, None]:
