@@ -128,7 +128,19 @@ def test_report_package_not_on_pypi():
 
     assert e.value.status_code == 404
 
+def test_report_package_not_found(auth: AuthenticationData, mock_database: MockDatabase):
+    body = ReportPackageBody(
+        name="this-package-does-not-exist",
+        version="1.0.0",
+        recipient=None,
+        inspector_url=None,
+        additional_information="this package is bad",
+    )
 
+    with pytest.raises(HTTPException) as e:
+        report_package(body, mock_database, auth, MagicMock())
+
+    assert e.value.status_code == 404
 def test_report(auth: AuthenticationData, mock_database: MockDatabase):
     scan = Scan(
         name="c",
