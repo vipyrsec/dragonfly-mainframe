@@ -14,7 +14,6 @@ from mainframe.dependencies import get_httpx_client, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan
 from mainframe.models.schemas import (
-    EmailReport,
     Error,
     ObservationKind,
     ObservationReport,
@@ -121,20 +120,17 @@ def _validate_additional_information(body: ReportPackageBody, scan: Scan):
     log = logger.bind(package={"name": body.name, "version": body.version})
 
     if body.additional_information is None:
-        if len(scan.rules) == 0 or body.use_email is False:
-            if len(scan.rules) == 0:
-                detail = (
-                    f"additional_information is a required field as package "
-                    f"`{body.name}@{body.version}` has no matched rules in the database"
-                )
-            else:
-                detail = "additional_information is required when using Observation API"
-
-            error = HTTPException(400, detail=detail)
-            log.error(
-                "Missing additional_information field", error_message=detail, tag="missing_additional_information"
+        if len(scan.rules) == 0:
+            detail = (
+                f"additional_information is a required field as package "
+                f"`{body.name}@{body.version}` has no matched rules in the database"
             )
-            raise error
+        else:
+            detail = "additional_information is required when using Observation API"
+
+        error = HTTPException(400, detail=detail)
+        log.error("Missing additional_information field", error_message=detail, tag="missing_additional_information")
+        raise error
 
 
 def _validate_pypi(name: str, version: str, http_client: httpx.Client):
@@ -162,9 +158,6 @@ def report_package(
 ):
     """
     Report a package to PyPI.
-
-    The optional `use_email` field can be used to send reports by email. This
-    defaults to `False`.
 
     There are some restrictions on what packages can be reported. They must:
     - exist in the database
@@ -208,30 +201,18 @@ def report_package(
 
     rules_matched: list[str] = [rule.name for rule in scan.rules]
 
-    if body.use_email is True:
-        report = EmailReport(
-            name=body.name,
-            version=body.version,
-            rules_matched=rules_matched,
-            recipient=body.recipient,
-            inspector_url=inspector_url,
-            additional_information=body.additional_information,
-        )
+    # We previously checked this condition, but the typechecker isn't smart
+    # enough to figure that out
+    assert body.additional_information is not None
 
-        httpx_client.post(f"{mainframe_settings.reporter_url}/report/email", json=jsonable_encoder(report))
-    else:
-        # We previously checked this condition, but the typechecker isn't smart
-        # enough to figure that out
-        assert body.additional_information is not None
+    report = ObservationReport(
+        kind=ObservationKind.Malware,
+        summary=body.additional_information,
+        inspector_url=inspector_url,
+        extra=dict(yara_rules=rules_matched),
+    )
 
-        report = ObservationReport(
-            kind=ObservationKind.Malware,
-            summary=body.additional_information,
-            inspector_url=inspector_url,
-            extra=dict(yara_rules=rules_matched),
-        )
-
-        httpx_client.post(f"{mainframe_settings.reporter_url}/report/{name}", json=jsonable_encoder(report))
+    httpx_client.post(f"{mainframe_settings.reporter_url}/report/{name}", json=jsonable_encoder(report))
 
     with session.begin():
         scan.reported_by = auth.subject
@@ -247,7 +228,6 @@ def report_package(
             "inspector_url": inspector_url,
             "additional_information": body.additional_information,
             "rules_matched": rules_matched,
-            "use_email": body.use_email,
         },
         reported_by=auth.subject,
     )

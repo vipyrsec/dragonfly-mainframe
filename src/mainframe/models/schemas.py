@@ -95,16 +95,6 @@ class ReportPackageBody(PackageSpecifier):
     recipient: Optional[str]
     inspector_url: Optional[str]
     additional_information: Optional[str]
-    use_email: bool = False
-
-
-class EmailReport(PackageSpecifier):
-    """Model for a report using email"""
-
-    rules_matched: list[str]
-    recipient: Optional[str] = None
-    inspector_url: Optional[str]
-    additional_information: Optional[str]
 
 
 # Taken from
