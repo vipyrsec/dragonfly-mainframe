@@ -26,60 +26,31 @@ from mainframe.endpoints.report import report_package
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import DownloadURL, Rule, Scan, Status
 from mainframe.models.schemas import (
-    EmailReport,
     ObservationKind,
     ObservationReport,
     ReportPackageBody,
 )
 
 
-@pytest.mark.parametrize(
-    "body,url,expected",
-    [
-        (
-            ReportPackageBody(
-                name="c",
-                version="1.0.0",
-                recipient=None,
-                inspector_url=None,
-                additional_information="this package is bad",
-                use_email=True,
-            ),
-            "/report/email",
-            EmailReport(
-                name="c",
-                version="1.0.0",
-                rules_matched=["rule 1", "rule 2"],
-                inspector_url="test inspector url",
-                additional_information="this package is bad",
-            ),
-        ),
-        (
-            ReportPackageBody(
-                name="c",
-                version="1.0.0",
-                recipient=None,
-                inspector_url=None,
-                additional_information="this package is bad",
-            ),
-            "/report/c",
-            ObservationReport(
-                kind=ObservationKind.Malware,
-                summary="this package is bad",
-                inspector_url="test inspector url",
-                extra=dict(yara_rules=["rule 1", "rule 2"]),
-            ),
-        ),
-    ],
-)
 def test_report(
     sm: sessionmaker[Session],
     db_session: Session,
     auth: AuthenticationData,
-    body: ReportPackageBody,
-    url: str,
-    expected: EmailReport | ObservationReport,
 ):
+    body = ReportPackageBody(
+        name="c",
+        version="1.0.0",
+        recipient=None,
+        inspector_url=None,
+        additional_information="this package is bad",
+    )
+
+    report = ObservationReport(
+        kind=ObservationKind.Malware,
+        summary="this package is bad",
+        inspector_url="test inspector url",
+        extra=dict(yara_rules=["rule 1", "rule 2"]),
+    )
     scan = Scan(
         name="c",
         version="1.0.0",
@@ -107,7 +78,7 @@ def test_report(
 
     report_package(body, sm(), auth, mock_httpx_client)
 
-    mock_httpx_client.post.assert_called_once_with(url, json=jsonable_encoder(expected))
+    mock_httpx_client.post.assert_called_once_with("/report/c", json=jsonable_encoder(report))
 
     with sm() as sess, sess.begin():
         s = sess.scalar(select(Scan).where(Scan.name == "c").where(Scan.version == "1.0.0"))
@@ -180,14 +151,13 @@ def test_report_inspector_url(body_url: Optional[str], scan_url: Optional[str]):
 @pytest.mark.parametrize(
     ("body", "scan"),
     [
-        (  # No additional information, and no rules with email
+        (
             ReportPackageBody(
                 name="c",
                 version="1.0.0",
                 recipient=None,
                 inspector_url="inspector url override",
                 additional_information=None,
-                use_email=True,
             ),
             Scan(
                 name="c",
@@ -209,14 +179,13 @@ def test_report_inspector_url(body_url: Optional[str], scan_url: Optional[str]):
                 commit_hash="test commit hash",
             ),
         ),
-        (  # No additional information with Observations
+        (
             ReportPackageBody(
                 name="c",
                 version="1.0.0",
                 recipient=None,
                 inspector_url="inspector url override",
                 additional_information=None,
-                use_email=False,
             ),
             Scan(
                 name="c",
