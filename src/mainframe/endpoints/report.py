@@ -5,13 +5,12 @@ import httpx
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
-from letsbuilda.pypi import PackageNotFoundError, PyPIServices
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
-from mainframe.dependencies import get_pypi_client, validate_token
+from mainframe.dependencies import get_httpx_client, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan
 from mainframe.models.schemas import (
@@ -21,6 +20,8 @@ from mainframe.models.schemas import (
     ObservationReport,
     ReportPackageBody,
 )
+
+from mainframe.metrics import packages_reported
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -138,12 +139,11 @@ def _validate_additional_information(body: ReportPackageBody, scan: Scan):
             raise error
 
 
-def _validate_pypi(name: str, version: str, pypi_client: PyPIServices):
+def _validate_pypi(name: str, version: str, http_client: httpx.Client):
     log = logger.bind(package={"name": name, "version": version})
 
-    try:
-        pypi_client.get_package_metadata(name, version)
-    except PackageNotFoundError:
+    response = http_client.get(f"https://pypi.org/project/{name}")
+    if response.status_code == 404:
         error = HTTPException(404, detail="Package not found on PyPI")
         log.error("Package not found on PyPI", tag="package_not_found_pypi")
         raise error
@@ -160,7 +160,7 @@ def report_package(
     body: ReportPackageBody,
     session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
-    pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
+    httpx_client: Annotated[httpx.Client, Depends(get_httpx_client)],
 ):
     """
     Report a package to PyPI.
@@ -206,7 +206,7 @@ def report_package(
 
     # If execution reaches here, we must have found a matching scan in our
     # database. Check if the package we want to report exists on PyPI.
-    _validate_pypi(name, version, pypi_client)
+    _validate_pypi(name, version, httpx_client)
 
     rules_matched: list[str] = [rule.name for rule in scan.rules]
 
@@ -220,7 +220,7 @@ def report_package(
             additional_information=body.additional_information,
         )
 
-        httpx.post(f"{mainframe_settings.reporter_url}/report/email", json=jsonable_encoder(report))
+        httpx_client.post(f"{mainframe_settings.reporter_url}/report/email", json=jsonable_encoder(report))
     else:
         # We previously checked this condition, but the typechecker isn't smart
         # enough to figure that out
@@ -233,7 +233,7 @@ def report_package(
             extra=dict(yara_rules=rules_matched),
         )
 
-        httpx.post(f"{mainframe_settings.reporter_url}/report/{name}", json=jsonable_encoder(report))
+        httpx_client.post(f"{mainframe_settings.reporter_url}/report/{name}", json=jsonable_encoder(report))
 
     with session.begin():
         scan.reported_by = auth.subject
@@ -253,3 +253,5 @@ def report_package(
         },
         reported_by=auth.subject,
     )
+
+    packages_reported.inc()

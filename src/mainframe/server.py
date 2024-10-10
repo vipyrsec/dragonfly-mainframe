@@ -21,6 +21,8 @@ from mainframe.endpoints import routers
 from mainframe.models.schemas import ServerMetadata
 from mainframe.rules import Rules, fetch_rules
 
+from prometheus_fastapi_instrumentator import Instrumentator
+
 from . import __version__
 
 
@@ -72,6 +74,8 @@ app = FastAPI(
     description="A service that provides a REST API for managing rules.",
     version=__version__,
 )
+
+Instrumentator().instrument(app).expose(app)
 
 if GIT_SHA in ("development", "testing"):
     app.dependency_overrides[validate_token] = validate_token_override
