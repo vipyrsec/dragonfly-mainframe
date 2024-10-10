@@ -173,13 +173,14 @@ def lookup_package_info(
         query = query.where(Scan.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.timezone.utc))
 
     with session, session.begin():
-        if page is not None and size is not None:
+        if page and size:
             params = Params(page=page, size=size)
             return paginate(
                 session, query, params=params, transformer=lambda items: [Package.from_db(item) for item in items]
             )
         data = session.scalars(query).unique()
         return [Package.from_db(result) for result in data]
+
 
 def _deduplicate_packages(packages: list[PackageSpecifier], session: Session) -> set[tuple[str, str]]:
     name_ver = {(p.name, p.version) for p in packages}

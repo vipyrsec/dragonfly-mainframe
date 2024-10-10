@@ -60,14 +60,18 @@ def test_package_lookup(
         (scan.name, scan.version)
         for scan in test_data
         if (
-            (since is None or (scan.finished_at and since <= int(scan.finished_at.timestamp()))) and
-            (name is None or scan.name == name) and
-            (version is None or scan.version == version)
+            (since is None or (scan.finished_at and since <= int(scan.finished_at.timestamp())))
+            and (name is None or scan.name == name)
+            and (version is None or scan.version == version)
         )
     }
 
     actual_scans = lookup_package_info(db_session, since, name, version, page, size)
-    actual_scan_set = {(scan.name, scan.version) for scan in actual_scans.items} if page and size else {(scan.name, scan.version) for scan in actual_scans}
+    actual_scan_set = (
+        {(scan.name, scan.version) for scan in actual_scans.items}
+        if page and size
+        else {(scan.name, scan.version) for scan in actual_scans}
+    )
 
     assert expected_scans == actual_scan_set
 
