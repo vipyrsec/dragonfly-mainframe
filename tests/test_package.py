@@ -37,33 +37,39 @@ from mainframe.rules import Rules
 
 
 @pytest.mark.parametrize(
-    "since,name,version, page, size",
+    "since,name,version,page,size",
     [
         (0, "a", None, 1, 50),
         (0, None, None, 1, 50),
         (0, "b", None, 1, 50),
         (None, "a", "0.1.0", 1, 50),
+        (0, "a", None, None, None),  # No pagination parameters
+        (None, "a", "0.1.0", None, None),  # No pagination parameters
     ],
 )
 def test_package_lookup(
     since: Optional[int],
     name: Optional[str],
     version: Optional[str],
-    page: int,
-    size: int,
+    page: Optional[int],
+    size: Optional[int],
     test_data: list[Scan],
     db_session: Session,
 ):
     expected_scans = {
         (scan.name, scan.version)
         for scan in test_data
-        if (since is None or (scan.finished_at is not None and since <= int(scan.finished_at.timestamp())))
-        and (name is None or scan.name == name)
-        and (version is None or scan.version == version)
+        if (
+            (since is None or (scan.finished_at and since <= int(scan.finished_at.timestamp()))) and
+            (name is None or scan.name == name) and
+            (version is None or scan.version == version)
+        )
     }
 
     actual_scans = lookup_package_info(db_session, since, name, version, page, size)
-    assert expected_scans == {(scan.name, scan.version) for scan in actual_scans.items}
+    actual_scan_set = {(scan.name, scan.version) for scan in actual_scans.items} if page and size else {(scan.name, scan.version) for scan in actual_scans}
+
+    assert expected_scans == actual_scan_set
 
 
 @pytest.mark.parametrize(
@@ -109,7 +115,7 @@ def test_package_lookup_files(db_session: Session):
     with db_session.begin():
         db_session.add(scan)
 
-    package = lookup_package_info(db_session, name="abc", version="1.0.0").items[0]
+    package = lookup_package_info(db_session, name="abc", version="1.0.0")[0]
 
     assert package.distributions == distros
 

@@ -1,4 +1,4 @@
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 import datetime as dt
 from typing import Annotated, Optional
 
@@ -118,9 +118,9 @@ def lookup_package_info(
     since: Optional[int] = None,
     name: Optional[str] = None,
     version: Optional[str] = None,
-    page: int = 1,
-    size: int = 100,
-) -> Page[Package]:
+    page: Optional[int] = None,
+    size: Optional[int] = None,
+) -> Page[Package] | Sequence[Package]:
     """
     Lookup information on scanned packages based on name, version, or time
     scanned. If multiple packages are returned, they are ordered with the most
@@ -173,11 +173,13 @@ def lookup_package_info(
         query = query.where(Scan.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.timezone.utc))
 
     with session, session.begin():
-        params = Params(page=page, size=size)
-        return paginate(
-            session, query, params=params, transformer=lambda items: [Package.from_db(item) for item in items]
-        )
-
+        if page is not None and size is not None:
+            params = Params(page=page, size=size)
+            return paginate(
+                session, query, params=params, transformer=lambda items: [Package.from_db(item) for item in items]
+            )
+        data = session.scalars(query).unique()
+        return [Package.from_db(result) for result in data]
 
 def _deduplicate_packages(packages: list[PackageSpecifier], session: Session) -> set[tuple[str, str]]:
     name_ver = {(p.name, p.version) for p in packages}
