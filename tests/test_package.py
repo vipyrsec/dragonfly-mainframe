@@ -1,6 +1,7 @@
 from typing import Optional
 import datetime
 
+from fastapi_pagination import Page
 import pytest
 from fastapi import HTTPException
 from letsbuilda.pypi import PyPIServices
@@ -59,9 +60,10 @@ def test_package_lookup(
     }
 
     actual_scans = lookup_package_info(db_session, since, name, version, page, size)
-    actual_scan_set = (
-        {(scan.name, scan.version) for scan in actual_scans.items}
-        if page and size
+
+    actual_scan_set: set[tuple[str, str | None]] = (
+        {(scan.name, scan.version) for scan in actual_scans.items}  # type: ignore
+        if isinstance(actual_scans, Page)
         else {(scan.name, scan.version) for scan in actual_scans}
     )
 
