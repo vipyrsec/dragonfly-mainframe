@@ -40,7 +40,6 @@ def test_report(
     body = ReportPackageBody(
         name="c",
         version="1.0.0",
-        recipient=None,
         inspector_url=None,
         additional_information="this package is bad",
     )
@@ -155,7 +154,6 @@ def test_report_inspector_url(body_url: Optional[str], scan_url: Optional[str]):
             ReportPackageBody(
                 name="c",
                 version="1.0.0",
-                recipient=None,
                 inspector_url="inspector url override",
                 additional_information=None,
             ),
@@ -183,7 +181,6 @@ def test_report_inspector_url(body_url: Optional[str], scan_url: Optional[str]):
             ReportPackageBody(
                 name="c",
                 version="1.0.0",
-                recipient=None,
                 inspector_url="inspector url override",
                 additional_information=None,
             ),

@@ -92,7 +92,6 @@ class PackageSpecifier(BaseModel):
 
 
 class ReportPackageBody(PackageSpecifier):
-    recipient: Optional[str]
     inspector_url: Optional[str]
     additional_information: Optional[str]
 
