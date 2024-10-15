@@ -60,7 +60,7 @@ def fetch_zipfile(http_client: httpx.Client, *, repository: str, access_token: s
 def fetch_rules(http_client: httpx.Client) -> Rules:
     """Return the commit hash and all the rules"""
 
-    access_token = mainframe_settings.dragonfly_github_token
+    access_token = mainframe_settings.github_token
 
     commit_hash = fetch_commit_hash(http_client, repository=REPOSITORY, access_token=access_token)
 
