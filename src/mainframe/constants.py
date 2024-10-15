@@ -17,7 +17,7 @@ class EnvConfig(BaseSettings):
     )
 
 
-class Mainframe(EnvConfig):
+class Mainframe(EnvConfig, env_prefix="dragonfly_"):
     client_origin_url: str = ""
     auth0_domain: str = ""
     auth0_audience: str = ""
@@ -30,7 +30,7 @@ class Mainframe(EnvConfig):
     db_connection_pool_persistent_size: int = 5
     """The number of concurrent connections to maintain in the connection pool"""
 
-    dragonfly_github_token: str
+    github_token: str
 
     job_timeout: int = 60 * 2
 
