@@ -8,6 +8,7 @@ import httpx
 import sentry_sdk
 from asgi_correlation_id import CorrelationIdMiddleware, correlation_id
 from fastapi import Depends, FastAPI
+from fastapi_pagination import add_pagination
 from letsbuilda.pypi import PyPIServices
 from sentry_sdk.integrations.logging import LoggingIntegration
 from structlog_sentry import SentryProcessor
@@ -104,3 +105,5 @@ async def update_rules():
 
 for router in routers:
     app.include_router(router)
+
+add_pagination(app)
