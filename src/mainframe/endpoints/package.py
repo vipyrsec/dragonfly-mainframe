@@ -240,8 +240,8 @@ def batch_queue_package(
 
             session.add(scan)
 
-    packages_ingested.inc(len(packages))
-    packages_in_queue.inc(len(packages))
+            packages_ingested.inc()
+            packages_in_queue.inc()
 
 
 @router.post(
