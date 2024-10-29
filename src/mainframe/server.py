@@ -8,6 +8,7 @@ import httpx
 import sentry_sdk
 from asgi_correlation_id import CorrelationIdMiddleware, correlation_id
 from fastapi import Depends, FastAPI
+from fastapi_pagination import add_pagination
 from letsbuilda.pypi import PyPIServices
 from sentry_sdk.integrations.logging import LoggingIntegration
 from structlog_sentry import SentryProcessor
@@ -19,6 +20,8 @@ from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
 from mainframe.models.schemas import ServerMetadata
 from mainframe.rules import Rules, fetch_rules
+
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from . import __version__
 
@@ -72,6 +75,8 @@ app = FastAPI(
     version=__version__,
 )
 
+Instrumentator().instrument(app).expose(app)
+
 if GIT_SHA in ("development", "testing"):
     app.dependency_overrides[validate_token] = validate_token_override
 
@@ -100,3 +105,5 @@ async def update_rules():
 
 for router in routers:
     app.include_router(router)
+
+add_pagination(app)
