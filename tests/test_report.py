@@ -14,9 +14,6 @@ from mainframe.endpoints.report import (
     _lookup_package,  # pyright: ignore [reportPrivateUsage]
 )
 from mainframe.endpoints.report import (
-    _validate_additional_information,  # pyright: ignore [reportPrivateUsage]
-)
-from mainframe.endpoints.report import (
     _validate_inspector_url,  # pyright: ignore [reportPrivateUsage]
 )
 from mainframe.endpoints.report import (
@@ -26,60 +23,30 @@ from mainframe.endpoints.report import report_package
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import DownloadURL, Rule, Scan, Status
 from mainframe.models.schemas import (
-    EmailReport,
     ObservationKind,
     ObservationReport,
     ReportPackageBody,
 )
 
 
-@pytest.mark.parametrize(
-    "body,url,expected",
-    [
-        (
-            ReportPackageBody(
-                name="c",
-                version="1.0.0",
-                recipient=None,
-                inspector_url=None,
-                additional_information="this package is bad",
-                use_email=True,
-            ),
-            "/report/email",
-            EmailReport(
-                name="c",
-                version="1.0.0",
-                rules_matched=["rule 1", "rule 2"],
-                inspector_url="test inspector url",
-                additional_information="this package is bad",
-            ),
-        ),
-        (
-            ReportPackageBody(
-                name="c",
-                version="1.0.0",
-                recipient=None,
-                inspector_url=None,
-                additional_information="this package is bad",
-            ),
-            "/report/c",
-            ObservationReport(
-                kind=ObservationKind.Malware,
-                summary="this package is bad",
-                inspector_url="test inspector url",
-                extra=dict(yara_rules=["rule 1", "rule 2"]),
-            ),
-        ),
-    ],
-)
 def test_report(
     sm: sessionmaker[Session],
     db_session: Session,
     auth: AuthenticationData,
-    body: ReportPackageBody,
-    url: str,
-    expected: EmailReport | ObservationReport,
 ):
+    body = ReportPackageBody(
+        name="c",
+        version="1.0.0",
+        inspector_url=None,
+        additional_information="this package is bad",
+    )
+
+    report = ObservationReport(
+        kind=ObservationKind.Malware,
+        summary="this package is bad",
+        inspector_url="test inspector url",
+        extra=dict(yara_rules=["rule 1", "rule 2"]),
+    )
     scan = Scan(
         name="c",
         version="1.0.0",
@@ -107,7 +74,7 @@ def test_report(
 
     report_package(body, sm(), auth, mock_httpx_client)
 
-    mock_httpx_client.post.assert_called_once_with(url, json=jsonable_encoder(expected))
+    mock_httpx_client.post.assert_called_once_with("/report/c", json=jsonable_encoder(report))
 
     with sm() as sess, sess.begin():
         s = sess.scalar(select(Scan).where(Scan.name == "c").where(Scan.version == "1.0.0"))
@@ -175,75 +142,6 @@ def test_report_missing_inspector_url():
 )
 def test_report_inspector_url(body_url: Optional[str], scan_url: Optional[str]):
     assert "test url" == _validate_inspector_url("a", "1.0.0", body_url, scan_url)
-
-
-@pytest.mark.parametrize(
-    ("body", "scan"),
-    [
-        (  # No additional information, and no rules with email
-            ReportPackageBody(
-                name="c",
-                version="1.0.0",
-                recipient=None,
-                inspector_url="inspector url override",
-                additional_information=None,
-                use_email=True,
-            ),
-            Scan(
-                name="c",
-                version="1.0.0",
-                status=Status.FINISHED,
-                score=0,
-                inspector_url=None,
-                rules=[],
-                download_urls=[],
-                queued_at=datetime.now() - timedelta(seconds=60),
-                queued_by="remmy",
-                pending_at=datetime.now() - timedelta(seconds=30),
-                pending_by="remmy",
-                finished_at=datetime.now() - timedelta(seconds=10),
-                finished_by="remmy",
-                reported_at=None,
-                reported_by=None,
-                fail_reason=None,
-                commit_hash="test commit hash",
-            ),
-        ),
-        (  # No additional information with Observations
-            ReportPackageBody(
-                name="c",
-                version="1.0.0",
-                recipient=None,
-                inspector_url="inspector url override",
-                additional_information=None,
-                use_email=False,
-            ),
-            Scan(
-                name="c",
-                version="1.0.0",
-                status=Status.FINISHED,
-                score=0,
-                inspector_url=None,
-                rules=[Rule(name="ayo")],
-                download_urls=[],
-                queued_at=datetime.now() - timedelta(seconds=60),
-                queued_by="remmy",
-                pending_at=datetime.now() - timedelta(seconds=30),
-                pending_by="remmy",
-                finished_at=datetime.now() - timedelta(seconds=10),
-                finished_by="remmy",
-                reported_at=None,
-                reported_by=None,
-                fail_reason=None,
-                commit_hash="test commit hash",
-            ),
-        ),
-    ],
-)
-def test_report_missing_additional_information(body: ReportPackageBody, scan: Scan):
-    with pytest.raises(HTTPException) as e:
-        _validate_additional_information(body, scan)
-    assert e.value.status_code == 400
 
 
 @pytest.mark.parametrize(
