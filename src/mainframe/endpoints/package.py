@@ -24,6 +24,8 @@ from mainframe.models.schemas import (
     QueuePackageResponse,
 )
 
+from mainframe.metrics import packages_ingested, packages_in_queue, packages_fail, packages_success
+
 router = APIRouter(tags=["package"])
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -62,6 +64,8 @@ def submit_results(
         log.error(
             f"Scan {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
         )
+        packages_fail.inc()
+        packages_in_queue.dec()
         raise error
 
     with session, session.begin():
@@ -103,6 +107,9 @@ def submit_results(
         },
         tag="scan_submitted",
     )
+
+    packages_success.inc()
+    packages_in_queue.dec()
 
 
 @router.get(
@@ -226,6 +233,9 @@ def batch_queue_package(
 
             session.add(scan)
 
+            packages_ingested.inc()
+            packages_in_queue.inc()
+
 
 @router.post(
     "/package",
@@ -293,5 +303,8 @@ def queue_package(
         },
         tag="package_added",
     )
+
+    packages_ingested.inc()
+    packages_in_queue.inc()
 
     return QueuePackageResponse(id=str(new_package.scan_id))
