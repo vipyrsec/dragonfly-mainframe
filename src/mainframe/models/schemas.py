@@ -93,7 +93,7 @@ class PackageSpecifier(BaseModel):
 
 class ReportPackageBody(PackageSpecifier):
     inspector_url: Optional[str]
-    additional_information: Optional[str]
+    additional_information: str
 
 
 # Taken from
