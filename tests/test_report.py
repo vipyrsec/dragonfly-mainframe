@@ -8,10 +8,7 @@ from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 
 from mainframe.custom_exceptions import PackageAlreadyReported, PackageNotFound
-from mainframe.endpoints.report import (
-    validate_package,
-    get_reported_version,
-)
+from mainframe.endpoints.report import validate_package
 from mainframe.endpoints.report import (
     _validate_inspector_url,  # pyright: ignore [reportPrivateUsage]
 )
@@ -27,42 +24,6 @@ from mainframe.models.schemas import (
     ReportPackageBody,
 )
 from tests.conftest import MockDatabase
-
-
-def test_get_reported_version():
-    scan1 = Scan(
-        name="package1",
-        version="1.0.0",
-        reported_at=datetime.now(),
-    )
-
-    scan2 = Scan(
-        name="package1",
-        version="1.0.1",
-        reported_at=None,
-    )
-
-    scans = [scan1, scan2]
-
-    assert get_reported_version(scans) == scan1
-
-
-def test_get_no_reported_version():
-    scan1 = Scan(
-        name="package1",
-        version="1.0.0",
-        reported_at=None,
-    )
-
-    scan2 = Scan(
-        name="package1",
-        version="1.0.1",
-        reported_at=None,
-    )
-
-    scans = [scan1, scan2]
-
-    assert get_reported_version(scans) is None
 
 
 def test_validate_package():

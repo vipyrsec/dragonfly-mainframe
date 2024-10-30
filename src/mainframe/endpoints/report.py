@@ -27,22 +27,6 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 router = APIRouter(tags=["report"])
 
 
-def get_reported_version(scans: Sequence[Scan]) -> Optional[Scan]:
-    """
-    Get the version of this scan that was reported.
-
-    Returns:
-        `Scan`: The scan record that was reported
-        `None`: No versions of this package were reported
-    """
-
-    for scan in scans:
-        if scan.reported_at is not None:
-            return scan
-
-    return None
-
-
 def validate_package(name: str, version: str, scans: Sequence[Scan]) -> Scan:
     """
     Checks if the package is valid according to our database.
@@ -62,17 +46,15 @@ def validate_package(name: str, version: str, scans: Sequence[Scan]) -> Scan:
         PackageAlreadyReported: The package was already reported
     """
 
-    if not scans:
-        raise PackageNotFound(name=name, version=version)
+    for scan in scans:
+        if scan.reported_at is not None:
+            raise PackageAlreadyReported(name=scan.name, reported_version=scan.version)
 
-    if scan := get_reported_version(scans):
-        raise PackageAlreadyReported(name=scan.name, reported_version=scan.version)
+    for scan in scans:
+        if (scan.name, scan.version) == (name, version):
+            return scan
 
-    scan = next((s for s in scans if (s.name, s.version) == (name, version)), None)
-    if scan is None:
-        raise PackageNotFound(name=name, version=version)
-
-    return scan
+    raise PackageNotFound(name=name, version=version)
 
 
 def _validate_inspector_url(name: str, version: str, body_url: Optional[str], scan_url: Optional[str]) -> str:
