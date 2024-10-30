@@ -13,9 +13,6 @@ from mainframe.endpoints.report import (
     get_reported_version,
 )
 from mainframe.endpoints.report import (
-    _validate_additional_information,  # pyright: ignore [reportPrivateUsage]
-)
-from mainframe.endpoints.report import (
     _validate_inspector_url,  # pyright: ignore [reportPrivateUsage]
 )
 from mainframe.endpoints.report import (
@@ -133,7 +130,6 @@ def test_report_package_not_found(auth: AuthenticationData, mock_database: MockD
     body = ReportPackageBody(
         name="this-package-does-not-exist",
         version="1.0.0",
-        recipient=None,
         inspector_url=None,
         additional_information="this package is bad",
     )
@@ -171,7 +167,6 @@ def test_report_package_already_reported(auth: AuthenticationData, mock_database
     body = ReportPackageBody(
         name="c",
         version=version,
-        recipient=None,
         inspector_url=None,
         additional_information="this package is bad",
     )
@@ -208,7 +203,6 @@ def test_report(auth: AuthenticationData, mock_database: MockDatabase):
     body = ReportPackageBody(
         name="c",
         version="1.0.0",
-        recipient=None,
         inspector_url=None,
         additional_information="this package is bad",
     )
@@ -245,75 +239,6 @@ def test_report_missing_inspector_url():
 )
 def test_report_inspector_url(body_url: Optional[str], scan_url: Optional[str]):
     assert "test url" == _validate_inspector_url("a", "1.0.0", body_url, scan_url)
-
-
-@pytest.mark.parametrize(
-    ("body", "scan"),
-    [
-        (  # No additional information, and no rules with email
-            ReportPackageBody(
-                name="c",
-                version="1.0.0",
-                recipient=None,
-                inspector_url="inspector url override",
-                additional_information=None,
-                use_email=True,
-            ),
-            Scan(
-                name="c",
-                version="1.0.0",
-                status=Status.FINISHED,
-                score=0,
-                inspector_url=None,
-                rules=[],
-                download_urls=[],
-                queued_at=datetime.now() - timedelta(seconds=60),
-                queued_by="remmy",
-                pending_at=datetime.now() - timedelta(seconds=30),
-                pending_by="remmy",
-                finished_at=datetime.now() - timedelta(seconds=10),
-                finished_by="remmy",
-                reported_at=None,
-                reported_by=None,
-                fail_reason=None,
-                commit_hash="test commit hash",
-            ),
-        ),
-        (  # No additional information with Observations
-            ReportPackageBody(
-                name="c",
-                version="1.0.0",
-                recipient=None,
-                inspector_url="inspector url override",
-                additional_information=None,
-                use_email=False,
-            ),
-            Scan(
-                name="c",
-                version="1.0.0",
-                status=Status.FINISHED,
-                score=0,
-                inspector_url=None,
-                rules=[Rule(name="ayo")],
-                download_urls=[],
-                queued_at=datetime.now() - timedelta(seconds=60),
-                queued_by="remmy",
-                pending_at=datetime.now() - timedelta(seconds=30),
-                pending_by="remmy",
-                finished_at=datetime.now() - timedelta(seconds=10),
-                finished_by="remmy",
-                reported_at=None,
-                reported_by=None,
-                fail_reason=None,
-                commit_hash="test commit hash",
-            ),
-        ),
-    ],
-)
-def test_report_missing_additional_information(body: ReportPackageBody, scan: Scan):
-    with pytest.raises(HTTPException) as e:
-        _validate_additional_information(body, scan)
-    assert e.value.status_code == 400
 
 
 @pytest.mark.parametrize(
