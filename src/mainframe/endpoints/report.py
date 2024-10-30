@@ -57,7 +57,7 @@ def validate_package(name: str, version: str, scans: Sequence[Scan]) -> Scan:
         `Scan`: The validated `Scan` object
 
     Raises:
-        PackageNotFound: The given name and version combination
+        PackageNotFound: The given name and version combination was not found
         PackageAlreadyReported: The package was already reported
     """
 
