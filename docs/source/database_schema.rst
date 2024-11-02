@@ -44,7 +44,8 @@ Database Schema
         pending_by text,
         finished_by text,
         commit_hash text,
-        fail_reason text
+        fail_reason text,
+        files jsonb
     );
 
     ALTER TABLE ONLY public.download_urls

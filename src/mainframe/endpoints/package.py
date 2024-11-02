@@ -84,6 +84,7 @@ def submit_results(
         scan.score = result.score
         scan.finished_by = auth.subject
         scan.commit_hash = result.commit
+        scan.files = result.files
 
         # These are the rules that already have an entry in the database
         rules = session.scalars(select(Rule).where(Rule.name.in_(result.rules_matched))).all()
