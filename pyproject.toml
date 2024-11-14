@@ -11,6 +11,7 @@ dependencies = [
   "alembic==1.13.2",
   "asgi-correlation-id==4.3.1",
   "dragonfly-logging-config @ git+https://github.com/vipyrsec/dragonfly-logging-config@v1.3.0",
+  "fastapi-pagination>=0.12.25",
   "fastapi-slim==0.112.0",
   "httpx==0.27.0",
   "letsbuilda-pypi @ git+https://github.com/vipyrsec/letsbuilda-pypi@c721bdf726324e808ef1dd9983d0fe7896c4c3fd",
@@ -23,6 +24,8 @@ dependencies = [
   "structlog-sentry==2.1.0",
   "structlog==24.4.0",
   "uvicorn[standard]==0.30.3",
+  "prometheus-client>=0.21.0",
+  "prometheus-fastapi-instrumentator>=7.0.0",
 ]
 dynamic = ["version"]
 
