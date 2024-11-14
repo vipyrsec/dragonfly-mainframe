@@ -13,7 +13,7 @@ dependencies = [
   "dragonfly-logging-config @ git+https://github.com/vipyrsec/dragonfly-logging-config@v1.3.0",
   "fastapi-slim==0.112.0",
   "httpx==0.27.0",
-  "letsbuilda-pypi==5.1.0",
+  "letsbuilda-pypi @ git+https://github.com/vipyrsec/letsbuilda-pypi@c721bdf726324e808ef1dd9983d0fe7896c4c3fd",
   "psycopg2-binary==2.9.9",
   "pydantic-settings==2.3.4",
   "pyjwt[crypto]==2.8.0",
