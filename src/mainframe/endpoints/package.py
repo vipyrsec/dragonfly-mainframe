@@ -66,7 +66,6 @@ def submit_results(
         log.error(
             f"Scan {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
         )
-        packages_fail.inc()
         packages_in_queue.dec()
         raise error
 
@@ -76,6 +75,10 @@ def submit_results(
             scan.fail_reason = result.reason
 
             session.commit()
+
+            packages_fail.inc()
+            packages_in_queue.dec()
+
             return
 
         scan.status = Status.FINISHED
