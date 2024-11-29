@@ -84,7 +84,7 @@ def test_fetch_rules(monkeypatch: MonkeyPatch):
     for filename, contents in files.items():
         zip.writestr(filename + ".yara", contents)
 
-    monkeypatch.setattr("mainframe.constants.mainframe_settings.dragonfly_github_token", "token")
+    monkeypatch.setattr("mainframe.constants.mainframe_settings.github_token", "token")
     monkeypatch.setattr("mainframe.rules.fetch_commit_hash", Mock(return_value="test commit hash"))
     monkeypatch.setattr("mainframe.rules.fetch_zipfile", Mock(return_value=zip))
 
