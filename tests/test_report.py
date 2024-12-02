@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from copy import deepcopy
 from typing import Optional
 from unittest.mock import MagicMock
 
@@ -7,12 +6,9 @@ import httpx
 import pytest
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import select
-from sqlalchemy.orm import Session, sessionmaker
 
-from mainframe.endpoints.report import (
-    _lookup_package,  # pyright: ignore [reportPrivateUsage]
-)
+from mainframe.custom_exceptions import PackageAlreadyReported, PackageNotFound
+from mainframe.endpoints.report import validate_package
 from mainframe.endpoints.report import (
     _validate_inspector_url,  # pyright: ignore [reportPrivateUsage]
 )
@@ -27,26 +23,122 @@ from mainframe.models.schemas import (
     ObservationReport,
     ReportPackageBody,
 )
+from tests.conftest import MockDatabase
 
 
-def test_report(
-    sm: sessionmaker[Session],
-    db_session: Session,
-    auth: AuthenticationData,
-):
+def test_validate_package():
+    scan1 = Scan(
+        name="package1",
+        version="1.0.0",
+        status=Status.FINISHED,
+        queued_by="remmy",
+        queued_at=datetime.now(),
+        reported_at=None,
+    )
+
+    assert validate_package("package1", "1.0.0", [scan1]) == scan1
+
+
+def test_validate_package_not_found():
+    scan1 = Scan(
+        name="package1",
+        version="1.0.0",
+        status=Status.FINISHED,
+        queued_by="remmy",
+        queued_at=datetime.now(),
+        reported_at=None,
+    )
+
+    with pytest.raises(PackageNotFound):
+        validate_package("package2", "1.0.0", [scan1])
+
+
+def test_validate_package_already_reported():
+    scan1 = Scan(
+        name="package1",
+        version="1.0.0",
+        status=Status.FINISHED,
+        queued_by="remmy",
+        queued_at=datetime.now(),
+        reported_at=None,
+    )
+    scan2 = Scan(
+        name="package1",
+        version="1.0.1",
+        status=Status.FINISHED,
+        queued_by="remmy",
+        queued_at=datetime.now(),
+        reported_at=datetime.now(),
+    )
+
+    with pytest.raises(PackageAlreadyReported) as e:
+        validate_package("package1", "1.0.0", [scan1, scan2])
+
+    assert (e.value.name, e.value.reported_version) == ("package1", "1.0.1")
+
+
+def test_report_package_not_on_pypi():
+    mock_httpx_client = MagicMock(spec=httpx.Client)
+    mock_httpx_client.configure_mock(**{"get.return_value.status_code": 404})
+
+    with pytest.raises(HTTPException) as e:
+        _validate_pypi("c", "1.0.0", mock_httpx_client)
+
+    assert e.value.status_code == 404
+
+
+def test_report_package_not_found(auth: AuthenticationData, mock_database: MockDatabase):
     body = ReportPackageBody(
-        name="c",
+        name="this-package-does-not-exist",
         version="1.0.0",
         inspector_url=None,
         additional_information="this package is bad",
     )
 
-    report = ObservationReport(
-        kind=ObservationKind.Malware,
-        summary="this package is bad",
+    with pytest.raises(HTTPException) as e:
+        report_package(body, mock_database, auth, MagicMock())
+
+    assert e.value.status_code == 404
+
+
+@pytest.mark.parametrize("version", ["1.0.0", "1.0.1"])
+def test_report_package_already_reported(auth: AuthenticationData, mock_database: MockDatabase, version: str):
+    scan = Scan(
+        name="c",
+        version="1.0.0",
+        status=Status.FINISHED,
+        score=10,
         inspector_url="test inspector url",
-        extra=dict(yara_rules=["rule 1", "rule 2"]),
+        rules=[Rule(name="rule 1"), Rule(name="rule 2")],
+        download_urls=[DownloadURL(url="test download url")],
+        queued_at=datetime.now() - timedelta(seconds=60),
+        queued_by="remmy",
+        pending_at=datetime.now() - timedelta(seconds=30),
+        pending_by="remmy",
+        finished_at=datetime.now() - timedelta(seconds=15),
+        finished_by="remmy",
+        reported_at=datetime.now(),
+        reported_by="fishy",
+        fail_reason=None,
+        commit_hash="test commit hash",
     )
+
+    mock_database.add(scan)
+
+    body = ReportPackageBody(
+        name="c",
+        version=version,
+        inspector_url=None,
+        additional_information="this package is bad",
+    )
+
+    with pytest.raises(HTTPException) as e:
+        report_package(body, mock_database, auth, MagicMock())
+
+    assert e.value.status_code == 409
+
+
+def test_report(auth: AuthenticationData, mock_database: MockDatabase):
     scan = Scan(
         name="c",
         version="1.0.0",
@@ -67,64 +159,30 @@ def test_report(
         commit_hash="test commit hash",
     )
 
-    with db_session.begin():
-        db_session.add(scan)
+    mock_database.add(scan)
+
+    body = ReportPackageBody(
+        name="c",
+        version="1.0.0",
+        inspector_url=None,
+        additional_information="this package is bad",
+    )
+
+    expected = ObservationReport(
+        kind=ObservationKind.Malware,
+        summary="this package is bad",
+        inspector_url="test inspector url",
+        extra=dict(yara_rules=["rule 1", "rule 2"]),
+    )
 
     mock_httpx_client = MagicMock()
 
-    report_package(body, sm(), auth, mock_httpx_client)
+    report_package(body, mock_database, auth, mock_httpx_client)
 
-    mock_httpx_client.post.assert_called_once_with("/report/c", json=jsonable_encoder(report))
+    mock_httpx_client.post.assert_called_once_with("/report/c", json=jsonable_encoder(expected))
 
-    with sm() as sess, sess.begin():
-        s = sess.scalar(select(Scan).where(Scan.name == "c").where(Scan.version == "1.0.0"))
-
-    assert s is not None
-    assert s.reported_by == auth.subject
-    assert s.reported_at is not None
-
-
-def test_report_package_not_on_pypi():
-    mock_httpx_client = MagicMock(spec=httpx.Client)
-    mock_httpx_client.configure_mock(**{"get.return_value.status_code": 404})
-
-    with pytest.raises(HTTPException) as e:
-        _validate_pypi("c", "1.0.0", mock_httpx_client)
-    assert e.value.status_code == 404
-
-
-def test_report_unscanned_package(db_session: Session):
-    with pytest.raises(HTTPException) as e:
-        _lookup_package("c", "1.0.0", db_session)
-    assert e.value.status_code == 404
-
-
-def test_report_invalid_version(db_session: Session):
-    scan = Scan(
-        name="c",
-        version="1.0.0",
-        status=Status.FINISHED,
-        score=10,
-        inspector_url="test inspector url",
-        rules=[Rule(name="rule 1"), Rule(name="rule 2")],
-        download_urls=[DownloadURL(url="test download url")],
-        queued_at=datetime.now() - timedelta(seconds=60),
-        queued_by="remmy",
-        pending_at=datetime.now() - timedelta(seconds=30),
-        pending_by="remmy",
-        finished_at=datetime.now() - timedelta(seconds=10),
-        finished_by="remmy",
-        reported_at=None,
-        reported_by="remmy",
-        fail_reason=None,
-        commit_hash="test commit hash",
-    )
-    with db_session.begin():
-        db_session.add(scan)
-
-    with pytest.raises(HTTPException) as e:
-        _lookup_package("c", "2.0.0", db_session)
-    assert e.value.status_code == 404
+    assert scan.reported_by is auth.subject
+    assert scan.reported_at is not None
 
 
 def test_report_missing_inspector_url():
@@ -145,9 +203,9 @@ def test_report_inspector_url(body_url: Optional[str], scan_url: Optional[str]):
 
 
 @pytest.mark.parametrize(
-    ("scans", "name", "version", "expected_status_code"),
+    ("scans", "name", "version", "expected_exception"),
     [
-        ([], "a", "1.0.0", 404),
+        ([], "a", "1.0.0", PackageNotFound),
         (
             [
                 Scan(
@@ -191,7 +249,7 @@ def test_report_inspector_url(body_url: Optional[str], scan_url: Optional[str]):
             ],
             "c",
             "1.0.1",
-            409,
+            PackageAlreadyReported,
         ),
         (
             [
@@ -236,45 +294,12 @@ def test_report_inspector_url(body_url: Optional[str], scan_url: Optional[str]):
             ],
             "c",
             "2.0.0",
-            409,
+            PackageAlreadyReported,
         ),
     ],
 )
 def test_report_lookup_package_validation(
-    db_session: Session, scans: list[Scan], name: str, version: str, expected_status_code: int
+    scans: list[Scan], name: str, version: str, expected_exception: type[Exception]
 ):
-    with db_session.begin():
-        db_session.add_all(deepcopy(scans))
-
-    with pytest.raises(HTTPException) as e:
-        _lookup_package(name, version, db_session)
-    assert e.value.status_code == expected_status_code
-
-
-def test_report_lookup_package(db_session: Session):
-    scan = Scan(
-        name="c",
-        version="1.0.0",
-        status=Status.FINISHED,
-        score=0,
-        inspector_url=None,
-        rules=[],
-        download_urls=[],
-        queued_at=datetime.now() - timedelta(seconds=60),
-        queued_by="remmy",
-        pending_at=datetime.now() - timedelta(seconds=30),
-        pending_by="remmy",
-        finished_at=datetime.now() - timedelta(seconds=10),
-        finished_by="remmy",
-        reported_at=None,
-        reported_by=None,
-        fail_reason=None,
-        commit_hash="test commit hash",
-    )
-
-    with db_session.begin():
-        db_session.add(scan)
-
-    res = _lookup_package("c", "1.0.0", db_session)
-
-    assert res == scan
+    with pytest.raises(expected_exception):
+        validate_package(name, version, scans)
