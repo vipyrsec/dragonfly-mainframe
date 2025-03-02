@@ -1,25 +1,90 @@
+---
 repos:
+  - repo: meta
+    hooks:
+      - id: check-hooks-apply
+      - id: check-useless-excludes
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b  # frozen: v5.0.0
     hooks:
-      - id: check-case-conflict
+      - id: check-added-large-files
+      - id: check-executables-have-shebangs
       - id: check-merge-conflict
-      - id: check-toml
-      - id: check-yaml
-      - id: check-json
-      - id: trailing-whitespace
-        args: [ --markdown-linebreak-ext=md ]
-      - id: mixed-line-ending
-        args: [ --fix=lf ]
+      - id: check-shebang-scripts-are-executable
       - id: end-of-file-fixer
+      - id: name-tests-test
+        args:
+          - --pytest-test-first
+        exclude: tests/test_data/
+      - id: trailing-whitespace
+        args:
+          - --markdown-linebreak-ext=md
+        exclude: \.gitignore
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.3.0
+  - repo: local
     hooks:
-    - id: ruff-format
-    - id: ruff
+      - id: python-format
+        name: Format Python files
+        description: Format Python files
+        language: system
+        entry: make format
+        types_or:
+          - python
+          - pyi
 
-  - repo: https://github.com/RobertCraigie/pyright-python
-    rev: v1.1.352
+      - id: python-lint
+        name: Lint Python files
+        description: Lint Python files
+        language: system
+        entry: make lint
+        args:
+          - LINT_OPTIONS=--fix --exit-non-zero-on-fix
+        types_or:
+          - python
+          - pyi
+
+  - repo: https://github.com/hadolint/hadolint
+    rev: c3dc18df7a501f02a560a2cc7ba3c69a85ca01d3  # frozen: v2.13.1-beta
     hooks:
-    - id: pyright
+      - id: hadolint-docker
+        args:
+          - --failure-threshold
+          - error
+
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 54da05914997e6b04e4db33ed6757d744984c68b  # frozen: 0.33.2
+    hooks:
+      - id: check-github-workflows
+
+  - repo: https://github.com/ComPWA/taplo-pre-commit
+    rev: 23eab0f0eedcbedebff420f5fdfb284744adc7b3  # frozen: v0.9.3
+    hooks:
+      - id: taplo-format
+      - id: taplo-lint
+
+  - repo: https://github.com/lyz-code/yamlfix
+    rev: 8072181c0f2eab9f2dd8db2eb3b9556d7cd0bd74  # frozen: 1.17.0
+    hooks:
+      - id: yamlfix
+        args:
+          - --config-file
+          - .yamlfix.toml
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: 79a6b2b1392eaf49cdd32ac4f14be1a809bbd8f7  # frozen: v1.37.1
+    hooks:
+      - id: yamllint
+        args:
+          - --strict
+
+  - repo: https://github.com/sirwart/ripsecrets
+    rev: 7d94620933e79b8acaa0cd9e60e9864b07673d86  # frozen: v0.1.11
+    hooks:
+      - id: ripsecrets
+
+  - repo: https://github.com/crate-ci/typos
+    rev: 3d97dc5b9833a60a62e70d5b56af2cc7ddd522f6  # frozen: v1
+    hooks:
+      - id: typos
+        args: []

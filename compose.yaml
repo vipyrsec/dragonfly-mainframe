@@ -1,32 +1,35 @@
+---
 services:
   mainframe:
     build: .
     ports:
-      - "127.0.0.1:8000:8000"
+      - 127.0.0.1:8000:8000
     depends_on:
       db:
         condition: service_healthy
     tty: true
     restart: always
     environment:
-      DB_URL: "postgresql+psycopg2://postgres:postgres@db:5432/dragonfly"
+      DB_URL: postgresql+psycopg2://postgres:postgres@db:5432/dragonfly
       MICROSOFT_TENANT_ID: tenant_id
       MICROSOFT_CLIENT_ID: client_id
       MICROSOFT_CLIENT_SECRET: client_secret
       DRAGONFLY_GITHUB_TOKEN: test
     volumes:
-      - "./src:/app/src"
+      - ./src:/app/src
 
   db:
     image: postgres
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test:
+        - CMD-SHELL
+        - pg_isready -U postgres
       interval: 1s
       timeout: 5s
       retries: 10
     ports:
-      - "127.0.0.1:5432:5432"
+      - 127.0.0.1:5432:5432
     environment:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: dragonfly
