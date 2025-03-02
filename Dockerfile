@@ -1,44 +1,92 @@
-FROM python:3.12-slim@sha256:af4e85f1cac90dd3771e47292ea7c8a9830abfabbe4faa5c53f158854c2e819d as builder
+# syntax=docker/dockerfile:latest
+# hadolint global shell=bash
 
-RUN pip install -U pip setuptools wheel
-RUN pip install pdm
+# DEBIAN_VERSION The version of Debian to use for the base image
+ARG DEBIAN_VERSION=bookworm
+# DEBIAN_FRONTEND The frontend of the Apt package manager to use
+ARG DEBIAN_FRONTEND=noninteractive
+# PYTHON_VERSION The version of Python to use for the base image
+ARG PYTHON_VERSION=3.12
 
-RUN apt-get -y update
-RUN apt-get -y install git
+# build builds the virtual environment of the project
+FROM python:$PYTHON_VERSION-slim-$DEBIAN_VERSION AS build
+ARG DEBIAN_FRONTEND
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+SHELL ["/bin/bash", "-c"]
 
-WORKDIR /app
-COPY pyproject.toml pdm.lock ./
-RUN mkdir __pypackages__ && pdm install --prod --no-lock --no-editable
-COPY src/ src/
-RUN pdm install --prod --no-lock --no-editable
+COPY --link --from=ghcr.io/astral-sh/uv:latest /uv /usr/bin/
 
-FROM builder as test
+WORKDIR /opt
 
-RUN pdm install -d
+# hadolint ignore=DL4006
+RUN --mount=type=cache,target=/root/.cache/uv \
+  <<EOT
+#!/usr/bin/env bash
+set -e
 
-COPY tests/ tests/
-ENV env=test
-ENV GIT_SHA="testing"
+apt-get -q update
+apt-get -qy upgrade
+apt-get -qy install --no-install-recommends git
+EOT
 
-CMD ["pdm", "run", "coverage"]
+COPY --link pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+  uv sync --locked --no-install-project --no-default-groups
 
-FROM python:3.12-slim@sha256:af4e85f1cac90dd3771e47292ea7c8a9830abfabbe4faa5c53f158854c2e819d as prod
+COPY --link src/ src/
+RUN --mount=type=cache,target=/root/.cache/uv \
+  uv pip install .
+
+# test tests the project
+FROM build as test
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+  <<EOT
+#!/usr/bin/env bash
+set -e
+
+apt-get -qy install --no-install-recommends make
+
+uv sync --locked --no-default-groups --group=test
+EOT
+
+COPY --link tests/ tests/
+COPY --link Makefile ./
+
+ENV ENV=test GIT_SHA=testing
+CMD ["make", "coverage"]
+
+# release uses the built virtual environment of the project
+FROM python:$PYTHON_VERSION-slim-$DEBIAN_VERSION AS release
+ARG DEBIAN_FRONTEND
+SHELL ["/bin/bash", "-c"]
 
 # Define Git SHA build argument for sentry
-ARG git_sha="development"
-ENV GIT_SHA=$git_sha
+ARG GIT_SHA="development"
+ENV GIT_SHA=$GIT_SHA
 
-ENV PYTHONPATH=/app/pkgs
 WORKDIR /app
-COPY --from=builder /app/__pypackages__/3.12/lib pkgs/
+COPY --link --from=build /opt/.venv /opt/.venv
 
-COPY alembic/ alembic/
-COPY alembic.ini ./
-COPY src/ src/
-COPY entrypoint.sh ./
-COPY logging/ logging/
-RUN chmod +x entrypoint.sh
+# hadolint ignore=DL4006
+RUN --mount=type=cache,target=/root/.cache/pip \
+  <<EOT
+#!/usr/bin/env bash
+set -e
 
-CMD ["sh", "./entrypoint.sh"]
+apt-get -q update
+apt-get -qy upgrade
 
-EXPOSE 8000
+python3 -m pip install --no-cache-dir --use-pep517 --check-build-dependencies -U pip setuptools wheel build
+
+apt-get -qy clean
+rm -rf /var/lib/apt/lists/*
+EOT
+
+ENV PATH="/opt/.venv/bin:${PATH}"
+
+COPY --link alembic/ alembic/
+COPY --link logging/ logging/
+COPY --link LICENSE alembic.ini entrypoint.sh ./
+
+CMD ["/app/entrypoint.sh"]
