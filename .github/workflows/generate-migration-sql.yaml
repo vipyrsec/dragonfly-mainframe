@@ -26,21 +26,23 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.sha }}
 
-      - name: Setup PDM
-        uses: pdm-project/setup-pdm@94a823180e06fcde4ad29308721954a521c96ed0  # v4
+      - name: Setup uv
+        uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc  # v6.4.3
         with:
-          python-version: '3.12'
-          cache: true
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install
 
       - name: Install dependencies
-        run: pdm install --dev
+        run: uv sync --no-default-groups
 
       - name: Get the base migration revision
         run: |
           #!/usr/bin/env bash
           set -euo pipefail
 
-          base_head="$(pdm run alembic heads | awk '{printf $1}')"
+          base_head="$(uv run alembic heads | awk '{printf $1}')"
           if [ "$(echo base_head | wc -l)" -gt 1 ]; then
             echo >&2 'Multiple heads are not supported'
             exit 1
@@ -65,7 +67,7 @@ jobs:
           EOF="$(dd if=/dev/urandom bs=15 count=1 status=none | base64)"
 
           # `alembic upgrade --sql` outputs the SQL to stdout, and the logs to stderr
-          pdm run alembic upgrade --sql "${base}:head" >up.sql 2>up.log
+          uv run alembic upgrade --sql "${base}:head" >up.sql 2>up.log
 
           echo "UP_MIGRATION_SQL<<${EOF}" >"${GITHUB_OUTPUT}"
           cat up.sql >>"${GITHUB_OUTPUT}"
@@ -76,7 +78,7 @@ jobs:
           echo "${EOF}" >>"${GITHUB_OUTPUT}"
 
           # `alembic downgrade --sql` outputs the SQL to stdout, and the logs to stderr
-          pdm run alembic downgrade --sql "head:${base}" >down.sql 2>down.log
+          uv run alembic downgrade --sql "head:${base}" >down.sql 2>down.log
 
           echo "DOWN_MIGRATION_SQL<<${EOF}" >>"${GITHUB_OUTPUT}"
           cat down.sql >>"${GITHUB_OUTPUT}"

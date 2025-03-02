@@ -38,7 +38,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
   uv pip install .
 
 # test tests the project
-FROM build as test
+FROM build AS test
 
 RUN --mount=type=cache,target=/root/.cache/uv \
   <<EOT
