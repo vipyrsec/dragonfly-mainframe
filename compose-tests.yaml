@@ -1,3 +1,4 @@
+---
 services:
   mainframe:
     build:
@@ -6,4 +7,4 @@ services:
         GIT_SHA: testing
 
   db:
-    command: "-c fsync=off -c full_page_writes=off -c max_connections=25"
+    command: -c fsync=off -c full_page_writes=off -c max_connections=25
