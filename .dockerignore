@@ -1,0 +1,14 @@
+# Ignore everything...
+*
+
+# ...except what we need
+!/alembic/
+!/logging/
+!/src/
+!/tests/
+!/LICENSE
+!/Makefile
+!/alembic.ini
+!/entrypoint.sh
+!/pyproject.toml
+!/uv.lock
