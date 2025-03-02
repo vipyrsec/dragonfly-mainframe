@@ -1,132 +1,135 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "dragonfly-mainframe"
 description = "Distributes tasks to dragonfly-clients and handles package status updates."
-authors = [
-  { name = "Vipyr Security Developers", email = "support@vipyrsec.com" },
-]
-requires-python = ">=3.12,<3.13"
-license = { text = "MIT" }
+authors = [{name = "Vipyr Security Developers", email = "support@vipyrsec.com"}]
+license = {text = "MIT"}
+classifiers = ["Private :: Do Not Upload"]
+dynamic = ["version"]
 
+requires-python = ">=3.12,<3.13"
 dependencies = [
   "alembic==1.13.2",
-  "asgi-correlation-id==4.3.1",
-  "dragonfly-logging-config @ git+https://github.com/vipyrsec/dragonfly-logging-config@v1.3.0",
-  "fastapi-pagination>=0.12.25",
-  "fastapi-slim==0.112.0",
+  "asgi-correlation-id==4.3.4",
+  "dragonfly-logging-config @ git+https://github.com/vipyrsec/dragonfly-logging-config@v2.1.0",
+  "fastapi-pagination==0.12.34",
+  "fastapi-slim==0.115.11",
   "httpx==0.27.0",
   "letsbuilda-pypi @ git+https://github.com/vipyrsec/letsbuilda-pypi@c721bdf726324e808ef1dd9983d0fe7896c4c3fd",
+  "prometheus-client==0.21.0",
+  "prometheus-fastapi-instrumentator==7.0.0",
   "psycopg2-binary==2.9.9",
   "pydantic-settings==2.3.4",
   "pyjwt[crypto]==2.8.0",
   "python-dotenv==1.0.1",
   "sentry-sdk==2.11.0",
-  "SQLAlchemy==2.0.31",
+  "sqlalchemy==2.0.31",
   "structlog-sentry==2.1.0",
   "structlog==24.4.0",
   "uvicorn[standard]==0.30.3",
-  "prometheus-client>=0.21.0",
-  "prometheus-fastapi-instrumentator>=7.0.0",
 ]
-dynamic = ["version"]
 
-[project.urls]
-repository = "https://github.com/vipyrsec/dragonfly-mainframe/"
-documentation = "https://docs.vipyrsec.dev/dragonfly-mainframe/"
+  [project.urls]
+  homepage = "https://vipyrsec.com/"
+  source = "https://github.com/vipyrsec/dragonfly-mainframe.git"
+  docs = "https://docs.vipyrsec.com/dragonfly-mainframe/"
+  issues = "https://github.com/vipyrsec/dragonfly-mainframe/issues"
 
-[tool.pdm]
-version = { source = "file", path = "src/mainframe/__init__.py" }
-
-[tool.pdm.dev-dependencies]
+[dependency-groups]
+dev = ["pre-commit", "pyright", "rich", "ruff"]
 docs = ["furo", "releases", "sphinx", "sphinx-autoapi"]
-lint = ["pre-commit==3.7.1", "pyright==1.1.373", "ruff==0.5.5"]
-logs = ["rich==13.7.1"]
-test = ["coverage==7.6.0", "pytest==8.3.2"]
+test = ["coverage", "pytest"]
 
-[tool.pdm.scripts]
-format = { shell = "ruff format" }
-lint = { shell = "pyright; ruff check ." }
-test = { shell = "docker compose -f compose.yaml -f compose-tests.yaml up --build --exit-code-from mainframe" }
-coverage = { shell = "coverage run -m pytest tests -vv && coverage report -m --skip-covered && coverage xml" }
-precommit = { shell = "pre-commit run --all-files" }
-all = { composite = ["format", "lint", "test"] }
+[tool.uv]
+default-groups = ["dev", "test"]
 
-start = { cmd = "docker compose up --build" }
+[tool.hatch.build.targets.wheel]
+packages = ["src/mainframe"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.version]
+path = "src/mainframe/__init__.py"
 
 [tool.ruff]
 line-length = 120
+target-version = "py312"
+
+  [tool.ruff.lint]
+  select = ["ALL"]
+
+  ignore = [
+    "FIX",   # https://docs.astral.sh/ruff/rules/#flake8-fixme-fix
+    "G004",  # https://docs.astral.sh/ruff/rules/#flake8-logging-log
+    "N818",  # https://docs.astral.sh/ruff/rules/error-suffix-on-exception-name/
+    "S101",  # https://docs.astral.sh/ruff/rules/assert/
+    "TC001", # https://docs.astral.sh/ruff/rules/typing-only-first-party-import/
+    "TC002", # https://docs.astral.sh/ruff/rules/typing-only-third-party-import/
+    "TC003", # https://docs.astral.sh/ruff/rules/typing-only-standard-library-import/
+    "TD002", # https://docs.astral.sh/ruff/rules/missing-todo-author/
+    "TD003", # https://docs.astral.sh/ruff/rules/missing-todo-link/
+
+    # Conflicting rules with format (https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules)
+    "COM812",
+    "COM819",
+    "D206",
+    "D300",
+    "E111",
+    "E114",
+    "E117",
+    "ISC001",
+    "ISC002",
+    "Q000",
+    "Q001",
+    "Q002",
+    "Q003",
+    "W191",
+  ]
+
+    [tool.ruff.lint.isort]
+    known-first-party = ["mainframe", "logging_config"]
+
+    [tool.ruff.lint.per-file-ignores]
+    "alembic/*" = ["ANN", "D", "ERA", "INP"]
+    "docs/*" = ["ANN", "INP"]
+    "tests/*" = [
+      "ANN",
+      "D",
+      "INP",
+      "PLR2004", # https://docs.astral.sh/ruff/rules/magic-value-comparison/
+      "S105",    # https://docs.astral.sh/ruff/rules/hardcoded-password-string/
+      "S106",    # https://docs.astral.sh/ruff/rules/hardcoded-password-func-arg/
+      "S107",    # https://docs.astral.sh/ruff/rules/hardcoded-password-default/
+    ]
+
+    [tool.ruff.lint.pydocstyle]
+    convention = "google"
 
 [tool.pyright]
-include = ["src/**/*.py"]
-ignore = ["alembic/"]
-
 venvPath = "."
 venv = ".venv"
 
-strictListInference = true
-strictDictionaryInference = true
-strictSetInference = true
-analyzeUnannotatedFunctions = true
-strictParameterNoneValue = true
-enableTypeIgnoreComments = true
-reportMissingModuleSource = "warning"
-reportMissingImports = "error"
-reportUndefinedVariable = "error"
-reportAssertAlwaysTrue = "error"
-reportInvalidStringEscapeSequence = "error"
-reportInvalidTypeVarUse = "error"
-reportMissingTypeStubs = "none"
-reportSelfClsParameterName = "error"
-reportUnsupportedDunderAll = "error"
-reportUnusedExpression = "error"
-reportWildcardImportFromLibrary = "error"
-reportGeneralTypeIssues = "error"
-reportOptionalSubscript = "error"
-reportOptionalMemberAccess = "error"
-reportOptionalCall = "error"
-reportOptionalIterable = "error"
-reportOptionalContextManager = "error"
-reportOptionalOperand = "error"
-reportTypedDictNotRequiredAccess = "error"
-reportPrivateImportUsage = "error"
-reportUnboundVariable = "error"
-reportUnusedCoroutine = "error"
-reportConstantRedefinition = "error"
-reportDeprecated = "error"
-reportDuplicateImport = "error"
-reportFunctionMemberAccess = "error"
-reportIncompatibleMethodOverride = "error"
-reportIncompatibleVariableOverride = "error"
-reportIncompleteStub = "error"
-reportInconsistentConstructor = "error"
-reportInvalidStubStatement = "error"
-reportMatchNotExhaustive = "error"
-reportMissingParameterType = "error"
-reportMissingTypeArgument = "error"
-reportOverlappingOverload = "error"
-reportPrivateUsage = "error"
-reportTypeCommentUsage = "error"
-reportUnknownArgumentType = "error"
-reportUnknownLambdaType = "error"
-reportUnknownMemberType = "error"
-reportUnknownParameterType = "error"
-reportUnknownVariableType = "error"
-reportUnnecessaryCast = "error"
-reportUnnecessaryComparison = "error"
-reportUnnecessaryContains = "error"
-reportUnnecessaryIsInstance = "error"
-reportUnusedClass = "error"
-reportUnusedImport = "error"
-reportUnusedFunction = "error"
-reportUnusedVariable = "error"
-reportUntypedBaseClass = "error"
-reportUntypedClassDecorator = "error"
-reportUntypedFunctionDecorator = "error"
-reportUntypedNamedTuple = "error"
+typeCheckingMode = "strict"
+# deprecateTypingAliases = true
+# reportCallInDefaultInitializer = "error"
+# reportImplicitOverride = "error"
+# reportImplicitStringConcatenation = "error"
+# reportImportCycles = "error"
+# reportMissingSuperCall = "error"
+# reportPropertyTypeMismatch = "error"
+# reportShadowedImports = "error"
+# reportUninitializedInstanceVariable = "error"
+# reportUnnecessaryTypeIgnoreComment = "error"
+# reportUnusedCallResult = "error"
 
 [tool.coverage.run]
 branch = false
+source = ["src/mainframe/"]
 omit = [
-  "__pypackages__/*",
   "src/mainframe/custom_exceptions.py",
   "src/mainframe/database.py",
   "src/mainframe/dependencies.py",
