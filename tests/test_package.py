@@ -1,18 +1,16 @@
-from typing import Optional
 import datetime
 
-from fastapi_pagination import Page
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, status
+from fastapi_pagination import Page
 from letsbuilda.pypi import PyPIServices
 from letsbuilda.pypi.exceptions import PackageNotFoundError
-from pytest import MonkeyPatch
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from mainframe.endpoints.job import get_jobs
-from mainframe.endpoints.package import _deduplicate_packages  # pyright: ignore [reportPrivateUsage]
 from mainframe.endpoints.package import (
+    _deduplicate_packages,  # pyright: ignore [reportPrivateUsage]
     batch_queue_package,
     lookup_package_info,
     queue_package,
@@ -30,7 +28,7 @@ from mainframe.rules import Rules
 
 
 @pytest.mark.parametrize(
-    "since,name,version,page,size",
+    ("since", "name", "version", "page", "size"),
     [
         (0, "a", None, 1, 50),
         (0, None, None, 1, 50),
@@ -40,12 +38,12 @@ from mainframe.rules import Rules
         (None, "a", "0.1.0", None, None),  # No pagination parameters
     ],
 )
-def test_package_lookup(
-    since: Optional[int],
-    name: Optional[str],
-    version: Optional[str],
-    page: Optional[int],
-    size: Optional[int],
+def test_package_lookup(  # noqa: PLR0913
+    since: int | None,
+    name: str | None,
+    version: str | None,
+    page: int | None,
+    size: int | None,
     test_data: list[Scan],
     db_session: Session,
 ):
@@ -62,7 +60,7 @@ def test_package_lookup(
     actual_scans = lookup_package_info(db_session, since, name, version, page, size)
 
     actual_scan_set: set[tuple[str, str | None]] = (
-        {(scan.name, scan.version) for scan in actual_scans.items}  # type: ignore
+        {(scan.name, scan.version) for scan in actual_scans.items}
         if isinstance(actual_scans, Page)
         else {(scan.name, scan.version) for scan in actual_scans}
     )
@@ -71,7 +69,7 @@ def test_package_lookup(
 
 
 @pytest.mark.parametrize(
-    "since,name,version",
+    ("since", "name", "version"),
     [
         (0xC0FFEE, "name", "ver"),
         (0, None, "ver"),
@@ -81,15 +79,14 @@ def test_package_lookup(
 )
 def test_package_lookup_rejects_invalid_combinations(
     db_session: Session,
-    since: Optional[int],
-    name: Optional[str],
-    version: Optional[str],
+    since: int | None,
+    name: str | None,
+    version: str | None,
 ):
     """Test that invalid combinations are rejected with a 400 response code."""
-
     with pytest.raises(HTTPException) as e:
         lookup_package_info(db_session, since, name, version)
-    assert e.value.status_code == 400
+    assert e.value.status_code == status.HTTP_400_BAD_REQUEST
 
 
 def test_handle_success(db_session: Session, test_data: list[Scan], auth: AuthenticationData, rules_state: Rules):
@@ -177,7 +174,10 @@ def test_deduplicate_packages(test_data: list[Scan], packages: list[PackageSpeci
 
 
 def test_batch_queue_nonexistent_package(
-    db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData, monkeypatch: MonkeyPatch
+    db_session: Session,
+    pypi_client: PyPIServices,
+    auth: AuthenticationData,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     # Make get_package_metadata always throw PackageNotFoundError to simulate an invalid package
     def _side_effect(name: str, version: str):
@@ -207,7 +207,10 @@ def test_queue(db_session: Session, pypi_client: PyPIServices, auth: Authenticat
 
 
 def test_queue_nonexistent_package(
-    db_session: Session, pypi_client: PyPIServices, auth: AuthenticationData, monkeypatch: MonkeyPatch
+    db_session: Session,
+    pypi_client: PyPIServices,
+    auth: AuthenticationData,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     # Make get_package_metadata always throw PackageNotFoundError to simulate an invalid package
     def _side_effect(name: str, version: str):
@@ -220,7 +223,7 @@ def test_queue_nonexistent_package(
 
     with pytest.raises(HTTPException) as e:
         queue_package(package, db_session, auth, pypi_client)
-    assert e.value.status_code == 404
+    assert e.value.status_code == status.HTTP_404_NOT_FOUND
 
     with db_session.begin():
         assert db_session.scalar(query) is None
@@ -233,7 +236,7 @@ def test_queue_duplicate_package(db_session: Session, pypi_client: PyPIServices,
 
     with pytest.raises(HTTPException) as e:
         queue_package(package, db_session, auth, pypi_client)
-    assert e.value.status_code == 409
+    assert e.value.status_code == status.HTTP_409_CONFLICT
 
 
 def test_submit_nonexistent_package(db_session: Session, auth: AuthenticationData):
@@ -248,7 +251,7 @@ def test_submit_nonexistent_package(db_session: Session, auth: AuthenticationDat
 
     with pytest.raises(HTTPException) as e:
         submit_results(body, db_session, auth)
-    assert e.value.status_code == 404
+    assert e.value.status_code == status.HTTP_404_NOT_FOUND
 
 
 def test_submit_duplicate_package(
@@ -271,7 +274,7 @@ def test_submit_duplicate_package(
 
         with pytest.raises(HTTPException) as e:
             submit_results(body, db_session, auth)
-        assert e.value.status_code == 409
+        assert e.value.status_code == status.HTTP_409_CONFLICT
 
     else:
         assert all(scan.status != Status.QUEUED for scan in test_data)
@@ -285,7 +288,7 @@ def test_package_from_db():
         score=14,
         queued_by="Ryan",
         reported_by="Ryan",
-        queued_at=datetime.datetime(2024, 3, 5, 12, 30, 0),
+        queued_at=datetime.datetime(2024, 3, 5, 12, 30, 0, tzinfo=datetime.UTC),
     )
 
     pkg = Package.from_db(scan)
@@ -295,25 +298,24 @@ def test_package_from_db():
     assert pkg.score == 14
     assert pkg.queued_by == "Ryan"
     assert pkg.reported_by == "Ryan"
-    assert pkg.queued_at == datetime.datetime(2024, 3, 5, 12, 30, 0)
+    assert pkg.queued_at == datetime.datetime(2024, 3, 5, 12, 30, 0, tzinfo=datetime.UTC)
 
 
 def test_datetime_serialization():
     """Test that the datetime fields are serialized correctly."""
-
     scan = Scan(
         name="Pyfoo",
         version="3.13.0",
         status=Status.FINISHED,
-        queued_at=datetime.datetime(2023, 10, 12, 13, 45, 30),
-        pending_at=datetime.datetime(2023, 10, 12, 13, 45, 30),
-        finished_at=datetime.datetime(2023, 10, 12, 13, 45, 30),
-        reported_at=datetime.datetime(2023, 10, 12, 13, 45, 30),
+        queued_at=datetime.datetime(2023, 10, 12, 13, 45, 30, tzinfo=datetime.UTC),
+        pending_at=datetime.datetime(2023, 10, 12, 13, 45, 30, tzinfo=datetime.UTC),
+        finished_at=datetime.datetime(2023, 10, 12, 13, 45, 30, tzinfo=datetime.UTC),
+        reported_at=datetime.datetime(2023, 10, 12, 13, 45, 30, tzinfo=datetime.UTC),
         queued_by="Tina",
     )
 
     pkg = Package.from_db(scan).model_dump()
-    dt = int(datetime.datetime(2023, 10, 12, 13, 45, 30).timestamp())
+    dt = int(datetime.datetime(2023, 10, 12, 13, 45, 30, tzinfo=datetime.UTC).timestamp())
 
     assert pkg.get("queued_at") == dt
     assert pkg.get("pending_at") == dt

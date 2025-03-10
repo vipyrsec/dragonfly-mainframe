@@ -2,7 +2,6 @@ from typing import cast
 from unittest.mock import Mock
 
 import pytest
-from pytest import MonkeyPatch
 from starlette.requests import Request
 
 from mainframe.authorization_header_elements import (
@@ -32,20 +31,20 @@ def test_invalid_authorization_header_elements(inp: str):
         get_authorization_header_elements(inp)
 
 
-def test_get_bearer_token(monkeypatch: MonkeyPatch):
+def test_get_bearer_token(monkeypatch: pytest.MonkeyPatch):
     request = cast(Request, Mock(spec=Request))
     monkeypatch.setattr(request, "headers", {"Authorization": "Bearer token"})
     assert get_bearer_token(request) == "token"
 
 
-def test_nonexistent_credentials(monkeypatch: MonkeyPatch):
+def test_nonexistent_credentials(monkeypatch: pytest.MonkeyPatch):
     request = cast(Request, Mock(spec=Request))
     monkeypatch.setattr(request, "headers", {})
     with pytest.raises(RequiresAuthenticationException):
         get_bearer_token(request)
 
 
-def test_invalid_credentials(monkeypatch: MonkeyPatch):
+def test_invalid_credentials(monkeypatch: pytest.MonkeyPatch):
     request = cast(Request, Mock(spec=Request))
     monkeypatch.setattr(request, "headers", {"Authorization": "notbearer token"})
     with pytest.raises(BadCredentialsException):
