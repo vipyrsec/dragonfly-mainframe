@@ -59,11 +59,12 @@ def test_package_lookup(  # noqa: PLR0913
 
     actual_scans = lookup_package_info(db_session, since, name, version, page, size)
 
-    actual_scan_set: set[tuple[str, str | None]] = (
-        {(scan.name, scan.version) for scan in actual_scans.items}
-        if isinstance(actual_scans, Page)
-        else {(scan.name, scan.version) for scan in actual_scans}
-    )
+    actual_scan_set: set[tuple[str, str | None]] = set()
+
+    if isinstance(actual_scans, Page):
+        actual_scan_set = {(scan.name, scan.version) for scan in actual_scans.items}
+    else:
+        actual_scan_set = {(scan.name, scan.version) for scan in actual_scans}
 
     assert expected_scans == actual_scan_set
 

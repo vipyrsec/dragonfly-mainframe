@@ -32,20 +32,20 @@ def test_invalid_authorization_header_elements(inp: str):
 
 
 def test_get_bearer_token(monkeypatch: pytest.MonkeyPatch):
-    request = cast(Request, Mock(spec=Request))
+    request = cast("Request", Mock(spec=Request))
     monkeypatch.setattr(request, "headers", {"Authorization": "Bearer token"})
     assert get_bearer_token(request) == "token"
 
 
 def test_nonexistent_credentials(monkeypatch: pytest.MonkeyPatch):
-    request = cast(Request, Mock(spec=Request))
+    request = cast("Request", Mock(spec=Request))
     monkeypatch.setattr(request, "headers", {})
     with pytest.raises(RequiresAuthenticationException):
         get_bearer_token(request)
 
 
 def test_invalid_credentials(monkeypatch: pytest.MonkeyPatch):
-    request = cast(Request, Mock(spec=Request))
+    request = cast("Request", Mock(spec=Request))
     monkeypatch.setattr(request, "headers", {"Authorization": "notbearer token"})
     with pytest.raises(BadCredentialsException):
         get_bearer_token(request)
