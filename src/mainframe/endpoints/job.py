@@ -10,7 +10,7 @@ from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
 from mainframe.dependencies import get_rules, validate_token
 from mainframe.json_web_token import AuthenticationData
-from mainframe.models.orm import Scan, DownloadURL
+from mainframe.models.orm import DownloadURL, Scan
 from mainframe.models.schemas import JobResult
 from mainframe.rules import Rules
 
@@ -25,21 +25,16 @@ def get_jobs(
     state: Annotated[Rules, Depends(get_rules)],
     batch: int = 1,
 ) -> list[JobResult]:
+    """Request one or more releases to work on.
+
+    Clients can specify the number of jobs they want to be given using the `batch` query string parameter.
+    If omitted, it defaults to `1`.
+
+    Clients are assigned the oldest release in the queue, i.e., the release with the oldest `queued_at` time.
+
+    We also consider releases with a `pending_at` older than `now() - JOB_TIMEOUT` to be queued at the current time.
+    This way, timed out packages are always processed after newly queued packages.
     """
-    Request one or more releases to work on.
-
-    Clients can specify the number of jobs they want to be given
-    using the `batch` query string parameter. If omitted, it defaults
-    to `1`.
-
-    Clients are assigned the oldest release in the queue, i.e., the release
-    with the oldest `queued_at` time.
-
-    We also consider releases with a `pending_at` older than
-    `now() - JOB_TIMEOUT` to be queued at the current time. This way, timed out
-    packages are always processed after newly queued packages.
-    """
-
     # See positional column targeting
     # https://docs.sqlalchemy.org/en/20/core/sqlelement.html#sqlalchemy.sql.expression.TextClause.columns
     # Query overview:
@@ -112,7 +107,8 @@ LEFT JOIN download_urls ON download_urls.scan_id = updated.scan_id
     with session as s, s.begin():
         scans = (
             session.scalars(
-                query, params=dict(job_timeout=mainframe_settings.job_timeout, batch=batch, pending_by=auth.subject)
+                query,
+                params={"job_timeout": mainframe_settings.job_timeout, "batch": batch, "pending_by": auth.subject},
             )
             .unique()
             .all()

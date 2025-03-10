@@ -59,7 +59,7 @@ def test_batch_job(test_data: list[Scan], db_session: Session, auth: Authenticat
             assert (row.name, row.version) in jobs
         elif row.status == Status.PENDING:
             assert row.pending_at is not None  # Appease the type checker
-            if dt.datetime.now(tz=dt.timezone.utc) - row.pending_at > dt.timedelta(minutes=2):
+            if dt.datetime.now(dt.UTC) - row.pending_at > dt.timedelta(minutes=2):
                 assert (row.name, row.version) in jobs
         else:
             assert (row.name, row.version) not in jobs
