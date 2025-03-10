@@ -53,8 +53,8 @@ releases_github_path = REPO_LINK.removeprefix("https://github.com/")
 releases_release_uri = f"{REPO_LINK}/releases/tag/v%s"
 
 
-def linkcode_resolve(domain: str, info: dict[str, str]):
-    """linkcode_resolve"""
+def linkcode_resolve(domain: str, info: dict[str, str]) -> str | None:
+    """linkcode_resolve."""
     if domain != "py":
         return None
     if not info["module"]:
@@ -76,14 +76,12 @@ def linkcode_resolve(domain: str, info: dict[str, str]):
 
     if isinstance(
         val,
-        (
-            types.ModuleType,
-            types.MethodType,
-            types.FunctionType,
-            types.TracebackType,
-            types.FrameType,
-            types.CodeType,
-        ),
+        types.ModuleType
+        | types.MethodType
+        | types.FunctionType
+        | types.TracebackType
+        | types.FrameType
+        | types.CodeType,
     ):
         try:
             lines, first = inspect.getsourcelines(val)

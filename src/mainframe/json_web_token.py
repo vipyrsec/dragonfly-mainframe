@@ -1,6 +1,6 @@
+import datetime as dt
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Self
 
 import jwt
 
@@ -16,25 +16,25 @@ class AuthenticationData:
     issuer: str
     subject: str
     audience: str
-    issued_at: datetime
-    expires_at: datetime
-    grant_type: Optional[str]
+    issued_at: dt.datetime
+    expires_at: dt.datetime
+    grant_type: str | None
 
     @classmethod
-    def from_dict(cls, data: dict[Any, Any]):
-        return AuthenticationData(
+    def from_dict(cls, data: dict[Any, Any]) -> Self:
+        return cls(
             issuer=data["iss"],
             subject=data["sub"],
             audience=data["aud"],
-            issued_at=datetime.fromtimestamp(data["iat"]),
-            expires_at=datetime.fromtimestamp(data["exp"]),
+            issued_at=dt.datetime.fromtimestamp(data["iat"], tz=dt.UTC),
+            expires_at=dt.datetime.fromtimestamp(data["exp"], tz=dt.UTC),
             grant_type=data.get("gty"),
         )
 
 
 @dataclass
 class JsonWebToken:
-    """Perform JSON Web Token (JWT) validation using PyJWT"""
+    """Perform JSON Web Token (JWT) validation using PyJWT."""
 
     jwt_access_token: str
     auth0_issuer_url: str = f"https://{mainframe_settings.auth0_domain}/"
@@ -46,15 +46,15 @@ class JsonWebToken:
         try:
             jwks_client = jwt.PyJWKClient(self.jwks_uri)
             jwt_signing_key = jwks_client.get_signing_key_from_jwt(self.jwt_access_token).key
-            payload = jwt.decode(  # type: ignore
+            payload = jwt.decode(
                 self.jwt_access_token,
                 jwt_signing_key,
-                algorithms=self.algorithm,  # type: ignore
+                algorithms=self.algorithm,  # pyright: ignore[reportArgumentType]
                 audience=self.auth0_audience,
                 issuer=self.auth0_issuer_url,
             )
-        except jwt.exceptions.PyJWKClientError:
-            raise UnableCredentialsException
-        except jwt.exceptions.InvalidTokenError:
-            raise BadCredentialsException
+        except jwt.exceptions.PyJWKClientError as err:
+            raise UnableCredentialsException from err
+        except jwt.exceptions.InvalidTokenError as err:
+            raise BadCredentialsException from err
         return AuthenticationData.from_dict(payload)

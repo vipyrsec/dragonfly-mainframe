@@ -1,6 +1,5 @@
 from prometheus_client import Counter, Gauge
 
-
 packages_ingested = Counter("packages_ingested", "Total number of packages ingested")
 
 packages_in_queue = Gauge(

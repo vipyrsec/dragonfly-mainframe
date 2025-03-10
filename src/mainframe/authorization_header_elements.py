@@ -19,8 +19,8 @@ def get_authorization_header_elements(
 ) -> AuthorizationHeaderElements:
     try:
         authorization_scheme, bearer_token = authorization_header.split()
-    except ValueError:
-        raise BadCredentialsException
+    except ValueError as err:
+        raise BadCredentialsException from err
     else:
         valid = authorization_scheme.lower() == "bearer" and bool(bearer_token.strip())
         return AuthorizationHeaderElements(authorization_scheme, bearer_token, valid)
@@ -32,7 +32,5 @@ def get_bearer_token(request: StarletteRequest) -> str:
         authorization_header_elements = get_authorization_header_elements(authorization_header)
         if authorization_header_elements.are_valid:
             return authorization_header_elements.bearer_token
-        else:
-            raise BadCredentialsException
-    else:
-        raise RequiresAuthenticationException
+        raise BadCredentialsException
+    raise RequiresAuthenticationException

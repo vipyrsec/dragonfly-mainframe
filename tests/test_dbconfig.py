@@ -1,18 +1,17 @@
-from threading import Barrier
-from concurrent.futures import ThreadPoolExecutor
-from mainframe.models.orm import Scan, Status
-from mainframe.endpoints.job import get_jobs
 import itertools
 import string
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from unittest.mock import Mock
+
 from sqlalchemy.orm import Session, sessionmaker
+
+from mainframe.endpoints.job import get_jobs
+from mainframe.models.orm import Scan, Status
 
 
 def test_database_reaches_max_connections(db_session: Session, sm: sessionmaker[Session]):
-    """
-    A regression test for improper connection pool config.
-    """
-
+    """A regression test for improper connection pool config."""
     # chosen to make sure we exceed the connection pool threshold of 25
     n_senders = 30
 
@@ -43,8 +42,7 @@ def test_database_reaches_max_connections(db_session: Session, sm: sessionmaker[
     def sender(_: int):
         b.wait()
         with sm() as session:
-            r = get_jobs(session, auth, state)  # type: ignore
-        return r
+            return get_jobs(session, auth, state)
 
     with ThreadPoolExecutor(max_workers=n_senders) as tpe:
         for r in tpe.map(sender, range(n_senders), timeout=30):

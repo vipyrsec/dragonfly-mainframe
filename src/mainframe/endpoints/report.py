@@ -1,9 +1,9 @@
 import datetime as dt
-from typing import Annotated, Optional
+from typing import Annotated
 
 import httpx
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
@@ -12,6 +12,7 @@ from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
 from mainframe.dependencies import get_httpx_client, validate_token
 from mainframe.json_web_token import AuthenticationData
+from mainframe.metrics import packages_reported
 from mainframe.models.orm import Scan
 from mainframe.models.schemas import (
     Error,
@@ -20,8 +21,6 @@ from mainframe.models.schemas import (
     ReportPackageBody,
 )
 
-from mainframe.metrics import packages_reported
-
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
@@ -29,19 +28,17 @@ router = APIRouter(tags=["report"])
 
 
 def _lookup_package(name: str, version: str, session: Session) -> Scan:
-    """
-    Checks if the package is valid according to our database.
+    """Checks if the package is valid according to our database.
 
     Returns:
-        True if the package exists in the database.
+        The scan, if the package exists in the database.
 
     Raises:
-        HTTPException: 404 Not Found if the name was not found in the database,
-            or the specified name and version was not found in the database. 409
-            Conflict if another version of the same package has already been
-            reported.
+        HTTPException:
+            404 Not Found, if the name was not found in the database,
+                or the specified name and version was not found in the database.
+            409 Conflict, if another version of the same package has already been reported.
     """
-
     log = logger.bind(package={"name": name, "version": version})
 
     query = select(Scan).where(Scan.name == name).options(joinedload(Scan.rules))
@@ -49,18 +46,23 @@ def _lookup_package(name: str, version: str, session: Session) -> Scan:
         scans = session.scalars(query).unique().all()
 
     if not scans:
-        error = HTTPException(404, detail=f"No records for package `{name}` were found in the database")
+        error = HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail=f"No records for package `{name}` were found in the database",
+        )
         log.error(
-            f"No records for package {name} found in database", error_message=error.detail, tag="package_not_found_db"
+            f"No records for package {name} found in database",
+            error_message=error.detail,
+            tag="package_not_found_db",
         )
         raise error
 
     for scan in scans:
         if scan.reported_at is not None:
             error = HTTPException(
-                409,
+                status.HTTP_409_CONFLICT,
                 detail=(
-                    f"Only one version of a package may be reported at a time. "
+                    "Only one version of a package may be reported at a time "
                     f"(`{scan.name}@{scan.version}` was already reported)"
                 ),
             )
@@ -75,45 +77,45 @@ def _lookup_package(name: str, version: str, session: Session) -> Scan:
         scan = session.scalar(query.where(Scan.version == version))
     if scan is None:
         error = HTTPException(
-            404, detail=f"Package `{name}` has records in the database, but none with version `{version}`"
+            status.HTTP_404_NOT_FOUND,
+            detail=f"Package `{name}` has records in the database, but none with version `{version}`",
         )
-        log.error(f"No version {version} for package {name} in database", tag="invalid_version")
+        log.error(
+            f"No version {version} for package {name} in database",
+            error_message=error.detail,
+            tag="invalid_version",
+        )
         raise error
 
     return scan
 
 
-def _validate_inspector_url(name: str, version: str, body_url: Optional[str], scan_url: Optional[str]) -> str:
-    """
-    Coalesce inspector_urls from ReportPackageBody and Scan.
+def _validate_inspector_url(name: str, version: str, body_url: str | None, scan_url: str | None) -> str:
+    """Coalesce inspector_urls from ReportPackageBody and Scan.
 
     Returns:
         The inspector_url for the package.
 
     Raises:
-        HTTPException: 400 Bad Request if the inspector_url was not passed in
-            `body` and not found in the database.
+        HTTPException: 400 Bad Request, if the inspector_url was not passed in `body` and not found in the database.
     """
     log = logger.bind(package={"name": name, "version": version})
 
     inspector_url = body_url or scan_url
     if inspector_url is None:
-        error = HTTPException(
-            400,
-            detail="inspector_url not given and not found in database",
-        )
+        error = HTTPException(status.HTTP_404_NOT_FOUND, detail="inspector_url not given and not found in database")
         log.error("Missing inspector_url field", error_message=error.detail, tag="missing_inspector_url")
         raise error
 
     return inspector_url
 
 
-def _validate_pypi(name: str, version: str, http_client: httpx.Client):
+def _validate_pypi(name: str, version: str, http_client: httpx.Client) -> None:
     log = logger.bind(package={"name": name, "version": version})
 
     response = http_client.get(f"https://pypi.org/project/{name}")
-    if response.status_code == 404:
-        error = HTTPException(404, detail="Package not found on PyPI")
+    if response.status_code == httpx.codes.NOT_FOUND:
+        error = HTTPException(status.HTTP_404_NOT_FOUND, detail="Package not found on PyPI")
         log.error("Package not found on PyPI", tag="package_not_found_pypi")
         raise error
 
@@ -121,8 +123,8 @@ def _validate_pypi(name: str, version: str, http_client: httpx.Client):
 @router.post(
     "/report",
     responses={
-        409: {"model": Error},
-        400: {"model": Error},
+        status.HTTP_400_BAD_REQUEST: {"model": Error},
+        status.HTTP_409_CONFLICT: {"model": Error},
     },
 )
 def report_package(
@@ -130,9 +132,8 @@ def report_package(
     session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     httpx_client: Annotated[httpx.Client, Depends(get_httpx_client)],
-):
-    """
-    Report a package to PyPI.
+) -> None:
+    """Report a package to PyPI.
 
     There are some restrictions on what packages can be reported. They must:
     - exist in the database
@@ -145,7 +146,6 @@ def report_package(
     If `inspector_url` argument is provided for a package with matched rules,
     the given Inspector URL will override the default one.
     """
-
     name = body.name
     version = body.version
 
@@ -165,14 +165,14 @@ def report_package(
         kind=ObservationKind.Malware,
         summary=body.additional_information,
         inspector_url=inspector_url,
-        extra=dict(yara_rules=rules_matched),
+        extra={"yara_rules": rules_matched},
     )
 
     httpx_client.post(f"{mainframe_settings.reporter_url}/report/{name}", json=jsonable_encoder(report))
 
     with session.begin():
         scan.reported_by = auth.subject
-        scan.reported_at = dt.datetime.now(dt.timezone.utc)
+        scan.reported_at = dt.datetime.now(dt.UTC)
 
     session.close()
 
