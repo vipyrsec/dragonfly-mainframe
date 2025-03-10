@@ -1,12 +1,9 @@
-# type: ignore
-
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from operator import or_
-from typing import Optional
 
 from sqlalchemy import (
     Column,
@@ -33,8 +30,7 @@ class Base(MappedAsDataclass, DeclarativeBase, kw_only=True):
 
 
 class Status(Enum):
-    """
-    Package status.
+    """Package status.
 
     QUEUED - Waiting to be sent to a worker
     PENDING - Waiting for a response from a worker
@@ -74,37 +70,37 @@ class Scan(Base):
     version: Mapped[str] = mapped_column(default=None)
     status: Mapped[Status] = mapped_column(default=None)
 
-    score: Mapped[Optional[int]] = mapped_column(default=None)
-    inspector_url: Mapped[Optional[str]] = mapped_column(default=None)
+    score: Mapped[int | None] = mapped_column(default=None)
+    inspector_url: Mapped[str | None] = mapped_column(default=None)
     rules: Mapped[list[Rule]] = relationship(secondary=package_rules, default_factory=list)
     download_urls: Mapped[list[DownloadURL]] = relationship(default_factory=list)
 
-    queued_at: Mapped[Optional[datetime]] = mapped_column(
+    queued_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         server_default=FetchedValue(),
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
     )
     queued_by: Mapped[str] = mapped_column(default=None)
 
-    pending_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
-    pending_by: Mapped[Optional[str]] = mapped_column(default=None)
+    pending_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    pending_by: Mapped[str | None] = mapped_column(default=None)
 
-    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None, index=True)
-    finished_by: Mapped[Optional[str]] = mapped_column(default=None)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None, index=True)
+    finished_by: Mapped[str | None] = mapped_column(default=None)
 
-    reported_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
-    reported_by: Mapped[Optional[str]] = mapped_column(default=None)
+    reported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    reported_by: Mapped[str | None] = mapped_column(default=None)
 
-    fail_reason: Mapped[Optional[str]] = mapped_column(default=None)
+    fail_reason: Mapped[str | None] = mapped_column(default=None)
 
-    commit_hash: Mapped[Optional[str]] = mapped_column(default=None)
+    commit_hash: Mapped[str | None] = mapped_column(default=None)
 
 
 Index(None, Scan.status, postgresql_where=or_(Scan.status == Status.QUEUED, Scan.status == Status.PENDING))
 
 
 class DownloadURL(Base):
-    """Download URLs"""
+    """Download URLs."""
 
     __tablename__: str = "download_urls"
 
@@ -117,11 +113,11 @@ class DownloadURL(Base):
 
     scan_id: Mapped[str] = mapped_column(ForeignKey("scans.scan_id"), index=True, init=False)
 
-    url: Mapped[str] = mapped_column()
+    url: Mapped[str] = mapped_column()  # pyright: ignore[reportGeneralTypeIssues]
 
 
 class Rule(Base):
-    """YARA rules"""
+    """YARA rules."""
 
     __tablename__: str = "rules"
 
@@ -132,4 +128,4 @@ class Rule(Base):
         init=False,
     )
 
-    name: Mapped[str] = mapped_column(unique=True)
+    name: Mapped[str] = mapped_column(unique=True)  # pyright: ignore[reportGeneralTypeIssues]

@@ -3,7 +3,7 @@ from typing import Any
 from unittest.mock import MagicMock, Mock
 from zipfile import ZipFile
 
-from pytest import MonkeyPatch
+import pytest
 
 from mainframe.endpoints.rules import get_rules
 from mainframe.rules import (
@@ -50,11 +50,11 @@ def test_parse_zipfile():
         "a": "a",
         "b": "b",
     }
-    with ZipFile(buffer, "w") as zip:
+    with ZipFile(buffer, "w") as zip_file:
         for filename, contents in files.items():
-            zip.writestr(filename, contents)
+            zip_file.writestr(filename, contents)
 
-        assert parse_zipfile(zip) == expected
+        assert parse_zipfile(zip_file) == expected
 
 
 def test_fetch_zipfile():
@@ -63,8 +63,8 @@ def test_fetch_zipfile():
     headers = {"Authorization": "Bearer token"}
 
     buffer = BytesIO()
-    with ZipFile(buffer, "w") as zip:
-        zip.writestr("filename", "contents")
+    with ZipFile(buffer, "w") as zip_file:
+        zip_file.writestr("filename", "contents")
 
     attrs = {"return_value.content": buffer.getvalue()}
     mock_session.get = MagicMock(**attrs)  # pyright: ignore [reportArgumentType]
@@ -73,27 +73,27 @@ def test_fetch_zipfile():
     assert zipfile.namelist() == ["filename"]
 
 
-def test_fetch_rules(monkeypatch: MonkeyPatch):
+def test_fetch_rules(monkeypatch: pytest.MonkeyPatch):
     files = {
         "file1": "some test contents of file1.yara",
         "file2": "more test contents of file2.yara",
     }
 
     buffer = BytesIO()
-    zip = ZipFile(buffer, "w")
+    zip_file = ZipFile(buffer, "w")
     for filename, contents in files.items():
-        zip.writestr(filename + ".yara", contents)
+        zip_file.writestr(filename + ".yara", contents)
 
     monkeypatch.setattr("mainframe.constants.mainframe_settings.dragonfly_github_token", "token")
     monkeypatch.setattr("mainframe.rules.fetch_commit_hash", Mock(return_value="test commit hash"))
-    monkeypatch.setattr("mainframe.rules.fetch_zipfile", Mock(return_value=zip))
+    monkeypatch.setattr("mainframe.rules.fetch_zipfile", Mock(return_value=zip_file))
 
     mock_session: Any = Mock()
     expected = Rules(rules_commit="test commit hash", rules=files)
     actual = fetch_rules(mock_session)
     assert expected == actual
 
-    zip.close()
+    zip_file.close()
 
 
 def test_get_rules_endpoint():

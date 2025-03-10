@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+import datetime as dt
 from functools import cache
 from typing import Annotated
 
@@ -30,25 +30,25 @@ def validate_token(token: Annotated[str, Depends(get_bearer_token)]) -> Authenti
     return JsonWebToken(token).validate()
 
 
-def validate_token_override():
+def validate_token_override() -> AuthenticationData:
     return AuthenticationData(
         issuer="DEVELOPMENT ISSUER",
         subject="DEVELOPMENT SUBJECT",
         audience="DEVELOPMENT AUDIENCE",
-        issued_at=datetime.now() - timedelta(seconds=10),
-        expires_at=datetime.now() + timedelta(seconds=10),
+        issued_at=dt.datetime.now(dt.UTC) - dt.timedelta(seconds=10),
+        expires_at=dt.datetime.now(dt.UTC) + dt.timedelta(seconds=10),
         grant_type="DEVELOPMENT GRANT TYPE",
     )
 
 
 class PermissionsValidator:
-    def __init__(self, required_permissions: list[str]):
+    def __init__(self, required_permissions: list[str]) -> None:
         self.required_permissions = required_permissions
 
-    def __call__(self, data: Annotated[AuthenticationData, Depends(validate_token)]):
-        token_permissions = data.permissions  # type: ignore
-        token_permissions_set = set(token_permissions)  # type: ignore
+    def __call__(self, data: Annotated[AuthenticationData, Depends(validate_token)]) -> None:
+        token_permissions = data.permissions  # pyright: ignore[reportAttributeAccessIssue]
+        token_permissions_set = set(token_permissions)
         required_permissions_set = set(self.required_permissions)
 
-        if not required_permissions_set.issubset(token_permissions_set):  # type: ignore
+        if not required_permissions_set.issubset(token_permissions_set):
             raise PermissionDeniedException

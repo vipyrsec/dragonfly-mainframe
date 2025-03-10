@@ -26,9 +26,9 @@ class Mainframe(EnvConfig):
 
     db_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/dragonfly"
     db_connection_pool_max_size: int = 15
-    """The max number of concurrent connections"""
+    """The max number of concurrent connections."""
     db_connection_pool_persistent_size: int = 5
-    """The number of concurrent connections to maintain in the connection pool"""
+    """The number of concurrent connections to maintain in the connection pool."""
 
     dragonfly_github_token: str
 
@@ -37,13 +37,13 @@ class Mainframe(EnvConfig):
     log_config_file: str = "logging/development.toml"
 
 
-mainframe_settings = Mainframe()  # pyright: ignore
+mainframe_settings = Mainframe()  # pyright: ignore[reportCallIssue]
 
 
-class _Sentry(EnvConfig, env_prefix="sentry_"):  # pyright: ignore
+class _Sentry(EnvConfig, env_prefix="sentry_"):
     dsn: str = ""
     environment: str = "production"
     release_prefix: str = "dragonfly-mainframe"
 
 
-Sentry = _Sentry()  # pyright: ignore
+Sentry = _Sentry()

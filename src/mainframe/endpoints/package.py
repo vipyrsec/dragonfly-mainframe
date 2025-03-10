@@ -1,21 +1,23 @@
-from collections.abc import Iterable, Sequence
 import datetime as dt
-from typing import Annotated, Optional
+from collections.abc import Iterable, Sequence
+from concurrent.futures import ThreadPoolExecutor
+from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi_pagination import Page, Params
-from fastapi_pagination.ext.sqlalchemy import paginate  # type: ignore
-from letsbuilda.pypi import Package as PyPIPackage, PyPIServices  # type: ignore
+from fastapi_pagination.ext.sqlalchemy import paginate
+from letsbuilda.pypi import Package as PyPIPackage
+from letsbuilda.pypi import PyPIServices
 from letsbuilda.pypi.exceptions import PackageNotFoundError
 from sqlalchemy import select, tuple_
 from sqlalchemy.exc import IntegrityError
-from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy.orm import Session, joinedload
 
 from mainframe.database import get_db
 from mainframe.dependencies import get_pypi_client, validate_token
 from mainframe.json_web_token import AuthenticationData
+from mainframe.metrics import packages_fail, packages_in_queue, packages_ingested, packages_success
 from mainframe.models.orm import DownloadURL, Rule, Scan, Status
 from mainframe.models.schemas import (
     Error,
@@ -26,8 +28,6 @@ from mainframe.models.schemas import (
     QueuePackageResponse,
 )
 
-from mainframe.metrics import packages_ingested, packages_in_queue, packages_fail, packages_success
-
 router = APIRouter(tags=["package"])
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -35,15 +35,15 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 @router.put(
     "/package",
     responses={
-        400: {"model": Error},
-        409: {"model": Error},
+        status.HTTP_400_BAD_REQUEST: {"model": Error},
+        status.HTTP_409_CONFLICT: {"model": Error},
     },
 )
 def submit_results(
     result: PackageScanResult | PackageScanResultFail,
     session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
-):
+) -> None:
     name = result.name
     version = result.version
 
@@ -55,14 +55,14 @@ def submit_results(
     log = logger.bind(package={"name": name, "version": version})
 
     if scan is None:
-        error = HTTPException(404, f"Package `{name}@{version}` not found in database.")
+        error = HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Package `{name}@{version}` not found in database.")
         log.error(
             f"Package {name}@{version} not found in database", error_message=error.detail, tag="package_not_found_db"
         )
         raise error
 
     if scan.status == Status.FINISHED:
-        error = HTTPException(409, f"Package `{name}@{version}` is already in a FINISHED state.")
+        error = HTTPException(status.HTTP_409_CONFLICT, f"Package `{name}@{version}` is already in a FINISHED state.")
         log.error(
             f"Scan {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
         )
@@ -82,7 +82,7 @@ def submit_results(
             return
 
         scan.status = Status.FINISHED
-        scan.finished_at = dt.datetime.now(dt.timezone.utc)
+        scan.finished_at = dt.datetime.now(dt.UTC)
         scan.inspector_url = result.inspector_url
         scan.score = result.score
         scan.finished_by = auth.subject
@@ -119,59 +119,49 @@ def submit_results(
 
 @router.get(
     "/package",
-    responses={400: {"model": Error, "description": "Invalid parameter combination."}},
+    responses={status.HTTP_400_BAD_REQUEST: {"model": Error, "description": "Invalid parameter combination."}},
     dependencies=[Depends(validate_token)],
 )
-def lookup_package_info(
+def lookup_package_info(  # noqa: PLR0913
     session: Annotated[Session, Depends(get_db)],
-    since: Optional[int] = None,
-    name: Optional[str] = None,
-    version: Optional[str] = None,
-    page: Optional[int] = None,
-    size: Optional[int] = None,
+    since: int | None = None,
+    name: str | None = None,
+    version: str | None = None,
+    page: int | None = None,
+    size: int | None = None,
 ) -> Page[Package] | Sequence[Package]:
-    """
-    Lookup information on scanned packages based on name, version, or time
-    scanned. If multiple packages are returned, they are ordered with the most
-    recently queued package first.
+    """Lookup information on scanned packages based on name, version, or time scanned.
 
-    Args:
-        since: A int representing a Unix timestamp representing when to begin the search from.
-        name: The name of the package.
-        version: The version of the package.
-        session: DB session.
+    If multiple packages are returned, they are ordered with the most recently queued package first.
 
     Only certain combinations of parameters are allowed. A query is valid if any of the following combinations are used:
-        - `name` and `version`: Return the package with name `name` and version `version`, if it exists.
-        - `name` and `since`: Find all packages with name `name` since `since`.
-        - `since`: Find all packages since `since`.
-        - `name`: Find all packages with name `name`.
+      - `name` and `version`: Return the package with name `name` and version `version`, if it exists.
+      - `name` and `since`: Find all packages with name `name` since `since`.
+      - `since`: Find all packages since `since`.
+      - `name`: Find all packages with name `name`.
     All other combinations are disallowed.
 
     In more formal terms, a query is valid
         iff `((name and not since) or (not version and since))`
     where a given variable name means that query parameter was passed. Equivalently, a request is invalid
         iff `(not (name or since) or (version and since))`
-    """
 
+    Args:
+        since: A int representing a Unix timestamp representing when to begin the search from.
+        name: The name of the package.
+        version: The version of the package.
+        page: The page number of the result set.
+        size: The page size of the result set.
+    """
     nn_name = name is not None
     nn_version = version is not None
     nn_since = since is not None
 
-    log = logger.bind(
-        parameters={
-            "name": name,
-            "version": version,
-            "since": since,
-        }
-    )
+    log = logger.bind(parameters={"name": name, "version": version, "since": since})
 
     if (not nn_name and not nn_since) or (nn_version and nn_since):
-        log.debug(
-            "Invalid parameter combination",
-            tag="invalid_parameter_combination",
-        )
-        raise HTTPException(status_code=400)
+        log.debug("Invalid parameter combination", tag="invalid_parameter_combination")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST)
 
     query = select(Scan).order_by(Scan.queued_at.desc()).options(joinedload(Scan.rules), joinedload(Scan.download_urls))
     if nn_name:
@@ -179,13 +169,16 @@ def lookup_package_info(
     if nn_version:
         query = query.where(Scan.version == version)
     if nn_since:
-        query = query.where(Scan.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.timezone.utc))
+        query = query.where(Scan.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.UTC))
 
     with session, session.begin():
         if page and size:
             params = Params(page=page, size=size)
             return paginate(
-                session, query, params=params, transformer=lambda items: [Package.from_db(item) for item in items]
+                session,
+                query,
+                params=params,
+                transformer=lambda items: [Package.from_db(item) for item in items],
             )
         data = session.scalars(query).unique()
         return [Package.from_db(result) for result in data]
@@ -201,11 +194,11 @@ def _get_packages_metadata(pypi_client: PyPIServices, packages_to_check: set[tup
     if not packages_to_check:
         return
 
-    def _get_package_metadata(package: tuple[str, str]) -> Optional[PyPIPackage]:
+    def _get_package_metadata(package: tuple[str, str]) -> PyPIPackage | None:
         try:
             return pypi_client.get_package_metadata(*package)
         except PackageNotFoundError:
-            return
+            return None
 
     # IO-bound, so these threads won't take up much CPU. Just spawn as many as
     # we need to send all requests at once. We avoid the
@@ -217,8 +210,8 @@ def _get_packages_metadata(pypi_client: PyPIServices, packages_to_check: set[tup
 @router.post(
     "/batch/package",
     responses={
-        409: {"model": Error},
-        404: {"model": Error},
+        status.HTTP_404_NOT_FOUND: {"model": Error},
+        status.HTTP_409_CONFLICT: {"model": Error},
     },
 )
 def batch_queue_package(
@@ -226,7 +219,7 @@ def batch_queue_package(
     session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
-):
+) -> None:
     with session, session.begin():
         packages_to_check = _deduplicate_packages(packages, session)
 
@@ -250,8 +243,8 @@ def batch_queue_package(
 @router.post(
     "/package",
     responses={
-        409: {"model": Error},
-        404: {"model": Error},
+        status.HTTP_404_NOT_FOUND: {"model": Error},
+        status.HTTP_409_CONFLICT: {"model": Error},
     },
 )
 def queue_package(
@@ -260,17 +253,12 @@ def queue_package(
     auth: Annotated[AuthenticationData, Depends(validate_token)],
     pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
 ) -> QueuePackageResponse:
-    """
-    Queue a package to be scanned when the next runner is available
-    Args:
-        Body: Request body paramters
-        session: Database session
-        pypi_client: client instance used to interact with PyPI JSON API
+    """Queue a package to be scanned when the next runner is available.
+
     Returns:
         404: The given package and version combination was not found on PyPI
-        409: The given package and version combination has already been queued
+        409: The given package and version combination has already been queued.
     """
-
     name = package.name
     version = package.version
 
@@ -278,12 +266,10 @@ def queue_package(
 
     try:
         package_metadata = pypi_client.get_package_metadata(name, version)
-    except PackageNotFoundError:
-        error = HTTPException(404, detail=f"Package {name}@{version} was not found on PyPI")
-        log.error(
-            f"Package {name}@{version} was not found on PyPI", error_message=error.detail, tag="package_not_found_pypi"
-        )
-        raise error
+    except PackageNotFoundError as err:
+        msg = f"Package {name}@{version} was not found on PyPI"
+        log.exception(msg, tag="package_not_found_pypi")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=msg) from err
 
     new_package = Scan(
         name=name,
@@ -298,9 +284,10 @@ def queue_package(
     try:
         with session, session.begin():
             session.add(new_package)
-    except IntegrityError:
-        log.warn(f"Package {name}@{version} already queued for scanning.", tag="already_queued")
-        raise HTTPException(409, f"Package {name}@{version} is already queued for scanning")
+    except IntegrityError as err:
+        msg = f"Package {name}@{version} is already queued for scanning"
+        log.warning(msg, tag="already_queued")
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=msg) from err
 
     log.info(
         "Added new package",
