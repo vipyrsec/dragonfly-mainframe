@@ -7,7 +7,6 @@ from fastapi import Depends, Request
 from letsbuilda.pypi import PyPIServices
 
 from mainframe.authorization_header_elements import get_bearer_token
-from mainframe.custom_exceptions import PermissionDeniedException
 from mainframe.json_web_token import AuthenticationData, JsonWebToken
 from mainframe.rules import Rules
 
@@ -39,16 +38,3 @@ def validate_token_override() -> AuthenticationData:
         expires_at=dt.datetime.now(dt.UTC) + dt.timedelta(seconds=10),
         grant_type="DEVELOPMENT GRANT TYPE",
     )
-
-
-class PermissionsValidator:
-    def __init__(self, required_permissions: list[str]) -> None:
-        self.required_permissions = required_permissions
-
-    def __call__(self, data: Annotated[AuthenticationData, Depends(validate_token)]) -> None:
-        token_permissions = data.permissions  # pyright: ignore[reportAttributeAccessIssue]
-        token_permissions_set = set(token_permissions)
-        required_permissions_set = set(self.required_permissions)
-
-        if not required_permissions_set.issubset(token_permissions_set):
-            raise PermissionDeniedException

@@ -47,8 +47,8 @@ class Status(Enum):
 package_rules = Table(
     "package_rules",
     Base.metadata,
-    Column("scan_id", ForeignKey("scans.scan_id")),
-    Column("rule_id", ForeignKey("rules.id")),
+    Column("scan_id", ForeignKey("scans.scan_id")),  # pyright: ignore[reportUnknownArgumentType]
+    Column("rule_id", ForeignKey("rules.id")),  # pyright: ignore[reportUnknownArgumentType]
     PrimaryKeyConstraint("scan_id", "rule_id"),
 )
 
