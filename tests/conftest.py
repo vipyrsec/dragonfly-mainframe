@@ -1,7 +1,7 @@
+import datetime as dt
 import logging
+from collections.abc import Generator
 from copy import deepcopy
-from datetime import datetime, timedelta
-from typing import Generator
 from unittest.mock import MagicMock
 
 import httpx
@@ -19,7 +19,7 @@ from mainframe.rules import Rules
 from .test_data import data
 
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="session")
@@ -29,8 +29,7 @@ def sm(engine: Engine) -> sessionmaker[Session]:
 
 @pytest.fixture(scope="session")
 def superuser_engine() -> Engine:
-    """
-    Creates an engine using a user with superuser permissions.
+    """Creates an engine using a user with superuser permissions.
 
     This should only be used for tests that need superuser permissions.
     Otherwise, tests should prefer the `engine` fixture in order to better
@@ -76,8 +75,8 @@ def auth() -> AuthenticationData:
         issuer="DEVELOPMENT ISSUER",
         subject="DEVELOPMENT SUBJECT",
         audience="DEVELOPMENT AUDIENCE",
-        issued_at=datetime.now() - timedelta(seconds=10),
-        expires_at=datetime.now() + timedelta(seconds=10),
+        issued_at=dt.datetime.now(dt.UTC) - dt.timedelta(seconds=10),
+        expires_at=dt.datetime.now(dt.UTC) + dt.timedelta(seconds=10),
         grant_type="DEVELOPMENT GRANT TYPE",
     )
 

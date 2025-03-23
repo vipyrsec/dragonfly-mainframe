@@ -1,21 +1,21 @@
 import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Self
 
-from pydantic import BaseModel, Field, field_serializer, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 from .orm import Scan
 
 
 class ServerMetadata(BaseModel):
-    """Server metadata"""
+    """Server metadata."""
 
     server_commit: str
     rules_commit: str
 
 
 class Error(BaseModel):
-    """Error"""
+    """Error."""
 
     detail: str
 
@@ -25,27 +25,27 @@ class Package(BaseModel):
 
     scan_id: str
     name: str
-    version: Optional[str]
-    status: Optional[str]
-    score: Optional[int]
-    inspector_url: Optional[str]
+    version: str | None
+    status: str | None
+    score: int | None
+    inspector_url: str | None
     rules: list[str] = []
     download_urls: list[str] = []
-    queued_at: Optional[datetime.datetime]
-    queued_by: Optional[str]
-    reported_at: Optional[datetime.datetime]
-    reported_by: Optional[str]
+    queued_at: datetime.datetime | None
+    queued_by: str | None
+    reported_at: datetime.datetime | None
+    reported_by: str | None
 
-    pending_at: Optional[datetime.datetime]
+    pending_at: datetime.datetime | None
 
-    pending_by: Optional[str]
-    finished_at: Optional[datetime.datetime]
-    finished_by: Optional[str]
+    pending_by: str | None
+    finished_at: datetime.datetime | None
+    finished_by: str | None
 
-    commit_hash: Optional[str]
+    commit_hash: str | None
 
     @classmethod
-    def from_db(cls, scan: Scan):
+    def from_db(cls, scan: Scan) -> Self:
         return cls(
             scan_id=str(scan.scan_id),
             name=scan.name,
@@ -72,14 +72,14 @@ class Package(BaseModel):
         "finished_at",
         "reported_at",
     )
-    def serialize_dt(self, dt: Optional[datetime.datetime], _info):  # pyright: ignore
+    def serialize_dt(self, dt: datetime.datetime | None) -> int | None:
         if dt:
             return int(dt.timestamp())
+        return None
 
 
 class PackageSpecifier(BaseModel):
-    """
-    Model used to specify a package by name and version
+    """Model used to specify a package by name and version.
 
     name:  A str of the name of the package to be scanned
     version: A str of the package version to scan.
@@ -92,7 +92,7 @@ class PackageSpecifier(BaseModel):
 
 
 class ReportPackageBody(PackageSpecifier):
-    inspector_url: Optional[str]
+    inspector_url: str | None
     additional_information: str
 
 
@@ -106,25 +106,25 @@ class ObservationKind(Enum):
 
 
 class ObservationReport(BaseModel):
-    """Model for a report using the PyPI Observation Api"""
+    """Model for a report using the PyPI Observation API."""
 
     kind: ObservationKind
     summary: str
-    inspector_url: Optional[str]
+    inspector_url: str | None
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
 class PackageScanResult(PackageSpecifier):
-    """Client payload to server containing the results of a package scan"""
+    """Client payload to server containing the results of a package scan."""
 
     commit: str
     score: int = 0
-    inspector_url: Optional[str] = None
+    inspector_url: str | None = None
     rules_matched: list[str] = []
 
 
 class PackageScanResultFail(PackageSpecifier):
-    """The client's reason as to why scanning a package failed"""
+    """The client's reason as to why scanning a package failed."""
 
     reason: str
 
@@ -150,13 +150,13 @@ class NoJob(BaseModel):
 
 
 class QueuePackageResponse(BaseModel):
-    """Returned after queueing a package. Contains the UUID"""
+    """Returned after queueing a package. Contains the UUID."""
 
     id: str
 
 
 class StatsResponse(BaseModel):
-    """Recent system statistics"""
+    """Recent system statistics."""
 
     ingested: int
     average_scan_time: float
