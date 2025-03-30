@@ -11,8 +11,6 @@ test_data = {
 }
 
 
-@pytest.mark.parametrize(
-    "inspector_url,file_path", [(inspector_url, file_path) for inspector_url, file_path in test_data.items()]
-)
+@pytest.mark.parametrize(("inspector_url", "file_path"), list(test_data.items()))
 def test_file_path_from_inspector_url(inspector_url: str, file_path: str):
     assert file_path_from_inspector_url(inspector_url) == file_path

@@ -1,11 +1,10 @@
-"""Utilities related to PyPI"""
+"""Utilities related to PyPI."""
 
 from urllib.parse import urlparse
 
 
 def file_path_from_inspector_url(inspector_url: str) -> str:
-    """Parse the file path out of a PyPI inspector URL"""
-
+    """Parse the file path out of a PyPI inspector URL."""
     parsed_url = urlparse(inspector_url)
     path = parsed_url.path.strip("/")
     segments = path.split("/")
