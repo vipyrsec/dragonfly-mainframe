@@ -1,4 +1,17 @@
 from fastapi import HTTPException, status
+from dataclasses import dataclass
+
+
+@dataclass
+class PackageNotFound(Exception):
+    name: str
+    version: str
+
+
+@dataclass
+class PackageAlreadyReported(Exception):
+    name: str
+    reported_version: str
 
 
 class BadCredentialsException(HTTPException):
