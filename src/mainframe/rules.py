@@ -17,12 +17,12 @@ class Rules:
 
 
 def build_auth_header(access_token: str) -> dict[str, str]:
-    """Build authentication headers given the access token"""
+    """Build authentication headers given the access token."""
     return {"Authorization": f"Bearer {access_token}"}
 
 
 def fetch_commit_hash(http_client: httpx.Client, *, repository: str, access_token: str) -> str:
-    """Fetch the top commit hash of the given repository"""
+    """Fetch the top commit hash of the given repository."""
     url = f"https://api.github.com/repos/{repository}/commits/main"
     authentication_headers = build_auth_header(access_token)
     json_headers = {"Accept": "application/vnd.github.sha"}
@@ -31,7 +31,7 @@ def fetch_commit_hash(http_client: httpx.Client, *, repository: str, access_toke
 
 
 def parse_zipfile(zipfile: ZipFile) -> dict[str, str]:
-    """Parse a zipfile and return a dict mapping filenames to content"""
+    """Parse a zipfile and return a dict mapping filenames to content."""
     rules: dict[str, str] = {}
 
     for file_path in zipfile.namelist():
@@ -45,21 +45,20 @@ def parse_zipfile(zipfile: ZipFile) -> dict[str, str]:
 
 
 def fetch_zipfile(http_client: httpx.Client, *, repository: str, access_token: str) -> ZipFile:
-    """Download the source zipfile from GitHub for the given repository"""
+    """Download the source zipfile from GitHub for the given repository."""
     url = f"https://api.github.com/repos/{repository}/zipball/"
     headers = build_auth_header(access_token)
     buffer = BytesIO()
+
     res = http_client.get(url, headers=headers, follow_redirects=True)
     res.raise_for_status()
-    bytes = res.content
-    buffer.write(bytes)
 
+    buffer.write(res.content)
     return ZipFile(buffer)
 
 
 def fetch_rules(http_client: httpx.Client) -> Rules:
-    """Return the commit hash and all the rules"""
-
+    """Return the commit hash and all the rules."""
     access_token = mainframe_settings.dragonfly_github_token
 
     commit_hash = fetch_commit_hash(http_client, repository=REPOSITORY, access_token=access_token)
