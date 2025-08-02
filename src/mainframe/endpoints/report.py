@@ -103,7 +103,7 @@ def _validate_inspector_url(name: str, version: str, body_url: str | None, scan_
 
     inspector_url = body_url or scan_url
     if inspector_url is None:
-        error = HTTPException(status.HTTP_404_NOT_FOUND, detail="inspector_url not given and not found in database")
+        error = HTTPException(status.HTTP_400_BAD_REQUEST, detail="inspector_url not given and not found in database")
         log.error("Missing inspector_url field", error_message=error.detail, tag="missing_inspector_url")
         raise error
 
