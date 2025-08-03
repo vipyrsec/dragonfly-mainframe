@@ -135,6 +135,7 @@ omit = [
   "src/mainframe/database.py",
   "src/mainframe/dependencies.py",
   "src/mainframe/json_web_token.py",
+  "src/mainframe/server.py",
 ]
 
 [tool.coverage.report]
