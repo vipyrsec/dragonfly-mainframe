@@ -75,7 +75,7 @@ class Package(BaseModel):
     def serialize_dt(self, dt: datetime.datetime | None) -> int | None:
         if dt:
             return int(dt.timestamp())
-        return None
+        return None  # pragma: no cover
 
 
 class PackageSpecifier(BaseModel):
