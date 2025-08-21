@@ -1,7 +1,8 @@
+from collections.abc import Sequence, Generator
 import logging
 from copy import deepcopy
 from datetime import datetime, timedelta
-from typing import Generator
+from typing import Optional
 from unittest.mock import MagicMock
 
 import httpx
@@ -12,6 +13,7 @@ from letsbuilda.pypi.models.models_package import Distribution, Release
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
+from mainframe.database import DatabaseStorage, StorageProtocol
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Base, Scan
 from mainframe.rules import Rules
@@ -20,6 +22,39 @@ from .test_data import data
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__file__)
+
+
+class MockDatabase(StorageProtocol):
+    def __init__(self) -> None:
+        self.db: list[Scan] = []
+
+    def add(self, scan: Scan) -> None:
+        self.db.append(scan)
+
+    def lookup_packages(
+        self, name: Optional[str] = None, version: Optional[str] = None, since: Optional[datetime] = None
+    ) -> Sequence[Scan]:
+        v: list[Scan] = []
+        for scan in self.db:
+            if (
+                (scan.name == name)
+                or (scan.version == version)
+                or (scan.queued_at and since and scan.queued_at >= since)
+            ):
+                v.append(scan)
+
+        return v
+
+    def mark_reported(self, *, scan: Scan, subject: str) -> None:
+        for s in self.db:
+            if s.scan_id == scan.scan_id:
+                scan.reported_by = subject
+                scan.reported_at = datetime.now()
+
+
+@pytest.fixture
+def mock_database() -> MockDatabase:
+    return MockDatabase()
 
 
 @pytest.fixture(scope="session")
@@ -50,12 +85,26 @@ def engine(superuser_engine: Engine) -> Engine:
     return create_engine("postgresql+psycopg2://dragonfly:postgres@db:5432/dragonfly", pool_size=5, max_overflow=10)
 
 
+@pytest.fixture
+def storage(
+    superuser_engine: Engine, test_data: list[Scan], sm: sessionmaker[Session]
+) -> Generator[DatabaseStorage, None, None]:
+    Base.metadata.drop_all(superuser_engine)
+    Base.metadata.create_all(superuser_engine)
+    with sm() as s, s.begin():
+        s.add_all(deepcopy(test_data))
+
+    yield DatabaseStorage(sm)
+
+    Base.metadata.drop_all(superuser_engine)
+
+
 @pytest.fixture(params=data, scope="session")
 def test_data(request: pytest.FixtureRequest) -> list[Scan]:
     return request.param
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def db_session(
     superuser_engine: Engine, test_data: list[Scan], sm: sessionmaker[Session]
 ) -> Generator[Session, None, None]:
