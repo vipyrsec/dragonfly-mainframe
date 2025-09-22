@@ -47,3 +47,9 @@ class _Sentry(EnvConfig, env_prefix="sentry_"):
 
 
 Sentry = _Sentry()
+
+class CFAccess(EnvConfig, env_prefix="cf_access_"):
+    audience: str
+    team_domain: str = "https://vipyrsec.cloudflareaccess.com"
+
+cf_access_settings = CFAccess.model_validate({})
