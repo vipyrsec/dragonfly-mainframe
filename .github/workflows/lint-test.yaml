@@ -11,9 +11,23 @@ on:
 jobs:
   lint_test:
     runs-on: ubuntu-24.04
+
+    services:
+      postgres:
+        image: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
+          --health-retries 10
+          --health-timeout 5s
+        ports:
+          - 127.0.0.1:5432:5432
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dragonfly
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Setup uv
         uses: astral-sh/setup-uv@4959332f0f014c5280e7eac8b70c90cb574c9f9b  # v6.6.0
@@ -30,4 +44,10 @@ jobs:
         run: uv run --locked make lint
 
       - name: Test
-        run: uv run --locked make test
+        run: uv run --locked make coverage
+        env:
+          DB_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/dragonfly
+          MICROSOFT_TENANT_ID: tenant_id
+          MICROSOFT_CLIENT_ID: client_id
+          MICROSOFT_CLIENT_SECRET: client_secret
+          DRAGONFLY_GITHUB_TOKEN: test

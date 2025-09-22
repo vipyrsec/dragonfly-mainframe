@@ -1,5 +1,6 @@
 import datetime as dt
 import logging
+import os
 from collections.abc import Generator
 from copy import deepcopy
 from unittest.mock import MagicMock
@@ -9,7 +10,7 @@ import pytest
 from letsbuilda.pypi import PyPIServices
 from letsbuilda.pypi.models import Package
 from letsbuilda.pypi.models.models_package import Distribution, Release
-from sqlalchemy import Engine, create_engine, text
+from sqlalchemy import Engine, create_engine, make_url, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from mainframe.json_web_token import AuthenticationData
@@ -20,6 +21,8 @@ from .test_data import data
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+DB_URL = os.getenv("DB_URL", "postgresql+psycopg2://postgres:postgres@localhost:5432")
 
 
 @pytest.fixture(scope="session")
@@ -35,7 +38,8 @@ def superuser_engine() -> Engine:
     Otherwise, tests should prefer the `engine` fixture in order to better
     mimic the production user.
     """
-    return create_engine("postgresql+psycopg2://postgres:postgres@db:5432/dragonfly", pool_size=5, max_overflow=10)
+    db_url = make_url(DB_URL).set(username="postgres")
+    return create_engine(db_url, pool_size=5, max_overflow=10)
 
 
 @pytest.fixture(scope="session")
@@ -46,7 +50,8 @@ def engine(superuser_engine: Engine) -> Engine:
         s.execute(text("GRANT pg_read_all_data TO dragonfly"))
         s.execute(text("GRANT pg_write_all_data TO dragonfly"))
 
-    return create_engine("postgresql+psycopg2://dragonfly:postgres@db:5432/dragonfly", pool_size=5, max_overflow=10)
+    db_url = make_url(DB_URL).set(username="dragonfly", database="dragonfly")
+    return create_engine(db_url, pool_size=5, max_overflow=10)
 
 
 @pytest.fixture(params=data, scope="session")
