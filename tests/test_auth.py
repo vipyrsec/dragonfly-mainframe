@@ -34,7 +34,10 @@ def test_invalid_authorization_header_elements(inp: str):
 def test_get_bearer_token(monkeypatch: pytest.MonkeyPatch):
     request = cast("Request", Mock(spec=Request))
     monkeypatch.setattr(request, "headers", {"Authorization": "Bearer token"})
-    assert get_bearer_token(request) == "token"
+    assert get_bearer_token(request) == ("auth0", "token")
+
+    monkeypatch.setattr(request, "headers", {"CF_Authorization": "token"})
+    assert get_bearer_token(request) == ("cf", "token")
 
 
 def test_nonexistent_credentials(monkeypatch: pytest.MonkeyPatch):
