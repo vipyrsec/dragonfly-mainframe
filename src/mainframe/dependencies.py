@@ -7,7 +7,7 @@ from fastapi import Depends, Request
 from letsbuilda.pypi import PyPIServices
 
 from mainframe.authorization_header_elements import get_bearer_token
-from mainframe.json_web_token import AuthenticationData, JsonWebToken
+from mainframe.json_web_token import AuthenticationData, CFJsonWebToken, JsonWebToken
 from mainframe.rules import Rules
 
 
@@ -25,8 +25,16 @@ def get_rules(request: Request) -> Rules:
     return request.app.state.rules
 
 
-def validate_token(token: Annotated[str, Depends(get_bearer_token)]) -> AuthenticationData:
-    return JsonWebToken(token).validate()
+def validate_token(token: Annotated[tuple[str, str], Depends(get_bearer_token)]) -> AuthenticationData:
+    provider, token_value = token
+    if provider == "auth0":
+        return JsonWebToken(token_value).validate()
+
+    if provider == "cf":
+        return CFJsonWebToken(token_value).validate()
+
+    msg = f"Unknown authentication provider {provider} (expected 'cf' or 'auth0')"
+    raise ValueError(msg)
 
 
 def validate_token_override() -> AuthenticationData:
