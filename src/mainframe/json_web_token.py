@@ -84,4 +84,8 @@ class CFJsonWebToken:
             raise UnableCredentialsException from err
         except jwt.exceptions.InvalidTokenError as err:
             raise BadCredentialsException from err
-        return AuthenticationData.from_dict(payload)
+
+        auth_data = AuthenticationData.from_dict(payload)
+        auth_data.subject = payload["common_name"] # this claim contains the client id
+
+        return auth_data
