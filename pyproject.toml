@@ -10,7 +10,7 @@ authors = [{name = "Vipyr Security Developers", email = "support@vipyrsec.com"}]
 license = {text = "MIT"}
 classifiers = ["Private :: Do Not Upload"]
 
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = [
   "alembic==1.13.2",
   "asgi-correlation-id==4.3.4",
@@ -21,7 +21,7 @@ dependencies = [
   "letsbuilda-pypi @ git+https://github.com/vipyrsec/letsbuilda-pypi@c721bdf726324e808ef1dd9983d0fe7896c4c3fd",
   "prometheus-client==0.21.0",
   "prometheus-fastapi-instrumentator==7.0.0",
-  "psycopg2-binary==2.9.9",
+  "psycopg2-binary==2.9.10",
   "pydantic-settings==2.3.4",
   "pyjwt[crypto]==2.8.0",
   "python-dotenv==1.0.1",
