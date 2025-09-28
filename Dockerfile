@@ -6,7 +6,7 @@ ARG DEBIAN_VERSION=bookworm
 # DEBIAN_FRONTEND The frontend of the Apt package manager to use
 ARG DEBIAN_FRONTEND=noninteractive
 # PYTHON_VERSION The version of Python to use for the base image
-ARG PYTHON_VERSION=3.12
+ARG PYTHON_VERSION=3.13
 
 # build builds the virtual environment of the project
 FROM python:$PYTHON_VERSION-slim-$DEBIAN_VERSION AS build
