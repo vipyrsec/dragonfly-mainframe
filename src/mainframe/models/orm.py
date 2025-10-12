@@ -99,6 +99,21 @@ class Scan(Base):
 Index(None, Scan.status, postgresql_where=or_(Scan.status == Status.QUEUED, Scan.status == Status.PENDING))
 
 
+class SuppressedPackage(Base):
+    """Suppressed packages"""
+
+    __tablename__: str = "suppressed_packages"
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        init=False,
+    )
+    scan_id: Mapped[str] = mapped_column(
+        ForeignKey("scans.scan_id"),
+    )
+
+
 class DownloadURL(Base):
     """Download URLs."""
 
