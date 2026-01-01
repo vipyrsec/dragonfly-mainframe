@@ -12,24 +12,24 @@ classifiers = ["Private :: Do Not Upload"]
 
 requires-python = ">=3.13,<3.14"
 dependencies = [
-  "alembic==1.17.1",
+  "alembic==1.17.2",
   "asgi-correlation-id==4.3.4",
   "dragonfly-logging-config @ git+https://github.com/vipyrsec/dragonfly-logging-config@v2.1.0",
-  "fastapi-pagination==0.15.0",
-  "fastapi-slim==0.120.4",
+  "fastapi-pagination==0.15.4",
+  "fastapi-slim==0.128.0",
   "httpx==0.28.1",
   "letsbuilda-pypi @ git+https://github.com/vipyrsec/letsbuilda-pypi@c721bdf726324e808ef1dd9983d0fe7896c4c3fd",
   "prometheus-client==0.23.1",
   "prometheus-fastapi-instrumentator==7.1.0",
   "psycopg2-binary==2.9.11",
-  "pydantic-settings==2.11.0",
+  "pydantic-settings==2.12.0",
   "pyjwt[crypto]==2.10.1",
   "python-dotenv==1.2.1",
-  "sentry-sdk==2.43.0",
-  "sqlalchemy==2.0.44",
+  "sentry-sdk==2.48.0",
+  "sqlalchemy==2.0.45",
   "structlog-sentry==2.2.1",
   "structlog==25.5.0",
-  "uvicorn[standard]==0.38.0",
+  "uvicorn[standard]==0.40.0",
 ]
 
   [project.urls]
