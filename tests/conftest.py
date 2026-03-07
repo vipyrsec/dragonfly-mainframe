@@ -3,6 +3,7 @@ import logging
 import os
 from collections.abc import Generator
 from copy import deepcopy
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import httpx
@@ -59,7 +60,7 @@ def test_data(request: pytest.FixtureRequest) -> list[Scan]:
     return request.param
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def db_session(
     superuser_engine: Engine, test_data: list[Scan], sm: sessionmaker[Session]
 ) -> Generator[Session, None, None]:
@@ -108,5 +109,5 @@ def pypi_client() -> PyPIServices:
             releases=[Release(version=version, distributions=[Distribution(filename="test", url="test")])],
         )
 
-    pypi_client.get_package_metadata = MagicMock(side_effect=side_effect)
+    pypi_client.get_package_metadata = cast("Any", MagicMock(side_effect=side_effect))
     return pypi_client
