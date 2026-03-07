@@ -1,4 +1,5 @@
 import datetime as dt
+from collections.abc import Sequence
 from typing import Annotated
 
 import httpx
@@ -25,6 +26,11 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 router = APIRouter(tags=["report"])
+
+
+def _format_valid_versions(scans: Sequence[Scan]) -> str:
+    valid_versions = sorted(scan.version for scan in scans)
+    return ", ".join(f"`{valid_version}`" for valid_version in valid_versions)
 
 
 def _lookup_package(name: str, version: str, session: Session) -> Scan:
@@ -76,13 +82,18 @@ def _lookup_package(name: str, version: str, session: Session) -> Scan:
     with session.begin():
         scan = session.scalar(query.where(Scan.version == version))
     if scan is None:
+        valid_versions = _format_valid_versions(scans)
         error = HTTPException(
             status.HTTP_404_NOT_FOUND,
-            detail=f"Package `{name}` has records in the database, but none with version `{version}`",
+            detail=(
+                f"Package `{name}` has records in the database, but none with version `{version}`. "
+                f"Valid versions: {valid_versions}"
+            ),
         )
         log.error(
             f"No version {version} for package {name} in database",
             error_message=error.detail,
+            valid_versions=valid_versions,
             tag="invalid_version",
         )
         raise error
