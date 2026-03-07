@@ -3,6 +3,7 @@ import logging
 import os
 from collections.abc import Generator
 from copy import deepcopy
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import httpx
@@ -108,5 +109,5 @@ def pypi_client() -> PyPIServices:
             releases=[Release(version=version, distributions=[Distribution(filename="test", url="test")])],
         )
 
-    pypi_client.get_package_metadata = MagicMock(side_effect=side_effect)
+    pypi_client.get_package_metadata = cast("Any", MagicMock(side_effect=side_effect))
     return pypi_client
