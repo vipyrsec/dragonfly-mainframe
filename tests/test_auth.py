@@ -36,7 +36,7 @@ def test_get_bearer_token(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(request, "headers", {"Authorization": "Bearer token"})
     assert get_bearer_token(request) == ("auth0", "token")
 
-    monkeypatch.setattr(request, "headers", {"CF_Authorization": "token"})
+    monkeypatch.setattr(request, "headers", {"Cf-Access-Jwt-Assertion": "token"})
     assert get_bearer_token(request) == ("cf", "token")
 
 
