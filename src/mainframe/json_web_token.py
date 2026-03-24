@@ -79,6 +79,7 @@ class CFJsonWebToken:
                 jwt_signing_key,
                 audience=cf_access_settings.audience,
                 issuer=cf_access_settings.team_domain,
+                algorithms=[self.algorithm]
             )
         except jwt.exceptions.PyJWKClientError as err:
             raise UnableCredentialsException from err
