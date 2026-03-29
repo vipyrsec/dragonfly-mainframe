@@ -27,7 +27,7 @@ def get_authorization_header_elements(
 
 
 def get_bearer_token(request: StarletteRequest) -> tuple[str, str]:
-    cf_authorization_header = request.headers.get("CF_Authorization")
+    cf_authorization_header = request.headers.get("Cf-Access-Jwt-Assertion")
     if cf_authorization_header:
         return ("cf", cf_authorization_header)
 
