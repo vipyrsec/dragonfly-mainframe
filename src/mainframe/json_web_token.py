@@ -1,5 +1,7 @@
 import datetime as dt
+import logging
 from dataclasses import dataclass
+from functools import cache
 from typing import Any, Self
 
 import jwt
@@ -9,6 +11,14 @@ from mainframe.custom_exceptions import (
     BadCredentialsException,
     UnableCredentialsException,
 )
+
+logger = logging.getLogger(__name__)
+
+
+@cache
+def get_jwks_client(jwks_uri: str) -> jwt.PyJWKClient:
+    """Return a cached JWK client for the issuer URI."""
+    return jwt.PyJWKClient(jwks_uri)
 
 
 @dataclass
@@ -44,7 +54,7 @@ class JsonWebToken:
 
     def validate(self) -> AuthenticationData:
         try:
-            jwks_client = jwt.PyJWKClient(self.jwks_uri)
+            jwks_client = get_jwks_client(self.jwks_uri)
             jwt_signing_key = jwks_client.get_signing_key_from_jwt(self.jwt_access_token).key
             payload = jwt.decode(
                 self.jwt_access_token,
@@ -54,6 +64,7 @@ class JsonWebToken:
                 issuer=self.auth0_issuer_url,
             )
         except jwt.exceptions.PyJWKClientError as err:
+            logger.warning("Unable to fetch JWKS for Auth0 token validation: %s", self.jwks_uri, exc_info=err)
             raise UnableCredentialsException from err
         except jwt.exceptions.InvalidTokenError as err:
             raise BadCredentialsException from err
@@ -71,7 +82,7 @@ class CFJsonWebToken:
 
     def validate(self) -> AuthenticationData:
         try:
-            jwks_client = jwt.PyJWKClient(self.jwks_uri)
+            jwks_client = get_jwks_client(self.jwks_uri)
             jwt_signing_key = jwks_client.get_signing_key_from_jwt(self.jwt_access_token).key
 
             payload = jwt.decode(
@@ -82,11 +93,16 @@ class CFJsonWebToken:
                 algorithms=[self.algorithm]
             )
         except jwt.exceptions.PyJWKClientError as err:
+            logger.warning(
+                "Unable to fetch JWKS for Cloudflare Access token validation: %s",
+                self.jwks_uri,
+                exc_info=err,
+            )
             raise UnableCredentialsException from err
         except jwt.exceptions.InvalidTokenError as err:
             raise BadCredentialsException from err
 
         auth_data = AuthenticationData.from_dict(payload)
-        auth_data.subject = payload["common_name"] # this claim contains the client id
+        auth_data.subject = payload["common_name"]  # this claim contains the client id
 
         return auth_data
