@@ -120,6 +120,10 @@ def test_report_invalid_version(db_session: Session):
     with pytest.raises(HTTPException) as e:
         _lookup_package("c", "2.0.0", db_session)
     assert e.value.status_code == status.HTTP_404_NOT_FOUND
+    assert e.value.detail == (
+        "Package `c` has records in the database, but none with version `2.0.0`. "
+        "Valid versions: `1.0.0`"
+    )
 
 
 def test_report_missing_inspector_url():
