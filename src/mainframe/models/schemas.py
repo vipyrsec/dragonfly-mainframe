@@ -35,6 +35,7 @@ class Package(BaseModel):
     queued_by: str | None
     reported_at: datetime.datetime | None
     reported_by: str | None
+    report_summary: str | None
 
     pending_at: datetime.datetime | None
 
@@ -57,6 +58,7 @@ class Package(BaseModel):
             download_urls=[url.url for url in scan.download_urls],
             reported_at=scan.reported_at,
             reported_by=scan.reported_by,
+            report_summary=scan.report_summary,
             queued_at=scan.queued_at,
             queued_by=scan.queued_by,
             pending_at=scan.pending_at,

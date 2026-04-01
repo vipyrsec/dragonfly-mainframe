@@ -1,4 +1,5 @@
 import datetime
+from typing import cast
 
 import pytest
 from fastapi import HTTPException, status
@@ -13,6 +14,7 @@ from mainframe.endpoints.package import (
     _deduplicate_packages,  # pyright: ignore [reportPrivateUsage]
     batch_queue_package,
     lookup_package_info,
+    lookup_reported_packages,
     queue_package,
     submit_results,
 )
@@ -59,12 +61,12 @@ def test_package_lookup(  # noqa: PLR0913
 
     actual_scans = lookup_package_info(db_session, since, name, version, page, size)
 
-    actual_scan_set: set[tuple[str, str | None]] = set()
-
     if isinstance(actual_scans, Page):
-        actual_scan_set = {(scan.name, scan.version) for scan in actual_scans.items}
+        page_results = cast("Page[Package]", actual_scans)
+        actual_scan_set = {(scan.name, scan.version) for scan in page_results.items}
     else:
-        actual_scan_set = {(scan.name, scan.version) for scan in actual_scans}
+        sequence_results = cast("list[Package]", actual_scans)
+        actual_scan_set = {(scan.name, scan.version) for scan in sequence_results}
 
     assert expected_scans == actual_scan_set
 
@@ -289,6 +291,7 @@ def test_package_from_db():
         score=14,
         queued_by="Ryan",
         reported_by="Ryan",
+        report_summary="reported for malware",
         queued_at=datetime.datetime(2024, 3, 5, 12, 30, 0, tzinfo=datetime.UTC),
     )
 
@@ -299,6 +302,7 @@ def test_package_from_db():
     assert pkg.score == 14
     assert pkg.queued_by == "Ryan"
     assert pkg.reported_by == "Ryan"
+    assert pkg.report_summary == "reported for malware"
     assert pkg.queued_at == datetime.datetime(2024, 3, 5, 12, 30, 0, tzinfo=datetime.UTC)
 
 
@@ -313,6 +317,7 @@ def test_datetime_serialization():
         finished_at=datetime.datetime(2023, 10, 12, 13, 45, 30, tzinfo=datetime.UTC),
         reported_at=datetime.datetime(2023, 10, 12, 13, 45, 30, tzinfo=datetime.UTC),
         queued_by="Tina",
+        report_summary="reported for malware",
     )
 
     pkg = Package.from_db(scan).model_dump()
@@ -322,3 +327,104 @@ def test_datetime_serialization():
     assert pkg.get("pending_at") == dt
     assert pkg.get("finished_at") == dt
     assert pkg.get("reported_at") == dt
+    assert pkg.get("report_summary") == "reported for malware"
+
+
+def test_reported_package_lookup_filters_orders_and_paginates(db_session: Session):
+    earlier = datetime.datetime(2024, 1, 2, 12, 0, 0, tzinfo=datetime.UTC)
+    later = datetime.datetime(2024, 1, 3, 12, 0, 0, tzinfo=datetime.UTC)
+
+    scans = [
+        Scan(
+            name="alpha",
+            version="1.0.0",
+            status=Status.FINISHED,
+            score=10,
+            inspector_url="https://example.com/alpha",
+            rules=[],
+            download_urls=[],
+            queued_at=earlier,
+            queued_by="queue-user",
+            pending_at=earlier,
+            pending_by="pending-user",
+            finished_at=earlier,
+            finished_by="finished-user",
+            reported_at=later,
+            reported_by="reporter-2",
+            report_summary="latest report",
+            fail_reason=None,
+            commit_hash="commit-2",
+        ),
+        Scan(
+            name="alpha",
+            version="0.9.0",
+            status=Status.FINISHED,
+            score=4,
+            inspector_url="https://example.com/alpha-old",
+            rules=[],
+            download_urls=[],
+            queued_at=earlier,
+            queued_by="queue-user",
+            pending_at=earlier,
+            pending_by="pending-user",
+            finished_at=earlier,
+            finished_by="finished-user",
+            reported_at=earlier,
+            reported_by="reporter-1",
+            report_summary="older report",
+            fail_reason=None,
+            commit_hash="commit-1",
+        ),
+        Scan(
+            name="beta",
+            version="2.0.0",
+            status=Status.FINISHED,
+            score=1,
+            inspector_url="https://example.com/beta",
+            rules=[],
+            download_urls=[],
+            queued_at=earlier,
+            queued_by="queue-user",
+            pending_at=earlier,
+            pending_by="pending-user",
+            finished_at=earlier,
+            finished_by="finished-user",
+            reported_at=None,
+            reported_by=None,
+            report_summary=None,
+            fail_reason=None,
+            commit_hash="commit-3",
+        ),
+    ]
+
+    with db_session.begin():
+        db_session.add_all(scans)
+
+    page = lookup_reported_packages(
+        db_session,
+        since=int(datetime.datetime(2024, 1, 2, 0, 0, 0, tzinfo=datetime.UTC).timestamp()),
+        name="alpha",
+        page=1,
+        size=1,
+    )
+
+    assert page.total == 2
+    assert page.page == 1
+    assert page.size == 1
+    assert len(page.items) == 1
+    assert page.items[0].name == "alpha"
+    assert page.items[0].version == "1.0.0"
+    assert page.items[0].reported_by == "reporter-2"
+    assert page.items[0].report_summary == "latest report"
+
+    second_page = lookup_reported_packages(
+        db_session,
+        since=int(datetime.datetime(2024, 1, 2, 0, 0, 0, tzinfo=datetime.UTC).timestamp()),
+        name="alpha",
+        page=2,
+        size=1,
+    )
+
+    assert len(second_page.items) == 1
+    assert second_page.items[0].version == "0.9.0"
+    assert second_page.items[0].report_summary == "older report"
