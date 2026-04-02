@@ -125,7 +125,7 @@ def _validate_pypi(name: str, version: str, http_client: httpx.Client) -> None:
     log = logger.bind(package={"name": name, "version": version})
 
     response = http_client.get(f"https://pypi.org/project/{name}")
-    if response.status_code == httpx.codes.NOT_FOUND:
+    if response.status_code == status.HTTP_404_NOT_FOUND:
         error = HTTPException(status.HTTP_404_NOT_FOUND, detail="Package not found on PyPI")
         log.error("Package not found on PyPI", tag="package_not_found_pypi")
         raise error
@@ -184,6 +184,7 @@ def report_package(
     with session.begin():
         scan.reported_by = auth.subject
         scan.reported_at = dt.datetime.now(dt.UTC)
+        scan.report_summary = body.additional_information
 
     session.close()
 

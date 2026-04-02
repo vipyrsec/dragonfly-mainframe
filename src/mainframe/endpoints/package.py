@@ -31,6 +31,9 @@ from mainframe.models.schemas import (
 router = APIRouter(tags=["package"])
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
+DEFAULT_REPORTED_PACKAGE_PAGE = 1
+DEFAULT_REPORTED_PACKAGE_SIZE = 50
+
 
 @router.put(
     "/package",
@@ -182,6 +185,40 @@ def lookup_package_info(  # noqa: PLR0913
             )
         data = session.scalars(query).unique()
         return [Package.from_db(result) for result in data]
+
+
+@router.get(
+    "/reported-packages",
+    dependencies=[Depends(validate_token)],
+)
+def lookup_reported_packages(
+    session: Annotated[Session, Depends(get_db)],
+    since: int | None = None,
+    name: str | None = None,
+    page: int = DEFAULT_REPORTED_PACKAGE_PAGE,
+    size: int = DEFAULT_REPORTED_PACKAGE_SIZE,
+) -> Page[Package]:
+    """Lookup reported packages ordered by report time."""
+    query = (
+        select(Scan)
+        .where(Scan.reported_at.is_not(None))
+        .order_by(Scan.reported_at.desc(), Scan.queued_at.desc())
+        .options(joinedload(Scan.rules), joinedload(Scan.download_urls))
+    )
+
+    if since is not None:
+        query = query.where(Scan.reported_at >= dt.datetime.fromtimestamp(since, tz=dt.UTC))
+    if name is not None:
+        query = query.where(Scan.name == name)
+
+    with session, session.begin():
+        params = Params(page=page, size=size)
+        return paginate(
+            session,
+            query,
+            params=params,
+            transformer=lambda items: [Package.from_db(item) for item in items],
+        )
 
 
 def _deduplicate_packages(packages: list[PackageSpecifier], session: Session) -> set[tuple[str, str]]:

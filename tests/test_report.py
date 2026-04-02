@@ -77,6 +77,7 @@ def test_report(
     assert s is not None
     assert s.reported_by == auth.subject
     assert s.reported_at is not None
+    assert s.report_summary == body.additional_information
 
 
 def test_report_package_not_on_pypi():

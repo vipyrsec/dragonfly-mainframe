@@ -88,8 +88,9 @@ class Scan(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None, index=True)
     finished_by: Mapped[str | None] = mapped_column(default=None)
 
-    reported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    reported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None, index=True)
     reported_by: Mapped[str | None] = mapped_column(default=None)
+    report_summary: Mapped[str | None] = mapped_column(default=None)
 
     fail_reason: Mapped[str | None] = mapped_column(default=None)
 
