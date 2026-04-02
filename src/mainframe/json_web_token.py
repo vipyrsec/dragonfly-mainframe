@@ -87,6 +87,9 @@ class CFJsonWebToken:
             raise BadCredentialsException from err
 
         auth_data = AuthenticationData.from_dict(payload)
-        auth_data.subject = payload["common_name"] # this claim contains the client id
+
+        # use either the common_name or the email, which should be present for service token auth
+        # and interactive auth, respectively. fallback to sub field if neither are present.
+        auth_data.subject = payload.get("common_name") or payload.get("email") or payload["sub"]
 
         return auth_data
