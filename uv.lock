@@ -344,7 +344,7 @@ requires-dist = [
     { name = "fastapi-pagination", specifier = "==0.15.8" },
     { name = "fastapi-slim", specifier = "==0.128.0" },
     { name = "httpx", specifier = "==0.28.1" },
-    { name = "letsbuilda-pypi", specifier = "==6.0.0" },
+    { name = "letsbuilda-pypi", specifier = "==6.0.1" },
     { name = "prometheus-client", specifier = "==0.24.1" },
     { name = "prometheus-fastapi-instrumentator", specifier = "==7.1.0" },
     { name = "psycopg2-binary", specifier = "==2.9.11" },
@@ -565,16 +565,16 @@ wheels = [
 
 [[package]]
 name = "letsbuilda-pypi"
-version = "6.0.0"
+version = "6.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "xmltodict" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a1/5f/41802f653c49ed3e180e0a87107efe384a8ae25072baf0ac02820376cb09/letsbuilda_pypi-6.0.0.tar.gz", hash = "sha256:f60a88485cc6c06076868e5f883231405560dd879d02381a91580160f343a053", size = 8713, upload-time = "2026-07-07T22:04:44.996Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/81/42/a028d4aa81bb2917c2062d1d9dc5cc7726c55c03ad9c4c19c704b1a00ff8/letsbuilda_pypi-6.0.1.tar.gz", hash = "sha256:ed0263971d41751bb75bbcdaaf27b622ee521500ce53ed76d76364eaa2ec525e", size = 8729, upload-time = "2026-07-07T23:20:43.368Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f5/a8/5aaea84f006bc0285774efba2cf27fd05e1782a7c257b0a193b1d48e9920/letsbuilda_pypi-6.0.0-py3-none-any.whl", hash = "sha256:bcdf4e25d57813b4bde4ce079f3cfe91422ef06a18c88f5488e46d9133b8e605", size = 8161, upload-time = "2026-07-07T22:04:43.742Z" },
+    { url = "https://files.pythonhosted.org/packages/7b/32/58857e2ae568fde16768a7b96798fe038bda3aa75f88d93590be4116a5dd/letsbuilda_pypi-6.0.1-py3-none-any.whl", hash = "sha256:a8ef1fb4477321a38e3b0b986af86f21887d2f36afa15e6d31c25e6601c31c17", size = 8165, upload-time = "2026-07-07T23:20:42.267Z" },
 ]
 
 [[package]]
