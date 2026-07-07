@@ -18,7 +18,7 @@ dependencies = [
   "fastapi-pagination==0.15.8",
   "fastapi-slim==0.128.0",
   "httpx==0.28.1",
-  "letsbuilda-pypi==5.2.2",
+  "letsbuilda-pypi==6.0.0",
   "prometheus-client==0.24.1",
   "prometheus-fastapi-instrumentator==7.1.0",
   "psycopg2-binary==2.9.11",
