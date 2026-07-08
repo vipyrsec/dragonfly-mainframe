@@ -46,6 +46,56 @@ def test_get_package_metadata_ignores_unmodelled_and_missing_fields():
     assert metadata.distributions == []
 
 
+def test_get_package_metadata_ignores_extra_pypi_fields():
+    """Regression: unknown fields PyPI may add must be ignored, not crash parsing.
+
+    The real PyPI JSON response carries many more keys than we model, at the
+    top level and nested inside ``info`` and each ``urls`` entry. This mirrors
+    a realistic response (the fields we use plus a representative sample of
+    extras) and confirms the extras are silently dropped while the fields we
+    care about still parse correctly.
+    """
+    payload = {
+        "info": {
+            "name": "requests",
+            "version": "2.32.3",
+            # Fields PyPI returns that we deliberately don't model.
+            "author": "Kenneth Reitz",
+            "summary": "Python HTTP for Humans.",
+            "requires_python": ">=3.8",
+            "yanked": False,
+            "classifiers": ["Programming Language :: Python :: 3"],
+            "project_urls": {"Homepage": "https://requests.readthedocs.io"},
+        },
+        "urls": [
+            {
+                "url": "https://files.pythonhosted.org/requests-2.32.3.tar.gz",
+                # Extra per-distribution fields we don't model.
+                "filename": "requests-2.32.3.tar.gz",
+                "packagetype": "sdist",
+                "size": 131218,
+                "yanked": False,
+                "digests": {"sha256": "deadbeef"},
+                "upload_time_iso_8601": "2024-05-29T15:37:49.000000Z",
+            },
+        ],
+        # A brand-new top-level key PyPI might add in the future.
+        "vulnerabilities": [],
+        "some_future_field": {"nested": "value"},
+    }
+    http_client = _make_mock_http_client(httpx.Response(HTTPStatus.OK, json=payload))
+
+    metadata = PyPIClient(http_client).get_package_metadata("requests", "2.32.3")
+
+    # The fields we care about parse correctly...
+    assert metadata.name == "requests"
+    assert metadata.version == "2.32.3"
+    assert [d.url for d in metadata.distributions] == ["https://files.pythonhosted.org/requests-2.32.3.tar.gz"]
+    # ...and none of the unmodelled extras leak onto our models.
+    assert "size" not in metadata.distributions[0].model_dump()
+    assert set(metadata.model_dump()) == {"name", "version", "distributions"}
+
+
 def test_get_package_metadata_not_found():
     http_client = _make_mock_http_client(httpx.Response(HTTPStatus.NOT_FOUND))
 
