@@ -40,17 +40,17 @@ class PackageMetadata(BaseModel):
     distributions: list[Distribution]
 
 
-class _Info(BaseModel):
+class Info(BaseModel):
     """The `info` object of the PyPI JSON response (only the fields we read)."""
 
     name: str
     version: str
 
 
-class _JSONResponse(BaseModel):
+class JSONResponse(BaseModel):
     """The shape of the PyPI JSON response, limited to what we parse."""
 
-    info: _Info
+    info: Info
     urls: list[Distribution] = Field(default_factory=list[Distribution])
 
 
@@ -80,7 +80,7 @@ class PyPIClient:
             raise PackageNotFoundError(name, version)
         response.raise_for_status()
 
-        data = _JSONResponse.model_validate(response.json())
+        data = JSONResponse.model_validate(response.json())
         return PackageMetadata(
             name=data.info.name,
             version=data.info.version,
