@@ -7,9 +7,6 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi_pagination import Page, Params
 from fastapi_pagination.ext.sqlalchemy import paginate
-from letsbuilda.pypi import Package as PyPIPackage
-from letsbuilda.pypi import PyPIServices
-from letsbuilda.pypi.exceptions import PackageNotFoundError
 from sqlalchemy import select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
@@ -27,6 +24,7 @@ from mainframe.models.schemas import (
     PackageSpecifier,
     QueuePackageResponse,
 )
+from mainframe.pypi import PackageMetadata, PackageNotFoundError, PyPIClient
 
 router = APIRouter(tags=["package"])
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -227,11 +225,13 @@ def _deduplicate_packages(packages: list[PackageSpecifier], session: Session) ->
     return name_ver - {(scan.name, scan.version) for scan in scalars.all()}
 
 
-def _get_packages_metadata(pypi_client: PyPIServices, packages_to_check: set[tuple[str, str]]) -> Iterable[PyPIPackage]:
+def _get_packages_metadata(
+    pypi_client: PyPIClient, packages_to_check: set[tuple[str, str]]
+) -> Iterable[PackageMetadata]:
     if not packages_to_check:
         return
 
-    def _get_package_metadata(package: tuple[str, str]) -> PyPIPackage | None:
+    def _get_package_metadata(package: tuple[str, str]) -> PackageMetadata | None:
         try:
             return pypi_client.get_package_metadata(*package)
         except PackageNotFoundError:
@@ -255,20 +255,18 @@ def batch_queue_package(
     packages: list[PackageSpecifier],
     session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
-    pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
+    pypi_client: Annotated[PyPIClient, Depends(get_pypi_client)],
 ) -> None:
     with session, session.begin():
         packages_to_check = _deduplicate_packages(packages, session)
 
         for package_metadata in _get_packages_metadata(pypi_client, packages_to_check):
             scan = Scan(
-                name=package_metadata.title,
-                version=package_metadata.releases[0].version,
+                name=package_metadata.name,
+                version=package_metadata.version,
                 status=Status.QUEUED,
                 queued_by=auth.subject,
-                download_urls=[
-                    DownloadURL(url=distribution.url) for distribution in package_metadata.releases[0].distributions
-                ],
+                download_urls=[DownloadURL(url=distribution.url) for distribution in package_metadata.distributions],
             )
 
             session.add(scan)
@@ -288,7 +286,7 @@ def queue_package(
     package: PackageSpecifier,
     session: Annotated[Session, Depends(get_db)],
     auth: Annotated[AuthenticationData, Depends(validate_token)],
-    pypi_client: Annotated[PyPIServices, Depends(get_pypi_client)],
+    pypi_client: Annotated[PyPIClient, Depends(get_pypi_client)],
 ) -> QueuePackageResponse:
     """Queue a package to be scanned when the next runner is available.
 
@@ -313,9 +311,7 @@ def queue_package(
         version=version,
         status=Status.QUEUED,
         queued_by=auth.subject,
-        download_urls=[
-            DownloadURL(url=distribution.url) for distribution in package_metadata.releases[0].distributions
-        ],
+        download_urls=[DownloadURL(url=distribution.url) for distribution in package_metadata.distributions],
     )
 
     try:

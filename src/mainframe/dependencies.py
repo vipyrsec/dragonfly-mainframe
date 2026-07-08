@@ -4,17 +4,17 @@ from typing import Annotated
 
 import httpx
 from fastapi import Depends, Request
-from letsbuilda.pypi import PyPIServices
 
 from mainframe.authorization_header_elements import get_bearer_token
 from mainframe.json_web_token import AuthenticationData, CFJsonWebToken, JsonWebToken
+from mainframe.pypi import PyPIClient
 from mainframe.rules import Rules
 
 
 @cache
-def get_pypi_client() -> PyPIServices:
+def get_pypi_client() -> PyPIClient:
     http_client = httpx.Client()
-    return PyPIServices(http_client)
+    return PyPIClient(http_client)
 
 
 def get_httpx_client(request: Request) -> httpx.Client:
