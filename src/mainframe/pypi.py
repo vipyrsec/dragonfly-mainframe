@@ -43,7 +43,7 @@ class JSONResponse(BaseModel):
     """The shape of the PyPI JSON response, limited to what we parse."""
 
     info: Info
-    urls: list[Distribution] = Field(default_factory=list[Distribution])
+    urls: list[Distribution] = Field(default_factory=list)
 
 
 class PyPIClient:
