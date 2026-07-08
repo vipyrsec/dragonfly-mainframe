@@ -18,9 +18,9 @@ PYPI_BASE_URL = "https://pypi.org/pypi"
 
 
 class PackageNotFoundError(Exception):
-    """Raised when a package (or a specific version of it) is not found on PyPI."""
+    """Raised when a package version is not found on PyPI."""
 
-    def __init__(self: Self, name: str, version: str | None = None) -> None:
+    def __init__(self: Self, name: str, version: str) -> None:
         self.name = name
         self.version = version
         super().__init__(f"'{name}' @ '{version}' not found on PyPI!")
@@ -60,12 +60,12 @@ class PyPIClient:
     def __init__(self: Self, http_client: httpx.Client) -> None:
         self.http_client = http_client
 
-    def get_package_metadata(self: Self, name: str, version: str | None = None) -> PackageMetadata:
-        """Fetch metadata for a package, optionally pinned to a specific version.
+    def get_package_metadata(self: Self, name: str, version: str) -> PackageMetadata:
+        """Fetch metadata for a specific version of a package.
 
         Args:
             name: The package name.
-            version: The package version. If omitted, the latest release is used.
+            version: The package version.
 
         Returns:
             The metadata for the requested package.
@@ -73,7 +73,7 @@ class PyPIClient:
         Raises:
             PackageNotFoundError: If the package or version does not exist on PyPI.
         """
-        url = f"{PYPI_BASE_URL}/{name}/{version}/json" if version is not None else f"{PYPI_BASE_URL}/{name}/json"
+        url = f"{PYPI_BASE_URL}/{name}/{version}/json"
 
         response = self.http_client.get(url)
         if response.status_code == HTTPStatus.NOT_FOUND:

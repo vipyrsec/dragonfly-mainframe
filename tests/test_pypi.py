@@ -36,14 +36,6 @@ def test_get_package_metadata_with_version():
     ]
 
 
-def test_get_package_metadata_without_version():
-    http_client = _make_mock_http_client(httpx.Response(HTTPStatus.OK, json=SAMPLE_RESPONSE))
-
-    PyPIClient(http_client).get_package_metadata("requests")
-
-    http_client.get.assert_called_once_with("https://pypi.org/pypi/requests/json")
-
-
 def test_get_package_metadata_ignores_unmodelled_and_missing_fields():
     """Extra fields are ignored and a release with no distributions is tolerated."""
     payload = {"info": {"name": "empty", "version": "1.0.0", "yanked": None}, "extra": "ignored"}
