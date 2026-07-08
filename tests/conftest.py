@@ -7,14 +7,12 @@ from unittest.mock import MagicMock
 
 import httpx
 import pytest
-from letsbuilda.pypi import PyPIServices
-from letsbuilda.pypi.models import Package
-from letsbuilda.pypi.models.models_package import Distribution, Release
 from sqlalchemy import Engine, create_engine, make_url, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Base, Scan
+from mainframe.pypi import Distribution, PackageMetadata, PyPIClient
 from mainframe.rules import Rules
 
 from .test_data import data
@@ -98,15 +96,12 @@ def rules_state() -> Rules:
 
 
 @pytest.fixture(scope="session")
-def pypi_client() -> PyPIServices:
+def pypi_client() -> PyPIClient:
     http_client = httpx.Client()
-    pypi_client = PyPIServices(http_client)
+    pypi_client = PyPIClient(http_client)
 
-    def side_effect(name: str, version: str) -> Package:
-        return Package(
-            title=name,
-            releases=[Release(version=version, distributions=[Distribution(filename="test", url="test")])],
-        )
+    def side_effect(name: str, version: str) -> PackageMetadata:
+        return PackageMetadata(name=name, version=version, distributions=[Distribution(url="test")])
 
     pypi_client.get_package_metadata = MagicMock(side_effect=side_effect)
     return pypi_client

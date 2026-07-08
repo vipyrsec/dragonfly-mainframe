@@ -10,7 +10,6 @@ import sentry_sdk
 from asgi_correlation_id import CorrelationIdMiddleware, correlation_id
 from fastapi import Depends, FastAPI
 from fastapi_pagination import add_pagination
-from letsbuilda.pypi import PyPIServices
 from prometheus_fastapi_instrumentator import Instrumentator
 from sentry_sdk.integrations.logging import LoggingIntegration
 from structlog_sentry import SentryProcessor
@@ -22,6 +21,7 @@ from mainframe.constants import GIT_SHA, Sentry, mainframe_settings
 from mainframe.dependencies import validate_token, validate_token_override
 from mainframe.endpoints import routers
 from mainframe.models.schemas import ServerMetadata
+from mainframe.pypi import PyPIClient
 from mainframe.rules import Rules, fetch_rules
 
 from . import __version__
@@ -56,7 +56,7 @@ sentry_sdk.init(
 async def lifespan(app_: FastAPI) -> AsyncGenerator[None, None]:
     """Load the state for the app."""
     http_client = httpx.Client()
-    pypi_client = PyPIServices(http_client)
+    pypi_client = PyPIClient(http_client)
     rules = fetch_rules(http_client)
 
     app_.state.rules = rules
