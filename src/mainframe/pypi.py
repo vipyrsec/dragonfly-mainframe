@@ -1,12 +1,4 @@
-"""A minimal in-house client for the PyPI JSON API.
-
-This replaces the third-party ``letsbuilda-pypi`` dependency. Only the handful
-of fields that mainframe actually consumes are modelled here; every other field
-in the PyPI response is ignored. Keeping the surface this small insulates us
-from the many under-documented quirks of the upstream API (fields that are
-nullable in practice but not in the docs, enum types with undocumented values,
-etc.) — if PyPI adds or changes a field we don't read, we simply don't care.
-"""
+"""Minimal client over PyPI JSON API."""
 
 from http import HTTPStatus
 from typing import Self
