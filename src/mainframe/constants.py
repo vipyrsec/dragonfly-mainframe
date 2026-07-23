@@ -19,8 +19,6 @@ class EnvConfig(BaseSettings):
 
 class Mainframe(EnvConfig):
     client_origin_url: str = ""
-    auth0_domain: str = ""
-    auth0_audience: str = ""
 
     reporter_url: str = ""
 

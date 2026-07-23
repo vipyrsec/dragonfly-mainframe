@@ -4,7 +4,7 @@ from typing import Any, Self
 
 import jwt
 
-from mainframe.constants import cf_access_settings, mainframe_settings
+from mainframe.constants import cf_access_settings
 from mainframe.custom_exceptions import (
     BadCredentialsException,
     UnableCredentialsException,
@@ -34,34 +34,6 @@ class AuthenticationData:
 
 @dataclass
 class JsonWebToken:
-    """Perform JSON Web Token (JWT) validation using PyJWT."""
-
-    jwt_access_token: str
-    auth0_issuer_url: str = f"https://{mainframe_settings.auth0_domain}/"
-    auth0_audience: str = mainframe_settings.auth0_audience
-    algorithm: str = "RS256"
-    jwks_uri: str = f"{auth0_issuer_url}.well-known/jwks.json"
-
-    def validate(self) -> AuthenticationData:
-        try:
-            jwks_client = jwt.PyJWKClient(self.jwks_uri)
-            jwt_signing_key = jwks_client.get_signing_key_from_jwt(self.jwt_access_token).key
-            payload = jwt.decode(
-                self.jwt_access_token,
-                jwt_signing_key,
-                algorithms=self.algorithm,  # pyright: ignore[reportArgumentType]
-                audience=self.auth0_audience,
-                issuer=self.auth0_issuer_url,
-            )
-        except jwt.exceptions.PyJWKClientError as err:
-            raise UnableCredentialsException from err
-        except jwt.exceptions.InvalidTokenError as err:
-            raise BadCredentialsException from err
-        return AuthenticationData.from_dict(payload)
-
-
-@dataclass
-class CFJsonWebToken:
     """Validate Cloudflare Access JSON Web Token using PyJWT."""
 
     jwt_access_token: str
@@ -79,7 +51,7 @@ class CFJsonWebToken:
                 jwt_signing_key,
                 audience=cf_access_settings.audience,
                 issuer=cf_access_settings.team_domain,
-                algorithms=[self.algorithm]
+                algorithms=[self.algorithm],
             )
         except jwt.exceptions.PyJWKClientError as err:
             raise UnableCredentialsException from err
@@ -88,8 +60,8 @@ class CFJsonWebToken:
 
         auth_data = AuthenticationData.from_dict(payload)
 
-        # use either the common_name or the email, which should be present for service token auth
-        # and interactive auth, respectively. fallback to sub field if neither are present.
+        # Service tokens identify themselves with common_name; interactive
+        # identities use email. Cloudflare always supplies sub as a fallback.
         auth_data.subject = payload.get("common_name") or payload.get("email") or payload["sub"]
 
         return auth_data
