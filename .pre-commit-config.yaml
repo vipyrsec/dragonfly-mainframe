@@ -47,7 +47,7 @@ repos:
   - repo: https://github.com/hadolint/hadolint
     rev: c3dc18df7a501f02a560a2cc7ba3c69a85ca01d3  # frozen: v2.13.1-beta
     hooks:
-      - id: hadolint-docker
+      - id: hadolint
         args:
           - --failure-threshold
           - error
@@ -62,6 +62,14 @@ repos:
     hooks:
       - id: taplo-format
       - id: taplo-lint
+        args:
+          - --no-schema
+      - id: taplo-lint
+        name: Validate pyproject schema
+        args:
+          - --schema
+          - https://json.schemastore.org/pyproject.json
+        files: ^pyproject\.toml$
 
   - repo: https://github.com/lyz-code/yamlfix
     rev: 8072181c0f2eab9f2dd8db2eb3b9556d7cd0bd74  # frozen: 1.17.0

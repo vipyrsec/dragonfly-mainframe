@@ -7,21 +7,26 @@ on:
       - main
   pull_request:
 
+concurrency:
+  group: pages-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   DRAGONFLY_GITHUB_TOKEN: This is just here for autodoc
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 jobs:
   build:
+    name: Build documentation
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup uv
         uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098  # v7.3.1
@@ -43,10 +48,16 @@ jobs:
           path: ./docs/build/dirhtml
 
   deploy:
+    name: Deploy documentation
     if: ${{ github.ref == 'refs/heads/main' }}
     needs: build
 
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write  # Publish the documentation artifact to GitHub Pages.
+      id-token: write  # Authenticate the Pages deployment with GitHub OIDC.
+
     steps:
       - name: Deploy to GitHub Pages
         id: deployment

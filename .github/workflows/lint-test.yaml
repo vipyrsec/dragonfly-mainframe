@@ -8,13 +8,21 @@ on:
       - main
   pull_request:
 
+concurrency:
+  group: lint-test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   lint_test:
+    name: Lint and test
     runs-on: ubuntu-24.04
 
     services:
       postgres:
-        image: postgres
+        image: postgres:16.14@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 1s
@@ -28,6 +36,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup uv
         uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098  # v7.3.1
