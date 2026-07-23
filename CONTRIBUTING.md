@@ -113,6 +113,9 @@ src.mainframe.server:app`.
 To run the tests, use `uv run pytest`.
 If you choose to use this method, be sure to set the environment variable `DB_URL` to the appropriate value, so that the
 tests can connect to the database.
+Tests that exercise HTTP routes without Cloudflare Access can request the
+`app_without_auth` fixture. The fixture overrides authentication only inside
+that test process and restores the production dependency afterward.
 You can also use manual testing via a browser, or `curl`, for example, but this requires some additional setup,
 described in the Database Migrations section below.
 

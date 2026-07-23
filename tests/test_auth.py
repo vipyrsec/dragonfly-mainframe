@@ -132,6 +132,14 @@ def test_protected_route_inventory():
     assert validate_token not in app.dependency_overrides
 
 
+def test_authentication_can_be_overridden_only_in_tests(
+    app_without_auth: FastAPI,
+    auth: AuthenticationData,
+):
+    override = app_without_auth.dependency_overrides[validate_token]
+    assert override() == auth
+
+
 @pytest.mark.parametrize(
     ("headers", "detail"),
     [
