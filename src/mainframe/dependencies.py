@@ -1,4 +1,3 @@
-import datetime as dt
 from functools import cache
 from typing import Annotated
 
@@ -27,14 +26,3 @@ def get_rules(request: Request) -> Rules:
 
 def validate_token(token: Annotated[str, Depends(get_access_token)]) -> AuthenticationData:
     return JsonWebToken(token).validate()
-
-
-def validate_token_override() -> AuthenticationData:
-    return AuthenticationData(
-        issuer="DEVELOPMENT ISSUER",
-        subject="DEVELOPMENT SUBJECT",
-        audience="DEVELOPMENT AUDIENCE",
-        issued_at=dt.datetime.now(dt.UTC) - dt.timedelta(seconds=10),
-        expires_at=dt.datetime.now(dt.UTC) + dt.timedelta(seconds=10),
-        grant_type="DEVELOPMENT GRANT TYPE",
-    )

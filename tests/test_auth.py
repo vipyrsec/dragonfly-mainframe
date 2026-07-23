@@ -18,6 +18,7 @@ from mainframe.custom_exceptions import (
     RequiresAuthenticationException,
     UnableCredentialsException,
 )
+from mainframe.dependencies import validate_token
 from mainframe.json_web_token import AuthenticationData, JsonWebToken
 from mainframe.server import app
 
@@ -128,6 +129,7 @@ def test_protected_route_inventory():
         for method in path_item
     }
     assert protected_routes == PROTECTED_ROUTES
+    assert validate_token not in app.dependency_overrides
 
 
 @pytest.mark.parametrize(

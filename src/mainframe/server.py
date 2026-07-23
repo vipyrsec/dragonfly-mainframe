@@ -16,9 +16,8 @@ from structlog_sentry import SentryProcessor
 
 from logging_config import configure_logger
 from logging_config.middleware import LoggingMiddleware
-from mainframe import constants
 from mainframe.constants import GIT_SHA, Sentry, mainframe_settings
-from mainframe.dependencies import validate_token, validate_token_override
+from mainframe.dependencies import validate_token
 from mainframe.endpoints import routers
 from mainframe.models.schemas import ServerMetadata
 from mainframe.pypi import PyPIClient
@@ -76,10 +75,6 @@ app = FastAPI(
 )
 
 Instrumentator().instrument(app).expose(app)
-
-if constants.mainframe_settings.disable_auth is True:
-    app.dependency_overrides[validate_token] = validate_token_override
-
 
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(LoggingMiddleware)

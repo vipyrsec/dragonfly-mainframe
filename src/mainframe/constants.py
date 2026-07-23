@@ -34,8 +34,6 @@ class Mainframe(EnvConfig):
 
     log_config_file: str = "logging/development.toml"
 
-    disable_auth: bool = False
-
 
 mainframe_settings = Mainframe()  # pyright: ignore[reportCallIssue]
 
