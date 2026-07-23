@@ -3,7 +3,6 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from enum import Enum
-from operator import or_
 
 from sqlalchemy import (
     Column,
@@ -14,6 +13,7 @@ from sqlalchemy import (
     PrimaryKeyConstraint,
     Table,
     UniqueConstraint,
+    or_,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (
@@ -114,7 +114,7 @@ class DownloadURL(Base):
 
     scan_id: Mapped[str] = mapped_column(ForeignKey("scans.scan_id"), index=True, init=False)
 
-    url: Mapped[str] = mapped_column()  # pyright: ignore[reportGeneralTypeIssues]
+    url: Mapped[str] = mapped_column(kw_only=True)
 
 
 class Rule(Base):
@@ -129,4 +129,4 @@ class Rule(Base):
         init=False,
     )
 
-    name: Mapped[str] = mapped_column(unique=True)  # pyright: ignore[reportGeneralTypeIssues]
+    name: Mapped[str] = mapped_column(unique=True, kw_only=True)
