@@ -19,8 +19,6 @@ class EnvConfig(BaseSettings):
 
 class Mainframe(EnvConfig):
     client_origin_url: str = ""
-    auth0_domain: str = ""
-    auth0_audience: str = ""
 
     reporter_url: str = ""
 
@@ -35,8 +33,6 @@ class Mainframe(EnvConfig):
     job_timeout: int = 60 * 2
 
     log_config_file: str = "logging/development.toml"
-
-    disable_auth: bool = False
 
 
 mainframe_settings = Mainframe()  # pyright: ignore[reportCallIssue]

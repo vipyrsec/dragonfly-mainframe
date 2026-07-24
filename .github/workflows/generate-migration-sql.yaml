@@ -6,9 +6,12 @@ on:
     paths:
       - alembic/versions/**
 
+concurrency:
+  group: migration-sql-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
-  # To post the migration SQL as a PR comment
-  pull-requests: write
+  contents: read
 
 defaults:
   run:
@@ -16,18 +19,18 @@ defaults:
 
 jobs:
   comment:
-    permissions:
-      pull-requests: write
+    name: Generate migration SQL
 
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout (base)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          persist-credentials: false
           ref: ${{ github.event.pull_request.base.sha }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098  # v7.3.1
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
           enable-cache: true
 
@@ -42,9 +45,9 @@ jobs:
           #!/usr/bin/env bash
           set -euo pipefail
 
-          base_head="$(uv run alembic heads | awk '{printf $1}')"
-          if [ "$(echo base_head | wc -l)" -gt 1 ]; then
-            echo >&2 'Multiple heads are not supported'
+          base_head="$(uv run alembic heads | awk '{print $1}')"
+          if [ -z "${base_head}" ] || [ "$(wc -l <<<"${base_head}")" -ne 1 ]; then
+            echo >&2 'Exactly one migration head is required'
             exit 1
           fi
 
@@ -52,9 +55,10 @@ jobs:
           echo "BASE_MIGRATION_REVISION=${base_head}" >>"${GITHUB_ENV}"
 
       - name: Checkout (HEAD)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           clean: false
+          persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Generate SQL
@@ -64,57 +68,21 @@ jobs:
           set -euo pipefail
 
           base="${BASE_MIGRATION_REVISION}"
-          EOF="$(dd if=/dev/urandom bs=15 count=1 status=none | base64)"
 
           # `alembic upgrade --sql` outputs the SQL to stdout, and the logs to stderr
           uv run alembic upgrade --sql "${base}:head" >up.sql 2>up.log
 
-          echo "UP_MIGRATION_SQL<<${EOF}" >"${GITHUB_OUTPUT}"
-          cat up.sql >>"${GITHUB_OUTPUT}"
-          echo "${EOF}" >>"${GITHUB_OUTPUT}"
-
-          echo "UP_MIGRATION_LOGS<<${EOF}" >>"${GITHUB_OUTPUT}"
-          cat up.log >>"${GITHUB_OUTPUT}"
-          echo "${EOF}" >>"${GITHUB_OUTPUT}"
-
           # `alembic downgrade --sql` outputs the SQL to stdout, and the logs to stderr
           uv run alembic downgrade --sql "head:${base}" >down.sql 2>down.log
 
-          echo "DOWN_MIGRATION_SQL<<${EOF}" >>"${GITHUB_OUTPUT}"
-          cat down.sql >>"${GITHUB_OUTPUT}"
-          echo "${EOF}" >>"${GITHUB_OUTPUT}"
-
-          echo "DOWN_MIGRATION_LOGS<<${EOF}" >>"${GITHUB_OUTPUT}"
-          cat down.log >>"${GITHUB_OUTPUT}"
-          echo "${EOF}" >>"${GITHUB_OUTPUT}"
-
-      - name: Comment on PR
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # 8.0.0
+      - name: Upload migration SQL
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          script: |-
-            "use strict";
-
-            const comment = `
-            ### \`alembic upgrade --sql $base:head\`
-            \`\`\`
-            ${{ steps.sql.outputs.UP_MIGRATION_LOGS }}
-            \`\`\`
-            \`\`\`sql
-            ${{ steps.sql.outputs.UP_MIGRATION_SQL }}
-            \`\`\`
-
-            ### \`alembic downgrade --sql head:$base\`
-            \`\`\`
-            ${{ steps.sql.outputs.DOWN_MIGRATION_LOGS }}
-            \`\`\`
-            \`\`\`sql
-            ${{ steps.sql.outputs.DOWN_MIGRATION_SQL }}
-            \`\`\`
-            `;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment,
-            });
+          if-no-files-found: error
+          name: migration-sql
+          path: |
+            up.sql
+            up.log
+            down.sql
+            down.log
+          retention-days: 14

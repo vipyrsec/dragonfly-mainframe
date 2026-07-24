@@ -7,13 +7,16 @@ from unittest.mock import MagicMock
 
 import httpx
 import pytest
+from fastapi import FastAPI
 from sqlalchemy import Engine, create_engine, make_url, text
 from sqlalchemy.orm import Session, sessionmaker
 
+from mainframe.dependencies import validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Base, Scan
 from mainframe.pypi import Distribution, PackageMetadata, PyPIClient
 from mainframe.rules import Rules
+from mainframe.server import app
 
 from .test_data import data
 
@@ -82,6 +85,20 @@ def auth() -> AuthenticationData:
         expires_at=dt.datetime.now(dt.UTC) + dt.timedelta(seconds=10),
         grant_type="DEVELOPMENT GRANT TYPE",
     )
+
+
+@pytest.fixture
+def app_without_auth(auth: AuthenticationData) -> Generator[FastAPI, None, None]:
+    """Override authentication inside one test process, never at runtime."""
+
+    def validate_token_for_test() -> AuthenticationData:
+        return auth
+
+    app.dependency_overrides[validate_token] = validate_token_for_test
+    try:
+        yield app
+    finally:
+        app.dependency_overrides.pop(validate_token, None)
 
 
 @pytest.fixture(scope="session")

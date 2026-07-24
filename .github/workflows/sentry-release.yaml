@@ -6,16 +6,27 @@ on:
     branches:
       - main
 
+concurrency:
+  group: sentry-release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   sentry-release:
+    name: Create Sentry release
     runs-on: ubuntu-latest
+    environment: sentry-release
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Create Sentry release
-        uses: getsentry/action-release@dab6548b3c03c4717878099e43782cf5be654289  # v3.5.0
+        uses: getsentry/action-release@ff07929a6537bac57790c3451cf4d364aca38528  # v3.7.0
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}

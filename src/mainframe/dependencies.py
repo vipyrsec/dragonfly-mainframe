@@ -1,12 +1,11 @@
-import datetime as dt
 from functools import cache
 from typing import Annotated
 
 import httpx
 from fastapi import Depends, Request
 
-from mainframe.authorization_header_elements import get_bearer_token
-from mainframe.json_web_token import AuthenticationData, CFJsonWebToken, JsonWebToken
+from mainframe.access_token import get_access_token
+from mainframe.json_web_token import AuthenticationData, JsonWebToken
 from mainframe.pypi import PyPIClient
 from mainframe.rules import Rules
 
@@ -25,24 +24,5 @@ def get_rules(request: Request) -> Rules:
     return request.app.state.rules
 
 
-def validate_token(token: Annotated[tuple[str, str], Depends(get_bearer_token)]) -> AuthenticationData:
-    provider, token_value = token
-    if provider == "auth0":
-        return JsonWebToken(token_value).validate()
-
-    if provider == "cf":
-        return CFJsonWebToken(token_value).validate()
-
-    msg = f"Unknown authentication provider {provider} (expected 'cf' or 'auth0')"
-    raise ValueError(msg)
-
-
-def validate_token_override() -> AuthenticationData:
-    return AuthenticationData(
-        issuer="DEVELOPMENT ISSUER",
-        subject="DEVELOPMENT SUBJECT",
-        audience="DEVELOPMENT AUDIENCE",
-        issued_at=dt.datetime.now(dt.UTC) - dt.timedelta(seconds=10),
-        expires_at=dt.datetime.now(dt.UTC) + dt.timedelta(seconds=10),
-        grant_type="DEVELOPMENT GRANT TYPE",
-    )
+def validate_token(token: Annotated[str, Depends(get_access_token)]) -> AuthenticationData:
+    return JsonWebToken(token).validate()

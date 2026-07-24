@@ -122,8 +122,7 @@ def test_report_invalid_version(db_session: Session):
         _lookup_package("c", "2.0.0", db_session)
     assert e.value.status_code == status.HTTP_404_NOT_FOUND
     assert e.value.detail == (
-        "Package `c` has records in the database, but none with version `2.0.0`. "
-        "Valid versions: `1.0.0`"
+        "Package `c` has records in the database, but none with version `2.0.0`. Valid versions: `1.0.0`"
     )
 
 

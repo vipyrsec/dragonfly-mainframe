@@ -30,8 +30,9 @@ def test_fetch_commit_hash():
         "Accept": "application/vnd.github.sha",
     }
 
-    attrs = {"return_value.text": "test commit hash"}
-    mock_session.get = MagicMock(**attrs)  # pyright: ignore [reportArgumentType]
+    response = MagicMock()
+    response.text = "test commit hash"
+    mock_session.get = MagicMock(return_value=response)
     commit_hash = fetch_commit_hash(mock_session, repository="owner-name/repo-name", access_token="token")
     mock_session.get.assert_called_once_with(url, headers=headers)
     assert commit_hash == "test commit hash"
@@ -66,8 +67,9 @@ def test_fetch_zipfile():
     with ZipFile(buffer, "w") as zip_file:
         zip_file.writestr("filename", "contents")
 
-    attrs = {"return_value.content": buffer.getvalue()}
-    mock_session.get = MagicMock(**attrs)  # pyright: ignore [reportArgumentType]
+    response = MagicMock()
+    response.content = buffer.getvalue()
+    mock_session.get = MagicMock(return_value=response)
     zipfile = fetch_zipfile(mock_session, repository="owner-name/repo-name", access_token="token")
     mock_session.get.assert_called_once_with(url, headers=headers, follow_redirects=True)
     assert zipfile.namelist() == ["filename"]

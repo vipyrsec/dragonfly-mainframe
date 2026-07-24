@@ -113,6 +113,9 @@ src.mainframe.server:app`.
 To run the tests, use `uv run pytest`.
 If you choose to use this method, be sure to set the environment variable `DB_URL` to the appropriate value, so that the
 tests can connect to the database.
+Tests that exercise HTTP routes without Cloudflare Access can request the
+`app_without_auth` fixture. The fixture overrides authentication only inside
+that test process and restores the production dependency afterward.
 You can also use manual testing via a browser, or `curl`, for example, but this requires some additional setup,
 described in the Database Migrations section below.
 
@@ -142,8 +145,8 @@ You'll need to have the following environment variables set.
 
 | Environment Variable                 | Type | Default                                                  | Description                                                                                                                                                 |
 | ------------------------------------ | ---- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AUTH0_DOMAIN`                       | str  | "vipyrsec.us.auth0.com"                                  | Authentication domain for Auth0                                                                                                                             |
-| `AUTH0_AUDIENCE`                     | str  | "dragonfly.vipyrsec.com"                                 | Audience field for Auth0                                                                                                                                    |
+| `CF_ACCESS_AUDIENCE`                 | str  | ""                                                       | Audience tag for the environment-specific Cloudflare Access application                                                                                     |
+| `CF_ACCESS_TEAM_DOMAIN`              | str  | "https://vipyrsec.cloudflareaccess.com"                  | Cloudflare Access team domain used as the token issuer and certificate source                                                                                |
 | `DRAGONFLY_GITHUB_TOKEN`             | str  |                                                          | Github PAT for accessing YARA rules in the security-intelligence repository                                                                                 |
 | `JOB_TIMEOUT`                        | int  | 60 \* 2                                                  | The maximum time to wait for clients to respond with job results. After this time has elapsed, the server will begin distributing this job to other clients |
 |                                      |      |                                                          |                                                                                                                                                             |
