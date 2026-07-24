@@ -3,33 +3,53 @@ version: 2
 enable-beta-ecosystems: true
 
 multi-ecosystem-groups:
-  infra:
+  infrastructure-dependencies:
     schedule:
-      interval: monthly
+      interval: weekly
     commit-message:
       prefix: deps(infra)
     labels:
       - dependencies
       - infra
 
-  apps:
-    schedule:
-      interval: monthly
-    commit-message:
-      prefix: deps(apps)
-    labels:
-      - dependencies
-      - apps
-
 updates:
   - package-ecosystem: github-actions
     directory: /
-    multi-ecosystem-group: infra
+    multi-ecosystem-group: infrastructure-dependencies
     patterns:
       - '*'
 
   - package-ecosystem: uv
     directory: /
-    multi-ecosystem-group: apps
-    patterns:
-      - '*'
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: deps(app)
+    labels:
+      - dependencies
+      - apps
+    ignore:
+      - dependency-name: ruff
+        update-types:
+          - version-update:semver-minor
+    groups:
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - '*'
+      production-dependencies:
+        applies-to: version-updates
+        dependency-type: production
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+      development-dependencies:
+        applies-to: version-updates
+        dependency-type: development
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
