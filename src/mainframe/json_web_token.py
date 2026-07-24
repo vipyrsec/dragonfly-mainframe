@@ -1,5 +1,4 @@
 import datetime as dt
-import time
 from dataclasses import dataclass
 from functools import cache
 from threading import Lock
@@ -14,43 +13,28 @@ from mainframe.custom_exceptions import (
 )
 
 
-class RateLimitedPyJWKClient(jwt.PyJWKClient):
-    """Allow key-rotation refreshes without an unknown-key request stampede."""
+class CachedPyJWKClient(jwt.PyJWKClient):
+    """Refresh the JWKS on a fixed schedule, independent of requested key IDs."""
 
-    def __init__(self, uri: str, refresh_interval: float = 60.0) -> None:
-        super().__init__(uri)
-        self._refresh_interval = refresh_interval
-        self._next_refresh_at = 0.0
-        self._refresh_lock = Lock()
+    def __init__(self, uri: str, lifespan: float = 10.0) -> None:
+        super().__init__(uri, lifespan=lifespan)
+        self._cache_lock = Lock()
 
     def get_signing_key(self, kid: str) -> jwt.PyJWK:
-        signing_key = self.match_kid(self.get_signing_keys(), kid)
-        if signing_key is not None:
-            return signing_key
-
-        with self._refresh_lock:
+        with self._cache_lock:
             signing_key = self.match_kid(self.get_signing_keys(), kid)
-            if signing_key is not None:
-                return signing_key
 
-            now = time.monotonic()
-            if now < self._next_refresh_at:
-                message = "Unable to find a matching signing key"
-                raise jwt.exceptions.PyJWKClientError(message)
+        if signing_key is None:
+            message = "Unable to find a matching signing key"
+            raise jwt.exceptions.PyJWKClientError(message)
 
-            self._next_refresh_at = now + self._refresh_interval
-            signing_key = self.match_kid(self.get_signing_keys(refresh=True), kid)
-            if signing_key is None:
-                message = "Unable to find a matching signing key"
-                raise jwt.exceptions.PyJWKClientError(message)
-
-            return signing_key
+        return signing_key
 
 
 @cache
 def get_jwks_client(jwks_uri: str) -> jwt.PyJWKClient:
     """Return a shared JWKS client with PyJWT's key-set cache."""
-    return RateLimitedPyJWKClient(jwks_uri)
+    return CachedPyJWKClient(jwks_uri)
 
 
 @dataclass
