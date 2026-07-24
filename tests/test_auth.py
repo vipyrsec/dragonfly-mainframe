@@ -1,9 +1,14 @@
 import datetime as dt
 import io
 import json
+from base64 import urlsafe_b64encode
+from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
+from threading import Event
 from typing import cast
 from unittest.mock import Mock
+from urllib.error import URLError
 
 import anyio
 import httpx
@@ -23,7 +28,7 @@ from mainframe.custom_exceptions import (
 from mainframe.dependencies import validate_token
 from mainframe.json_web_token import (
     AuthenticationData,
-    CachedPyJWKClient,
+    CoalescingPyJWKClient,
     JsonWebToken,
     get_jwks_client,
 )
@@ -56,6 +61,13 @@ RSA_JWK = {
     ),
     "use": "sig",
 }
+
+
+def _unsigned_token(kid: str) -> str:
+    header = json.dumps({"alg": "RS256", "kid": kid}, separators=(",", ":")).encode()
+    encoded_header = urlsafe_b64encode(header).rstrip(b"=").decode()
+    encoded_payload = urlsafe_b64encode(b"{}").rstrip(b"=").decode()
+    return f"{encoded_header}.{encoded_payload}."
 
 
 def _request(headers: dict[str, str]) -> Request:
@@ -127,7 +139,7 @@ def test_get_jwks_client_is_cached(monkeypatch: pytest.MonkeyPatch):
     get_jwks_client.cache_clear()
     jwks_client = Mock()
     constructor = Mock(return_value=jwks_client)
-    monkeypatch.setattr("mainframe.json_web_token.CachedPyJWKClient", constructor)
+    monkeypatch.setattr("mainframe.json_web_token.CoalescingPyJWKClient", constructor)
 
     try:
         assert get_jwks_client("https://access.example.test/certs") is jwks_client
@@ -138,9 +150,9 @@ def test_get_jwks_client_is_cached(monkeypatch: pytest.MonkeyPatch):
     constructor.assert_called_once_with("https://access.example.test/certs")
 
 
-def test_unknown_kid_cannot_force_jwks_refresh(monkeypatch: pytest.MonkeyPatch):
+def test_repeated_unknown_kid_gets_one_bounded_refresh(monkeypatch: pytest.MonkeyPatch):
     jwk_set = {"keys": [{**RSA_JWK, "kid": "cloudflare-key"}]}
-    jwks_client = CachedPyJWKClient("https://access.example.test/certs")
+    jwks_client = CoalescingPyJWKClient("https://access.example.test/certs")
 
     def fetch_jwks(_request: object, *, timeout: float, context: object) -> io.BytesIO:
         del timeout, context
@@ -148,25 +160,24 @@ def test_unknown_kid_cannot_force_jwks_refresh(monkeypatch: pytest.MonkeyPatch):
 
     fetch = Mock(side_effect=fetch_jwks)
     monkeypatch.setattr("jwt.jwks_client.urllib.request.urlopen", fetch)
+    known_token = _unsigned_token("cloudflare-key")
     header_segment = "eyJhbGciOiJSUzI1NiIsImtpZCI6InVua25vd24ta2V5In0"
     payload_segment = "e30"
     token = f"{header_segment}.{payload_segment}."
 
+    assert jwks_client.get_signing_key_from_jwt(known_token).key_id == "cloudflare-key"
     for _ in range(2):
         with pytest.raises(jwt.exceptions.PyJWKClientError):
             jwks_client.get_signing_key_from_jwt(token)
 
-    assert fetch.call_count == 1
+    assert fetch.call_count == 2
 
 
-def test_signing_key_rotation_is_loaded_after_cache_expiry(monkeypatch: pytest.MonkeyPatch):
+def test_signing_key_rotation_refreshes_before_cache_expiry(monkeypatch: pytest.MonkeyPatch):
     old_jwk = {**RSA_JWK, "kid": "old-key"}
     new_jwk = {**old_jwk, "kid": "new-key"}
     jwk_sets = iter([{"keys": [old_jwk]}, {"keys": [old_jwk, new_jwk]}])
-    now = [100.0]
-    monkeypatch.setattr("jwt.api_jwk.time.monotonic", lambda: now[0])
-    monkeypatch.setattr("jwt.jwk_set_cache.time.monotonic", lambda: now[0])
-    jwks_client = CachedPyJWKClient("https://access.example.test/certs")
+    jwks_client = CoalescingPyJWKClient("https://access.example.test/certs")
 
     def fetch_jwks(_request: object, *, timeout: float, context: object) -> io.BytesIO:
         del timeout, context
@@ -181,13 +192,161 @@ def test_signing_key_rotation_is_loaded_after_cache_expiry(monkeypatch: pytest.M
     new_token = f"{new_header_segment}.{payload_segment}."
 
     assert jwks_client.get_signing_key_from_jwt(old_token).key_id == "old-key"
-    with pytest.raises(jwt.exceptions.PyJWKClientError):
-        jwks_client.get_signing_key_from_jwt(new_token)
-
-    now[0] += 11
-
     assert jwks_client.get_signing_key_from_jwt(new_token).key_id == "new-key"
     assert fetch.call_count == 2
+
+
+def test_unknown_kid_does_not_block_later_rotation(monkeypatch: pytest.MonkeyPatch):
+    old_jwk = {**RSA_JWK, "kid": "old-key"}
+    new_jwk = {**old_jwk, "kid": "new-key"}
+    jwk_sets: Iterator[dict[str, list[dict[str, str | list[str]]]]] = iter(
+        [
+            {"keys": [old_jwk]},
+            {"keys": [old_jwk]},
+            {"keys": [old_jwk, new_jwk]},
+        ]
+    )
+    now = [100.0]
+    monkeypatch.setattr("mainframe.json_web_token.time.monotonic", lambda: now[0])
+    jwks_client = CoalescingPyJWKClient("https://access.example.test/certs")
+
+    def wait_for_refresh(timeout: float | None = None) -> None:
+        assert timeout is not None
+        now[0] += timeout
+
+    monkeypatch.setattr(jwks_client, "_wait_for_refresh", wait_for_refresh)
+
+    def fetch_jwks(_request: object, *, timeout: float, context: object) -> io.BytesIO:
+        del timeout, context
+        return io.BytesIO(json.dumps(next(jwk_sets)).encode())
+
+    fetch = Mock(side_effect=fetch_jwks)
+    monkeypatch.setattr("jwt.jwks_client.urllib.request.urlopen", fetch)
+    old_token = _unsigned_token("old-key")
+    unknown_token = _unsigned_token("unknown-key")
+    new_token = _unsigned_token("new-key")
+
+    assert jwks_client.get_signing_key_from_jwt(old_token).key_id == "old-key"
+    with pytest.raises(jwt.exceptions.PyJWKClientError):
+        jwks_client.get_signing_key_from_jwt(unknown_token)
+
+    assert jwks_client.get_signing_key_from_jwt(new_token).key_id == "new-key"
+    assert fetch.call_count == 3
+
+
+def test_failed_refresh_does_not_block_later_rotation(monkeypatch: pytest.MonkeyPatch):
+    old_jwk = {**RSA_JWK, "kid": "old-key"}
+    new_jwk = {**old_jwk, "kid": "new-key"}
+    responses = iter(
+        [
+            io.BytesIO(json.dumps({"keys": [old_jwk]}).encode()),
+            URLError("JWKS unavailable"),
+            io.BytesIO(json.dumps({"keys": [old_jwk, new_jwk]}).encode()),
+        ]
+    )
+    now = [100.0]
+    monkeypatch.setattr("mainframe.json_web_token.time.monotonic", lambda: now[0])
+    jwks_client = CoalescingPyJWKClient("https://access.example.test/certs")
+
+    def wait_for_refresh(timeout: float | None = None) -> None:
+        assert timeout is not None
+        now[0] += timeout
+
+    monkeypatch.setattr(jwks_client, "_wait_for_refresh", wait_for_refresh)
+
+    def fetch_jwks(_request: object, *, timeout: float, context: object) -> io.BytesIO:
+        del timeout, context
+        response = next(responses)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    fetch = Mock(side_effect=fetch_jwks)
+    monkeypatch.setattr("jwt.jwks_client.urllib.request.urlopen", fetch)
+    old_token = _unsigned_token("old-key")
+    unknown_token = _unsigned_token("unknown-key")
+    new_token = _unsigned_token("new-key")
+
+    assert jwks_client.get_signing_key_from_jwt(old_token).key_id == "old-key"
+    with pytest.raises(jwt.exceptions.PyJWKClientConnectionError):
+        jwks_client.get_signing_key_from_jwt(unknown_token)
+
+    assert jwks_client.get_signing_key_from_jwt(new_token).key_id == "new-key"
+    assert fetch.call_count == 3
+
+
+def test_invalid_jwks_refresh_preserves_cached_keys(monkeypatch: pytest.MonkeyPatch):
+    old_jwk = {**RSA_JWK, "kid": "old-key"}
+    new_jwk = {**old_jwk, "kid": "new-key"}
+    empty_keys: list[dict[str, str | list[str]]] = []
+    jwk_sets: Iterator[dict[str, list[dict[str, str | list[str]]]]] = iter(
+        [
+            {"keys": [old_jwk]},
+            {"keys": empty_keys},
+            {"keys": [old_jwk, new_jwk]},
+        ]
+    )
+    now = [100.0]
+    monkeypatch.setattr("mainframe.json_web_token.time.monotonic", lambda: now[0])
+    jwks_client = CoalescingPyJWKClient("https://access.example.test/certs")
+
+    def wait_for_refresh(timeout: float | None = None) -> None:
+        assert timeout is not None
+        now[0] += timeout
+
+    monkeypatch.setattr(jwks_client, "_wait_for_refresh", wait_for_refresh)
+
+    def fetch_jwks(_request: object, *, timeout: float, context: object) -> io.BytesIO:
+        del timeout, context
+        return io.BytesIO(json.dumps(next(jwk_sets)).encode())
+
+    fetch = Mock(side_effect=fetch_jwks)
+    monkeypatch.setattr("jwt.jwks_client.urllib.request.urlopen", fetch)
+    old_token = _unsigned_token("old-key")
+    unknown_token = _unsigned_token("unknown-key")
+    new_token = _unsigned_token("new-key")
+
+    assert jwks_client.get_signing_key_from_jwt(old_token).key_id == "old-key"
+    with pytest.raises(jwt.exceptions.PyJWKClientError):
+        jwks_client.get_signing_key_from_jwt(unknown_token)
+
+    assert jwks_client.get_signing_key_from_jwt(old_token).key_id == "old-key"
+    assert jwks_client.get_signing_key_from_jwt(new_token).key_id == "new-key"
+    assert fetch.call_count == 3
+
+
+def test_concurrent_unknown_kid_requests_share_refresh(monkeypatch: pytest.MonkeyPatch):
+    jwk_set = {"keys": [{**RSA_JWK, "kid": "cloudflare-key"}]}
+    jwks_client = CoalescingPyJWKClient("https://access.example.test/certs")
+    refresh_started = Event()
+    release_refresh = Event()
+    fetch_count = 0
+
+    def fetch_jwks(_request: object, *, timeout: float, context: object) -> io.BytesIO:
+        nonlocal fetch_count
+        del timeout, context
+        fetch_count += 1
+        if fetch_count == 2:
+            refresh_started.set()
+            assert release_refresh.wait(timeout=2)
+        return io.BytesIO(json.dumps(jwk_set).encode())
+
+    monkeypatch.setattr("jwt.jwks_client.urllib.request.urlopen", fetch_jwks)
+    known_token = _unsigned_token("cloudflare-key")
+    unknown_token = _unsigned_token("unknown-key")
+    assert jwks_client.get_signing_key_from_jwt(known_token).key_id == "cloudflare-key"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(jwks_client.get_signing_key_from_jwt, unknown_token)
+        assert refresh_started.wait(timeout=2)
+        second = executor.submit(jwks_client.get_signing_key_from_jwt, unknown_token)
+        release_refresh.set()
+        with pytest.raises(jwt.exceptions.PyJWKClientError):
+            first.result(timeout=2)
+        with pytest.raises(jwt.exceptions.PyJWKClientError):
+            second.result(timeout=2)
+
+    assert fetch_count == 2
 
 
 @pytest.mark.parametrize(
