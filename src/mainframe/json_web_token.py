@@ -1,5 +1,7 @@
 import datetime as dt
 from dataclasses import dataclass
+from functools import cache
+from threading import Lock
 from typing import Any, Self
 
 import jwt
@@ -9,6 +11,30 @@ from mainframe.custom_exceptions import (
     BadCredentialsException,
     UnableCredentialsException,
 )
+
+
+class CachedPyJWKClient(jwt.PyJWKClient):
+    """Refresh the JWKS on a fixed schedule, independent of requested key IDs."""
+
+    def __init__(self, uri: str, lifespan: float = 10.0) -> None:
+        super().__init__(uri, lifespan=lifespan)
+        self._cache_lock = Lock()
+
+    def get_signing_key(self, kid: str) -> jwt.PyJWK:
+        with self._cache_lock:
+            signing_key = self.match_kid(self.get_signing_keys(), kid)
+
+        if signing_key is None:
+            message = "Unable to find a matching signing key"
+            raise jwt.exceptions.PyJWKClientError(message)
+
+        return signing_key
+
+
+@cache
+def get_jwks_client(jwks_uri: str) -> jwt.PyJWKClient:
+    """Return a shared JWKS client with PyJWT's key-set cache."""
+    return CachedPyJWKClient(jwks_uri)
 
 
 @dataclass
@@ -43,7 +69,7 @@ class JsonWebToken:
 
     def validate(self) -> AuthenticationData:
         try:
-            jwks_client = jwt.PyJWKClient(self.jwks_uri)
+            jwks_client = get_jwks_client(self.jwks_uri)
             jwt_signing_key = jwks_client.get_signing_key_from_jwt(self.jwt_access_token).key
 
             payload = jwt.decode(
@@ -53,9 +79,9 @@ class JsonWebToken:
                 issuer=cf_access_settings.team_domain,
                 algorithms=[self.algorithm],
             )
-        except jwt.exceptions.PyJWKClientError as err:
+        except jwt.exceptions.PyJWKClientConnectionError as err:
             raise UnableCredentialsException from err
-        except jwt.exceptions.InvalidTokenError as err:
+        except (jwt.exceptions.PyJWKClientError, jwt.exceptions.InvalidTokenError) as err:
             raise BadCredentialsException from err
 
         auth_data = AuthenticationData.from_dict(payload)

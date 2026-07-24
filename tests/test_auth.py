@@ -1,4 +1,6 @@
 import datetime as dt
+import io
+import json
 from contextlib import asynccontextmanager
 from typing import cast
 from unittest.mock import Mock
@@ -19,7 +21,12 @@ from mainframe.custom_exceptions import (
     UnableCredentialsException,
 )
 from mainframe.dependencies import validate_token
-from mainframe.json_web_token import AuthenticationData, JsonWebToken
+from mainframe.json_web_token import (
+    AuthenticationData,
+    CachedPyJWKClient,
+    JsonWebToken,
+    get_jwks_client,
+)
 from mainframe.server import app
 
 PROTECTED_ROUTES = {
@@ -32,6 +39,22 @@ PROTECTED_ROUTES = {
     ("POST", "/report"),
     ("POST", "/update-rules/"),
     ("PUT", "/package"),
+}
+
+RSA_JWK = {
+    "alg": "RS256",
+    "e": "AQAB",
+    "key_ops": ["verify"],
+    "kty": "RSA",
+    "n": (
+        "l0eCRGISml5-UdK6GTEYkrVXZlvTdWVdWkp-UoM-IXsXeqAwTSd6j8VNmeABWsAp"
+        "XeXZ2KgGrPvl_ZQLCDDLY2r1X5Oex8BSQSUGUsw1dO-ekZ9_p0ygjWGzVsUqJZwxx"
+        "JBOTVJ_weGxlNHGWKGe7ET0akZIWJMSeU7oKLJh6evd6AUc0MG0eTQfD-bOPCVk32"
+        "JyvSWpXY5XUUCWotlzLbuNANhSC85ziZWdgZIKTtrC_EdnhlEfEAmmGOz7Ymfnp_N"
+        "4ergE8LC_0Xo4i6I5roGBpPieYxjOq9Z_-be9mnOb1ZJAVAi_NcGHH0XzTYMfgVpm"
+        "Ki3kG6cK77DS8NP5LQ"
+    ),
+    "use": "sig",
 }
 
 
@@ -76,7 +99,7 @@ def test_validate_cloudflare_access_token(monkeypatch: pytest.MonkeyPatch):
     signing_key = Mock(key="public-key")
     jwks_client = Mock()
     jwks_client.get_signing_key_from_jwt.return_value = signing_key
-    monkeypatch.setattr(jwt, "PyJWKClient", Mock(return_value=jwks_client))
+    monkeypatch.setattr("mainframe.json_web_token.get_jwks_client", Mock(return_value=jwks_client))
     decode = Mock(return_value=payload)
     monkeypatch.setattr(jwt, "decode", decode)
 
@@ -100,10 +123,78 @@ def test_validate_cloudflare_access_token(monkeypatch: pytest.MonkeyPatch):
     )
 
 
+def test_get_jwks_client_is_cached(monkeypatch: pytest.MonkeyPatch):
+    get_jwks_client.cache_clear()
+    jwks_client = Mock()
+    constructor = Mock(return_value=jwks_client)
+    monkeypatch.setattr("mainframe.json_web_token.CachedPyJWKClient", constructor)
+
+    try:
+        assert get_jwks_client("https://access.example.test/certs") is jwks_client
+        assert get_jwks_client("https://access.example.test/certs") is jwks_client
+    finally:
+        get_jwks_client.cache_clear()
+
+    constructor.assert_called_once_with("https://access.example.test/certs")
+
+
+def test_unknown_kid_cannot_force_jwks_refresh(monkeypatch: pytest.MonkeyPatch):
+    jwk_set = {"keys": [{**RSA_JWK, "kid": "cloudflare-key"}]}
+    jwks_client = CachedPyJWKClient("https://access.example.test/certs")
+
+    def fetch_jwks(_request: object, *, timeout: float, context: object) -> io.BytesIO:
+        del timeout, context
+        return io.BytesIO(json.dumps(jwk_set).encode())
+
+    fetch = Mock(side_effect=fetch_jwks)
+    monkeypatch.setattr("jwt.jwks_client.urllib.request.urlopen", fetch)
+    header_segment = "eyJhbGciOiJSUzI1NiIsImtpZCI6InVua25vd24ta2V5In0"
+    payload_segment = "e30"
+    token = f"{header_segment}.{payload_segment}."
+
+    for _ in range(2):
+        with pytest.raises(jwt.exceptions.PyJWKClientError):
+            jwks_client.get_signing_key_from_jwt(token)
+
+    assert fetch.call_count == 1
+
+
+def test_signing_key_rotation_is_loaded_after_cache_expiry(monkeypatch: pytest.MonkeyPatch):
+    old_jwk = {**RSA_JWK, "kid": "old-key"}
+    new_jwk = {**old_jwk, "kid": "new-key"}
+    jwk_sets = iter([{"keys": [old_jwk]}, {"keys": [old_jwk, new_jwk]}])
+    now = [100.0]
+    monkeypatch.setattr("jwt.api_jwk.time.monotonic", lambda: now[0])
+    monkeypatch.setattr("jwt.jwk_set_cache.time.monotonic", lambda: now[0])
+    jwks_client = CachedPyJWKClient("https://access.example.test/certs")
+
+    def fetch_jwks(_request: object, *, timeout: float, context: object) -> io.BytesIO:
+        del timeout, context
+        return io.BytesIO(json.dumps(next(jwk_sets)).encode())
+
+    fetch = Mock(side_effect=fetch_jwks)
+    monkeypatch.setattr("jwt.jwks_client.urllib.request.urlopen", fetch)
+    old_header_segment = "eyJhbGciOiJSUzI1NiIsImtpZCI6Im9sZC1rZXkifQ"
+    new_header_segment = "eyJhbGciOiJSUzI1NiIsImtpZCI6Im5ldy1rZXkifQ"
+    payload_segment = "e30"
+    old_token = f"{old_header_segment}.{payload_segment}."
+    new_token = f"{new_header_segment}.{payload_segment}."
+
+    assert jwks_client.get_signing_key_from_jwt(old_token).key_id == "old-key"
+    with pytest.raises(jwt.exceptions.PyJWKClientError):
+        jwks_client.get_signing_key_from_jwt(new_token)
+
+    now[0] += 11
+
+    assert jwks_client.get_signing_key_from_jwt(new_token).key_id == "new-key"
+    assert fetch.call_count == 2
+
+
 @pytest.mark.parametrize(
     ("error", "expected"),
     [
-        (jwt.exceptions.PyJWKClientError("JWKS unavailable"), UnableCredentialsException),
+        (jwt.exceptions.PyJWKClientConnectionError("JWKS unavailable"), UnableCredentialsException),
+        (jwt.exceptions.PyJWKClientError("unknown key"), BadCredentialsException),
         (jwt.exceptions.InvalidTokenError("invalid token"), BadCredentialsException),
     ],
 )
@@ -114,7 +205,7 @@ def test_validate_cloudflare_access_token_errors(
 ):
     jwks_client = Mock()
     jwks_client.get_signing_key_from_jwt.side_effect = error
-    monkeypatch.setattr(jwt, "PyJWKClient", Mock(return_value=jwks_client))
+    monkeypatch.setattr("mainframe.json_web_token.get_jwks_client", Mock(return_value=jwks_client))
 
     with pytest.raises(expected):
         JsonWebToken("signed-token").validate()
