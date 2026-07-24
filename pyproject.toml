@@ -15,7 +15,7 @@ dependencies = [
   "alembic==1.18.5",
   "asgi-correlation-id==5.0.1",
   "dragonfly-logging-config @ git+https://github.com/vipyrsec/dragonfly-logging-config@v2.1.0",
-  "fastapi-pagination==0.15.8",
+  "fastapi-pagination==0.15.15",
   "fastapi>=0.139.2",
   "httpx==0.28.1",
   "prometheus-client==0.25.0",

@@ -333,7 +333,7 @@ requires-dist = [
     { name = "asgi-correlation-id", specifier = "==5.0.1" },
     { name = "dragonfly-logging-config", git = "https://github.com/vipyrsec/dragonfly-logging-config?rev=v2.1.0" },
     { name = "fastapi", specifier = ">=0.139.2" },
-    { name = "fastapi-pagination", specifier = "==0.15.8" },
+    { name = "fastapi-pagination", specifier = "==0.15.15" },
     { name = "httpx", specifier = "==0.28.1" },
     { name = "prometheus-client", specifier = "==0.25.0" },
     { name = "prometheus-fastapi-instrumentator", specifier = "==8.0.2" },
@@ -384,16 +384,16 @@ wheels = [
 
 [[package]]
 name = "fastapi-pagination"
-version = "0.15.8"
+version = "0.15.15"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastapi" },
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/54/5b/6e3af96de9a5435dfebd372e84949c4875e6814e3d7f12cf011fc8a837b8/fastapi_pagination-0.15.8.tar.gz", hash = "sha256:f14d572741370b74194a9879c2ed7dc75a7a4e3819d5db22492871be76b28bc9", size = 574598, upload-time = "2026-01-27T21:49:59.651Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f8/79/826b79dd718b0d9a91f21c3cfed365e5ecf44bc31419615c4cebeebb9ada/fastapi_pagination-0.15.15.tar.gz", hash = "sha256:d6e9e4bc4d6e20709dcabc11b16056cd5cd184c995ee214b0190f6b81426fa0c", size = 614873, upload-time = "2026-06-16T17:25:44.055Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b6/b8/51033af73792d5dd9890a8815f7c5b5bf3adec1445a55196318cd087914f/fastapi_pagination-0.15.8-py3-none-any.whl", hash = "sha256:2334e435e65fbc5bc1f0960ce7c1449fc3ae1c2abd48f40e40e6e48992c5e27b", size = 59879, upload-time = "2026-01-27T21:49:57.331Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/02/2e794ea498515afdadf2891f89aaed404de3ed619dd9cbf1ca637f17df19/fastapi_pagination-0.15.15-py3-none-any.whl", hash = "sha256:dc828d7cd15614c650c284bd2c3a98a8a2d9ce340508be3970dc8986908a02aa", size = 65864, upload-time = "2026-06-16T17:25:42.734Z" },
 ]
 
 [[package]]
