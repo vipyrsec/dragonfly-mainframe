@@ -15,7 +15,8 @@ LINT_OPTIONS = --fix # Fix the lint violations
 
 .PHONY: lint
 lint: $(PYTHON_FILES) ## Lint Python files
-	uv run --locked pyright; uv run --locked ruff check $(LINT_OPTIONS) $?
+	uv run --locked pyright
+	uv run --locked ruff check $(LINT_OPTIONS) $?
 
 .PHONY: test
 test: $(PYTHON_FILES) ## Run tests in Docker
