@@ -38,9 +38,9 @@ packages_above_production_threshold = Gauge(
     "packages_above_production_threshold",
     "Database-reconciled number of successful scans at or above the production score threshold.",
 )
-packages_reported = Gauge(
-    "packages_reported",
-    "Database-reconciled number of packages reported.",
+packages_reported_snapshot = Gauge(
+    "packages_reported_snapshot",
+    "Latest database-reconciled number of packages reported.",
 )
 production_score_threshold = Gauge(
     "production_score_threshold",

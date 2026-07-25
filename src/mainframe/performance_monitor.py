@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from mainframe.metrics import (
     packages_above_production_threshold,
-    packages_reported,
+    packages_reported_snapshot,
     packages_scanned,
     performance_snapshot_timestamp_seconds,
     production_score_threshold,
@@ -76,7 +76,7 @@ class PerformanceMonitor:
 
         packages_scanned.set(snapshot.packages_scanned)
         packages_above_production_threshold.set(snapshot.packages_above_production_threshold)
-        packages_reported.set(snapshot.packages_reported)
+        packages_reported_snapshot.set(snapshot.packages_reported)
         production_score_threshold.set(snapshot.production_score_threshold)
         performance_snapshot_timestamp_seconds.set(snapshot.sampled_at.timestamp())
 
