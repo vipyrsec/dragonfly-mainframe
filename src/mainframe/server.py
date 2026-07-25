@@ -1,7 +1,8 @@
+import asyncio
 import logging
 import tomllib
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any
 
@@ -17,10 +18,13 @@ from structlog_sentry import SentryProcessor
 from logging_config import configure_logger
 from logging_config.middleware import LoggingMiddleware
 from mainframe.constants import GIT_SHA, Sentry, mainframe_settings
+from mainframe.database import engine
 from mainframe.dependencies import validate_token
 from mainframe.endpoints import routers
+from mainframe.metrics import packages_queue_refresh_failures
 from mainframe.models.schemas import ServerMetadata
 from mainframe.pypi import PyPIClient
+from mainframe.queue_monitor import QueueMonitor
 from mainframe.rules import Rules, fetch_rules
 
 from . import __version__
@@ -38,6 +42,17 @@ def setup_logging() -> None:
         data = tomllib.load(f)
 
     configure_logger(data, [add_correlation, SentryProcessor(event_level=logging.ERROR, level=logging.DEBUG)])
+
+
+async def monitor_queue(monitor: QueueMonitor, refresh_seconds: int) -> None:
+    """Refresh queue metrics on a bounded interval independent of scrape traffic."""
+    while True:
+        await asyncio.sleep(refresh_seconds)
+        try:
+            await asyncio.to_thread(monitor.refresh)
+        except Exception:
+            packages_queue_refresh_failures.inc()
+            logging.getLogger(__name__).exception("Failed to refresh queue metrics")
 
 
 sentry_sdk.init(
@@ -63,8 +78,22 @@ async def lifespan(app_: FastAPI) -> AsyncGenerator[None, None]:
     app_.state.pypi_client = pypi_client
 
     setup_logging()
+    queue_monitor = QueueMonitor(engine, job_timeout=mainframe_settings.job_timeout)
+    app_.state.queue_monitor = queue_monitor
+    try:
+        await asyncio.to_thread(queue_monitor.refresh)
+    except Exception:
+        packages_queue_refresh_failures.inc()
+        logging.getLogger(__name__).exception("Failed to load initial queue metrics")
+    queue_monitor_task = asyncio.create_task(
+        monitor_queue(queue_monitor, mainframe_settings.queue_metrics_refresh_seconds)
+    )
 
     yield
+
+    queue_monitor_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await queue_monitor_task
 
 
 app = FastAPI(

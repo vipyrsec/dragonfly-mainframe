@@ -31,6 +31,7 @@ from mainframe.server import app
 
 PROTECTED_ROUTES = {
     ("GET", "/package"),
+    ("GET", "/queue-status"),
     ("GET", "/reported-packages"),
     ("GET", "/rules"),
     ("POST", "/batch/package"),

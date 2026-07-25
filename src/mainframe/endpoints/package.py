@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 from mainframe.database import get_db
 from mainframe.dependencies import get_pypi_client, validate_token
 from mainframe.json_web_token import AuthenticationData
-from mainframe.metrics import packages_fail, packages_in_queue, packages_ingested, packages_success
+from mainframe.metrics import packages_fail, packages_ingested, packages_success
 from mainframe.models.orm import DownloadURL, Rule, Scan, Status
 from mainframe.models.schemas import (
     Error,
@@ -67,7 +67,6 @@ def submit_results(
         log.error(
             f"Scan {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
         )
-        packages_in_queue.dec()
         raise error
 
     with session, session.begin():
@@ -78,7 +77,6 @@ def submit_results(
             session.commit()
 
             packages_fail.inc()
-            packages_in_queue.dec()
 
             return
 
@@ -115,7 +113,6 @@ def submit_results(
     )
 
     packages_success.inc()
-    packages_in_queue.dec()
 
 
 @router.get(
@@ -272,7 +269,6 @@ def batch_queue_package(
             session.add(scan)
 
             packages_ingested.inc()
-            packages_in_queue.inc()
 
 
 @router.post(
@@ -335,6 +331,5 @@ def queue_package(
     )
 
     packages_ingested.inc()
-    packages_in_queue.inc()
 
     return QueuePackageResponse(id=str(new_package.scan_id))
