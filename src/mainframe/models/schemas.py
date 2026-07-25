@@ -14,6 +14,23 @@ class ServerMetadata(BaseModel):
     rules_commit: str
 
 
+class QueueStatus(BaseModel):
+    """Cached summary of the package scanning queue."""
+
+    queued: int
+    in_progress: int
+    retryable: int
+    stranded: int
+    total_backlog: int
+    oldest_queued_at: datetime.datetime | None
+    oldest_age_seconds: int | None
+    sampled_at: datetime.datetime
+
+    @field_serializer("oldest_queued_at", "sampled_at")
+    def serialize_timestamp(self, value: datetime.datetime | None) -> int | None:
+        return int(value.timestamp()) if value is not None else None
+
+
 class Error(BaseModel):
     """Error."""
 

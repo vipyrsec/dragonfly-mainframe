@@ -1,5 +1,6 @@
 from os import getenv
 
+from pydantic import PositiveInt
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Git SHA for Sentry
@@ -31,6 +32,7 @@ class Mainframe(EnvConfig):
     dragonfly_github_token: str
 
     job_timeout: int = 60 * 2
+    queue_metrics_refresh_seconds: PositiveInt = 60
 
     log_config_file: str = "logging/development.toml"
 

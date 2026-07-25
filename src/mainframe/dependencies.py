@@ -7,6 +7,7 @@ from fastapi import Depends, Request
 from mainframe.access_token import get_access_token
 from mainframe.json_web_token import AuthenticationData, JsonWebToken
 from mainframe.pypi import PyPIClient
+from mainframe.queue_monitor import QueueMonitor
 from mainframe.rules import Rules
 
 
@@ -22,6 +23,11 @@ def get_httpx_client(request: Request) -> httpx.Client:
 
 def get_rules(request: Request) -> Rules:
     return request.app.state.rules
+
+
+def get_queue_monitor(request: Request) -> QueueMonitor:
+    """Return the process-local cached queue monitor."""
+    return request.app.state.queue_monitor
 
 
 def validate_token(token: Annotated[str, Depends(get_access_token)]) -> AuthenticationData:
