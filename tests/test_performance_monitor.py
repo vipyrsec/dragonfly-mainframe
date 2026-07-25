@@ -1,12 +1,14 @@
 import datetime as dt
+from unittest.mock import Mock
 
 import pytest
 from fastapi import HTTPException, status
-from sqlalchemy import Engine, update
+from sqlalchemy import Engine, delete, update
 from sqlalchemy.orm import Session
 
 from mainframe.endpoints.performance import public_statistics, rule_performance
-from mainframe.models.orm import Rule, Scan, Status
+from mainframe.metrics import rule_hits
+from mainframe.models.orm import AlertingConfiguration, Rule, Scan, Status
 from mainframe.performance_monitor import PerformanceMonitor, read_performance_status
 
 
@@ -66,6 +68,16 @@ def test_read_performance_status_uses_durable_database_state(
     assert snapshot.sampled_at == now
 
 
+def test_read_performance_status_requires_alerting_configuration(
+    db_session: Session,
+) -> None:
+    with db_session.begin():
+        db_session.execute(delete(AlertingConfiguration))
+
+    with db_session.begin(), pytest.raises(RuntimeError, match="Alerting configuration is missing"):
+        read_performance_status(db_session, now=dt.datetime.now(dt.UTC))
+
+
 def test_performance_monitor_refreshes_from_database(
     db_session: Session,
     engine: Engine,
@@ -78,6 +90,25 @@ def test_performance_monitor_refreshes_from_database(
     assert snapshot.packages_scanned == 2
     assert snapshot.packages_above_production_threshold == 1
     assert snapshot.packages_reported == 1
+
+
+def test_performance_monitor_removes_stale_rule_labels(
+    db_session: Session,
+    engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replace_performance_data(db_session)
+    monitor = PerformanceMonitor(engine)
+    monitor.refresh()
+    remove = Mock(wraps=rule_hits.remove)
+    monkeypatch.setattr(rule_hits, "remove", remove)
+    with db_session.begin():
+        db_session.execute(update(Rule).where(Rule.name == "metrics-rule").values(name="renamed-metrics-rule"))
+
+    snapshot = monitor.refresh()
+
+    remove.assert_called_once_with("metrics-rule")
+    assert snapshot.rule_hits["renamed-metrics-rule"] == 2
 
 
 def test_rule_performance_endpoint_includes_full_rule_names(
