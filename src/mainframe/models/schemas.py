@@ -31,6 +31,46 @@ class QueueStatus(BaseModel):
         return int(value.timestamp()) if value is not None else None
 
 
+class PerformanceStatus(BaseModel):
+    """Database-derived rule and package performance totals."""
+
+    packages_scanned: int
+    packages_above_production_threshold: int
+    packages_reported: int
+    production_score_threshold: int
+    rule_hits: dict[str, int]
+    sampled_at: datetime.datetime
+
+
+class RulePerformance(BaseModel):
+    """Internal per-rule performance totals."""
+
+    hits: dict[str, int]
+    sampled_at: datetime.datetime
+
+
+class PublicStatistics(BaseModel):
+    """Public package totals safe for unauthenticated consumers."""
+
+    packages_scanned: int
+    packages_reported: int
+    sampled_at: datetime.datetime
+
+
+class AlertingConfigurationResponse(BaseModel):
+    """Persisted production alerting configuration."""
+
+    production_score_threshold: int
+    updated_at: datetime.datetime
+    updated_by: str
+
+
+class AlertingConfigurationUpdate(BaseModel):
+    """Mutable production alerting configuration."""
+
+    production_score_threshold: int = Field(ge=0)
+
+
 class Error(BaseModel):
     """Error."""
 

@@ -30,16 +30,19 @@ from mainframe.json_web_token import (
 from mainframe.server import app
 
 PROTECTED_ROUTES = {
+    ("GET", "/alerting/configuration"),
     ("GET", "/package"),
     ("GET", "/queue-status"),
     ("GET", "/reported-packages"),
     ("GET", "/rules"),
+    ("GET", "/rules/performance"),
     ("POST", "/batch/package"),
     ("POST", "/jobs"),
     ("POST", "/package"),
     ("POST", "/report"),
     ("POST", "/update-rules/"),
     ("PUT", "/package"),
+    ("PUT", "/alerting/configuration"),
 }
 
 RSA_JWK = {
@@ -217,7 +220,7 @@ def test_protected_route_inventory():
     protected_routes = {
         (method.upper(), path)
         for path, path_item in openapi_paths.items()
-        if path not in {"/", "/metrics"}
+        if path not in {"/", "/metrics", "/public/statistics"}
         for method in path_item
     }
     assert protected_routes == PROTECTED_ROUTES

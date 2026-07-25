@@ -13,7 +13,6 @@ from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
 from mainframe.dependencies import get_httpx_client, validate_token
 from mainframe.json_web_token import AuthenticationData
-from mainframe.metrics import packages_reported
 from mainframe.models.orm import Scan
 from mainframe.models.schemas import (
     Error,
@@ -199,5 +198,3 @@ def report_package(
         },
         reported_by=auth.subject,
     )
-
-    packages_reported.inc()
