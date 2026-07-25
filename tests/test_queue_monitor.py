@@ -1,4 +1,5 @@
 import datetime as dt
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException, status
@@ -85,6 +86,18 @@ def test_queue_status_handles_an_empty_queue(db_session: Session) -> None:
     assert snapshot.stranded == 0
     assert snapshot.oldest_queued_at is None
     assert snapshot.oldest_age_seconds is None
+
+
+def test_queue_status_normalizes_a_naive_database_timestamp() -> None:
+    now = dt.datetime(2026, 7, 25, 12, 0, tzinfo=dt.UTC)
+    session = MagicMock(spec=Session)
+    oldest_queued_at = (now - dt.timedelta(minutes=5)).replace(tzinfo=None)
+    session.execute.return_value.one.return_value = (1, 0, 0, 0, oldest_queued_at)
+
+    snapshot = read_queue_status(session, now=now, job_timeout=120)
+
+    assert snapshot.oldest_queued_at == now - dt.timedelta(minutes=5)
+    assert snapshot.oldest_age_seconds == 300
 
 
 def test_queue_monitor_caches_latest_snapshot(db_session: Session, engine: Engine) -> None:

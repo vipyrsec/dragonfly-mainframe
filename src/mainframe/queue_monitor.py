@@ -41,6 +41,8 @@ def read_queue_status(session: Session, *, now: dt.datetime, job_timeout: int) -
     oldest_queued_at = cast("dt.datetime | None", row[4])
     oldest_age_seconds = None
     if oldest_queued_at is not None:
+        if oldest_queued_at.tzinfo is None:
+            oldest_queued_at = oldest_queued_at.replace(tzinfo=dt.UTC)
         oldest_age_seconds = max(0, int((now - oldest_queued_at).total_seconds()))
 
     return QueueStatus(
