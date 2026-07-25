@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from mainframe.dependencies import validate_token
 from mainframe.json_web_token import AuthenticationData
-from mainframe.models.orm import Base, Scan
+from mainframe.models.orm import AlertingConfiguration, Base, Scan
 from mainframe.pypi import Distribution, PackageMetadata, PyPIClient
 from mainframe.rules import Rules
 from mainframe.server import app
@@ -67,6 +67,12 @@ def db_session(
     Base.metadata.drop_all(superuser_engine)
     Base.metadata.create_all(superuser_engine)
     with sm() as s, s.begin():
+        s.add(
+            AlertingConfiguration(
+                production_score_threshold=8,
+                updated_by="test-fixture",
+            )
+        )
         s.add_all(deepcopy(test_data))
 
     with sm() as s:

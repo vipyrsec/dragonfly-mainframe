@@ -6,7 +6,7 @@ repos:
       - id: check-useless-excludes
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b  # frozen: v5.0.0
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
     hooks:
       - id: check-added-large-files
       - id: check-executables-have-shebangs
@@ -45,7 +45,7 @@ repos:
           - pyi
 
   - repo: https://github.com/hadolint/hadolint
-    rev: c3dc18df7a501f02a560a2cc7ba3c69a85ca01d3  # frozen: v2.13.1-beta
+    rev: 57e1618d78fd469a92c1e584e8c9313024656623  # frozen: v2.14.0
     hooks:
       - id: hadolint
         args:
@@ -53,12 +53,12 @@ repos:
           - error
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 54da05914997e6b04e4db33ed6757d744984c68b  # frozen: 0.33.2
+    rev: 5030dca3047414c338091455ac41803200ec1f0f  # frozen: 0.37.3
     hooks:
       - id: check-github-workflows
 
   - repo: https://github.com/ComPWA/taplo-pre-commit
-    rev: 23eab0f0eedcbedebff420f5fdfb284744adc7b3  # frozen: v0.9.3
+    rev: ade0f95ddcf661c697d4670d2cfcbe95d0048a0a  # frozen: v0.9.3
     hooks:
       - id: taplo-format
       - id: taplo-lint
@@ -72,7 +72,7 @@ repos:
         files: ^pyproject\.toml$
 
   - repo: https://github.com/lyz-code/yamlfix
-    rev: 8072181c0f2eab9f2dd8db2eb3b9556d7cd0bd74  # frozen: 1.17.0
+    rev: f857ca370af3db7e5e181373d45c06a148fac3f8  # frozen: 1.19.1
     hooks:
       - id: yamlfix
         args:
@@ -80,7 +80,7 @@ repos:
           - .yamlfix.toml
 
   - repo: https://github.com/adrienverge/yamllint
-    rev: 79a6b2b1392eaf49cdd32ac4f14be1a809bbd8f7  # frozen: v1.37.1
+    rev: cba56bcde1fdd01c1deb3f945e69764c291a6530  # frozen: v1.38.0
     hooks:
       - id: yamllint
         args:

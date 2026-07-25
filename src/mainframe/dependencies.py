@@ -6,6 +6,7 @@ from fastapi import Depends, Request
 
 from mainframe.access_token import get_access_token
 from mainframe.json_web_token import AuthenticationData, JsonWebToken
+from mainframe.performance_monitor import PerformanceMonitor
 from mainframe.pypi import PyPIClient
 from mainframe.queue_monitor import QueueMonitor
 from mainframe.rules import Rules
@@ -28,6 +29,11 @@ def get_rules(request: Request) -> Rules:
 def get_queue_monitor(request: Request) -> QueueMonitor:
     """Return the process-local cached queue monitor."""
     return request.app.state.queue_monitor
+
+
+def get_performance_monitor(request: Request) -> PerformanceMonitor:
+    """Return the process-local cached performance monitor."""
+    return request.app.state.performance_monitor
 
 
 def validate_token(token: Annotated[str, Depends(get_access_token)]) -> AuthenticationData:

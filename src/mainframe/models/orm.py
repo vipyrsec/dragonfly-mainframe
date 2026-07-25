@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from enum import Enum
 
 from sqlalchemy import (
+    CheckConstraint,
     Column,
     DateTime,
     FetchedValue,
@@ -130,3 +131,24 @@ class Rule(Base):
     )
 
     name: Mapped[str] = mapped_column(unique=True, kw_only=True)
+
+
+class AlertingConfiguration(Base):
+    """Durable alerting configuration shared by Mainframe clients."""
+
+    __tablename__: str = "alerting_configuration"
+    __table_args__ = (
+        CheckConstraint("id = 1", name="alerting_configuration_singleton"),
+        CheckConstraint(
+            "production_score_threshold >= 0",
+            name="alerting_configuration_nonnegative_threshold",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    production_score_threshold: Mapped[int] = mapped_column(default=8)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default_factory=lambda: datetime.now(UTC),
+    )
+    updated_by: Mapped[str] = mapped_column(default="system")

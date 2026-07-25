@@ -21,8 +21,12 @@ from mainframe.constants import GIT_SHA, Sentry, mainframe_settings
 from mainframe.database import engine
 from mainframe.dependencies import validate_token
 from mainframe.endpoints import routers
-from mainframe.metrics import packages_queue_refresh_failures
+from mainframe.metrics import (
+    packages_queue_refresh_failures,
+    performance_refresh_failures,
+)
 from mainframe.models.schemas import ServerMetadata
+from mainframe.performance_monitor import PerformanceMonitor
 from mainframe.pypi import PyPIClient
 from mainframe.queue_monitor import QueueMonitor
 from mainframe.rules import Rules, fetch_rules
@@ -53,6 +57,20 @@ async def monitor_queue(monitor: QueueMonitor, refresh_seconds: int) -> None:
         except Exception:
             packages_queue_refresh_failures.inc()
             logging.getLogger(__name__).exception("Failed to refresh queue metrics")
+
+
+async def monitor_performance(
+    monitor: PerformanceMonitor,
+    refresh_seconds: int,
+) -> None:
+    """Refresh performance metrics independently of scrape traffic."""
+    while True:
+        await asyncio.sleep(refresh_seconds)
+        try:
+            await asyncio.to_thread(monitor.refresh)
+        except Exception:
+            performance_refresh_failures.inc()
+            logging.getLogger(__name__).exception("Failed to refresh performance metrics")
 
 
 sentry_sdk.init(
@@ -88,12 +106,28 @@ async def lifespan(app_: FastAPI) -> AsyncGenerator[None, None]:
     queue_monitor_task = asyncio.create_task(
         monitor_queue(queue_monitor, mainframe_settings.queue_metrics_refresh_seconds)
     )
+    performance_monitor = PerformanceMonitor(engine)
+    app_.state.performance_monitor = performance_monitor
+    try:
+        await asyncio.to_thread(performance_monitor.refresh)
+    except Exception:
+        performance_refresh_failures.inc()
+        logging.getLogger(__name__).exception("Failed to load initial performance metrics")
+    performance_monitor_task = asyncio.create_task(
+        monitor_performance(
+            performance_monitor,
+            mainframe_settings.queue_metrics_refresh_seconds,
+        )
+    )
 
     yield
 
     queue_monitor_task.cancel()
+    performance_monitor_task.cancel()
     with suppress(asyncio.CancelledError):
         await queue_monitor_task
+    with suppress(asyncio.CancelledError):
+        await performance_monitor_task
 
 
 app = FastAPI(
