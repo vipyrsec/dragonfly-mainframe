@@ -32,6 +32,8 @@ from mainframe.server import app
 PROTECTED_ROUTES = {
     ("GET", "/alerting/configuration"),
     ("GET", "/package"),
+    ("GET", "/packages/{package_name}/suppressions"),
+    ("GET", "/packages/{package_name}/versions/{package_version}/suppressions/{suppression_id}"),
     ("GET", "/queue-status"),
     ("GET", "/reported-packages"),
     ("GET", "/rules"),
@@ -39,10 +41,14 @@ PROTECTED_ROUTES = {
     ("POST", "/batch/package"),
     ("POST", "/jobs"),
     ("POST", "/package"),
+    ("POST", "/packages/{package_name}/versions/{package_version}/suppressions"),
     ("POST", "/report"),
     ("POST", "/update-rules/"),
     ("PUT", "/package"),
     ("PUT", "/alerting/configuration"),
+    ("PATCH", "/packages/{package_name}/versions/{package_version}/suppressions/{suppression_id}"),
+    ("DELETE", "/packages/{package_name}/versions/{package_version}/suppressions"),
+    ("DELETE", "/packages/{package_name}/versions/{package_version}/suppressions/{suppression_id}"),
 }
 
 RSA_JWK = {

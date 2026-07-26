@@ -1,10 +1,14 @@
 import datetime
+import uuid
 from enum import Enum
-from typing import Any, Self
+from typing import Annotated, Any, Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
-from .orm import Scan
+from .orm import Scan, Suppression
+
+RuleName = Annotated[str, Field(min_length=1)]
+_DUPLICATE_RULES_ERROR = "rules must not contain duplicates"
 
 
 class ServerMetadata(BaseModel):
@@ -69,6 +73,61 @@ class AlertingConfigurationUpdate(BaseModel):
     """Mutable production alerting configuration."""
 
     production_score_threshold: int = Field(ge=0)
+
+
+class SuppressionRules(BaseModel):
+    """Rule corpus for a suppression; null means every rule."""
+
+    rules: list[RuleName] | None
+
+    @field_validator("rules")
+    @classmethod
+    def rules_must_be_unique(cls, rules: list[str] | None) -> list[str] | None:
+        if rules is not None and len(rules) != len(set(rules)):
+            raise ValueError(_DUPLICATE_RULES_ERROR)
+        return rules
+
+
+class SuppressionCreate(SuppressionRules):
+    """A new suppression. Omitting rules suppresses every rule."""
+
+    rules: list[RuleName] | None = None
+
+
+class SuppressionUpdate(SuppressionRules):
+    """Replacement rule corpus for an existing suppression."""
+
+
+class SuppressionResponse(BaseModel):
+    """A durable package-version suppression."""
+
+    suppression_id: uuid.UUID
+    package_name: str
+    package_version: str
+    rules: list[str] | None
+    created_at: datetime.datetime
+    created_by: str
+    updated_at: datetime.datetime
+    updated_by: str
+
+    @classmethod
+    def from_db(cls, suppression: Suppression) -> Self:
+        return cls(
+            suppression_id=suppression.suppression_id,
+            package_name=suppression.package_name,
+            package_version=suppression.package_version,
+            rules=suppression.rules,
+            created_at=suppression.created_at,
+            created_by=suppression.created_by,
+            updated_at=suppression.updated_at,
+            updated_by=suppression.updated_by,
+        )
+
+
+class SuppressionDeleteResponse(BaseModel):
+    """Number of suppressions deleted by an operation."""
+
+    deleted: int
 
 
 class Error(BaseModel):
