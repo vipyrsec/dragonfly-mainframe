@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from enum import Enum
 
 from sqlalchemy import (
+    ARRAY,
     CheckConstraint,
     Column,
     DateTime,
@@ -12,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     PrimaryKeyConstraint,
+    String,
     Table,
     UniqueConstraint,
     or_,
@@ -152,3 +154,35 @@ class AlertingConfiguration(Base):
         default_factory=lambda: datetime.now(UTC),
     )
     updated_by: Mapped[str] = mapped_column(default="system")
+
+
+class Suppression(Base):
+    """A durable package-version alert suppression."""
+
+    __tablename__: str = "suppressions"
+    __table_args__ = (
+        CheckConstraint("package_name <> ''", name="suppressions_package_name_nonempty"),
+        CheckConstraint("package_version <> ''", name="suppressions_package_version_nonempty"),
+        Index("ix_suppressions_package_name_version", "package_name", "package_version"),
+    )
+
+    suppression_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default_factory=uuid.uuid4,
+        init=False,
+    )
+    package_name: Mapped[str] = mapped_column(default=None)
+    package_version: Mapped[str] = mapped_column(default=None)
+    created_by: Mapped[str] = mapped_column(default=None)
+    updated_by: Mapped[str] = mapped_column(default=None)
+    rules: Mapped[list[str] | None] = mapped_column(ARRAY(String()), default=None)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default_factory=lambda: datetime.now(UTC),
+        init=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default_factory=lambda: datetime.now(UTC),
+    )
