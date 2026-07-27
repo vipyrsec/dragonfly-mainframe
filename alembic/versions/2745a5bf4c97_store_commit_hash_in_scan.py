@@ -63,9 +63,14 @@ def downgrade() -> None:
     op.add_column("package_rules", sa.Column("rule_name", sa.String(), nullable=False))
 
     op.drop_column("rules", "id")
+    # upgrade() replaced the original "rules_pkey" primary key with a UNIQUE
+    # constraint that reused the same name; drop it before recreating the PK.
+    op.drop_constraint("rules_pkey", "rules", type_="unique")
     op.create_primary_key("rules_pkey", "rules", ["name"])
 
     op.create_foreign_key("package_rules_rule_name_fkey", "package_rules", "rules", ["rule_name"], ["name"])
 
-    op.drop_column("packages", "commit_hash")
+    # upgrade() added commit_hash to "scans"; the packages->scans rename is
+    # undone by the parent revision, which downgrades after this one.
+    op.drop_column("scans", "commit_hash")
     # ### end Alembic commands ###
