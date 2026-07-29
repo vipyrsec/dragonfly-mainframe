@@ -1,4 +1,5 @@
 import datetime as dt
+import uuid
 from typing import Annotated
 
 import structlog
@@ -18,6 +19,14 @@ from mainframe.rules import Rules
 
 router = APIRouter(tags=["job"])
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+
+def require_assignment_id(scan: Scan) -> uuid.UUID:
+    """Return a claimed scan's assignment ID or fail on a broken database invariant."""
+    if scan.assignment_id is None:
+        msg = "Claimed scan is missing its assignment ID"
+        raise RuntimeError(msg)
+    return scan.assignment_id
 
 
 def dead_letter_expired_scans(
@@ -201,16 +210,13 @@ LEFT JOIN download_urls ON download_urls.scan_id = updated.scan_id
             tag="job_given",
         )
 
-        if scan.assignment_id is None:
-            msg = "Claimed scan is missing its assignment ID"
-            raise RuntimeError(msg)
         job_result = JobResult(
             name=scan.name,
             version=scan.version,
             distributions=[dist.url for dist in scan.download_urls],
             hash=state.rules_commit,
             attempt=scan.attempt_count,
-            assignment_id=scan.assignment_id,
+            assignment_id=require_assignment_id(scan),
         )
 
         response_body.append(job_result)

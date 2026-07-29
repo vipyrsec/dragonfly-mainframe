@@ -1,9 +1,10 @@
 import datetime as dt
 
+import pytest
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from mainframe.endpoints.job import get_jobs
+from mainframe.endpoints.job import get_jobs, require_assignment_id
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import Scan, Status
 from mainframe.rules import Rules
@@ -33,6 +34,18 @@ def fetch_queue_time(name: str, version: str, db_session: Session) -> dt.datetim
 def test_fetch_queue_time(test_data: list[Scan], db_session: Session):
     for scan in test_data:
         assert scan.queued_at == fetch_queue_time(scan.name, scan.version, db_session)
+
+
+def test_claimed_scan_requires_assignment_id() -> None:
+    scan = Scan(
+        name="missing-assignment",
+        version="1",
+        status=Status.PENDING,
+        queued_by="test",
+    )
+
+    with pytest.raises(RuntimeError, match="Claimed scan is missing its assignment ID"):
+        require_assignment_id(scan)
 
 
 def test_job(test_data: list[Scan], db_session: Session, auth: AuthenticationData, rules_state: Rules):
