@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from mainframe.metrics import (
     packages_above_production_threshold,
     packages_reported_snapshot,
+    packages_scan_outcomes,
     packages_scanned,
     performance_snapshot_timestamp_seconds,
     production_score_threshold,
@@ -34,6 +35,8 @@ def read_performance_status(session: Session, *, now: dt.datetime) -> Performanc
     totals = session.execute(
         select(
             func.count().filter(Scan.status == Status.FINISHED),
+            func.count().filter((Scan.status == Status.FAILED) & Scan.dead_lettered_at.is_(None)),
+            func.count().filter((Scan.status == Status.FAILED) & Scan.dead_lettered_at.is_not(None)),
             func.count().filter((Scan.status == Status.FINISHED) & (Scan.score >= threshold)),
             func.count().filter(Scan.reported_at.is_not(None)),
         ).select_from(Scan)
@@ -52,8 +55,10 @@ def read_performance_status(session: Session, *, now: dt.datetime) -> Performanc
 
     return PerformanceStatus(
         packages_scanned=int(totals[0]),
-        packages_above_production_threshold=int(totals[1]),
-        packages_reported=int(totals[2]),
+        packages_failed=int(totals[1]),
+        packages_dead_lettered=int(totals[2]),
+        packages_above_production_threshold=int(totals[3]),
+        packages_reported=int(totals[4]),
         production_score_threshold=threshold,
         rule_hits={name: int(hit_count) for name, hit_count in rule_rows},
         sampled_at=now,
@@ -75,6 +80,9 @@ class PerformanceMonitor:
             snapshot = read_performance_status(session, now=sampled_at)
 
         packages_scanned.set(snapshot.packages_scanned)
+        packages_scan_outcomes.labels(outcome="finished").set(snapshot.packages_scanned)
+        packages_scan_outcomes.labels(outcome="failed").set(snapshot.packages_failed)
+        packages_scan_outcomes.labels(outcome="dead_lettered").set(snapshot.packages_dead_lettered)
         packages_above_production_threshold.set(snapshot.packages_above_production_threshold)
         packages_reported_snapshot.set(snapshot.packages_reported)
         production_score_threshold.set(snapshot.production_score_threshold)

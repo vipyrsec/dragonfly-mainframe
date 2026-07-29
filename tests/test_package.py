@@ -1,10 +1,12 @@
 import datetime
+import uuid
+from dataclasses import replace
 from typing import cast
 
 import pytest
 from fastapi import HTTPException, status
 from fastapi_pagination import Page
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, joinedload
 
 from mainframe.endpoints.job import get_jobs
@@ -145,6 +147,96 @@ def test_handle_fail(db_session: Session, test_data: list[Scan], auth: Authentic
         assert record is not None
     else:
         assert all(scan.status != Status.QUEUED for scan in test_data)
+
+
+def test_rejects_late_result_for_dead_lettered_scan(
+    db_session: Session,
+    auth: AuthenticationData,
+    rules_state: Rules,
+) -> None:
+    dead_lettered_at = datetime.datetime.now(datetime.UTC)
+    scan = Scan(
+        name="dead-lettered",
+        version="1",
+        status=Status.FAILED,
+        queued_by="test",
+        attempt_count=3,
+        dead_lettered_at=dead_lettered_at,
+        fail_reason="Worker lease expired after 3 scan attempts",
+    )
+    with db_session.begin():
+        db_session.execute(update(Scan).values(status=Status.FINISHED))
+        db_session.add(scan)
+
+    result = PackageScanResult(
+        name=scan.name,
+        version=scan.version,
+        commit=rules_state.rules_commit,
+    )
+    with pytest.raises(HTTPException) as error:
+        submit_results(result, db_session, auth)
+
+    assert error.value.status_code == status.HTTP_409_CONFLICT
+    with db_session.begin():
+        persisted = db_session.scalar(select(Scan).where(Scan.name == scan.name))
+        assert persisted is not None
+        assert persisted.status == Status.FAILED
+        assert persisted.dead_lettered_at == dead_lettered_at
+
+
+def test_rejects_result_from_stale_assignment(
+    db_session: Session,
+    auth: AuthenticationData,
+    rules_state: Rules,
+) -> None:
+    now = datetime.datetime.now(datetime.UTC)
+    first_assignment_id = uuid.uuid4()
+    scan = Scan(
+        name="reassigned",
+        version="1",
+        status=Status.PENDING,
+        queued_by="test",
+        pending_at=now - datetime.timedelta(minutes=3),
+        pending_by=auth.subject,
+        attempt_count=1,
+        assignment_id=first_assignment_id,
+    )
+    with db_session.begin():
+        db_session.execute(update(Scan).values(status=Status.FINISHED))
+        db_session.add(scan)
+
+    jobs = get_jobs(db_session, auth, rules_state)
+
+    assert len(jobs) == 1
+    assert jobs[0].attempt == 2
+    stale_result = PackageScanResult(
+        name=scan.name,
+        version=scan.version,
+        commit=rules_state.rules_commit,
+        attempt=1,
+        assignment_id=first_assignment_id,
+    )
+    with pytest.raises(HTTPException) as error:
+        submit_results(stale_result, db_session, auth)
+
+    assert error.value.status_code == status.HTTP_409_CONFLICT
+    current_result = stale_result.model_copy(
+        update={
+            "assignment_id": jobs[0].assignment_id,
+            "attempt": 2,
+        }
+    )
+    wrong_worker = replace(auth, subject="different-worker")
+    with pytest.raises(HTTPException) as error:
+        submit_results(current_result, db_session, wrong_worker)
+
+    assert error.value.status_code == status.HTTP_409_CONFLICT
+    submit_results(current_result, db_session, auth)
+    with db_session.begin():
+        persisted = db_session.scalar(select(Scan).where(Scan.name == scan.name))
+        assert persisted is not None
+        assert persisted.status == Status.FINISHED
+        assert persisted.attempt_count == 2
 
 
 def test_batch_queue(db_session: Session, pypi_client: PyPIClient, auth: AuthenticationData):

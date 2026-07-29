@@ -24,6 +24,7 @@ class QueueStatus(BaseModel):
     queued: int
     in_progress: int
     retryable: int
+    exhausted: int
     stranded: int
     total_backlog: int
     oldest_queued_at: datetime.datetime | None
@@ -39,6 +40,8 @@ class PerformanceStatus(BaseModel):
     """Database-derived rule and package performance totals."""
 
     packages_scanned: int
+    packages_failed: int
+    packages_dead_lettered: int
     packages_above_production_threshold: int
     packages_reported: int
     production_score_threshold: int
@@ -156,6 +159,8 @@ class Package(BaseModel):
     pending_at: datetime.datetime | None
 
     pending_by: str | None
+    attempt_count: int
+    dead_lettered_at: datetime.datetime | None
     finished_at: datetime.datetime | None
     finished_by: str | None
 
@@ -179,6 +184,8 @@ class Package(BaseModel):
             queued_by=scan.queued_by,
             pending_at=scan.pending_at,
             pending_by=scan.pending_by,
+            attempt_count=scan.attempt_count,
+            dead_lettered_at=scan.dead_lettered_at,
             finished_at=scan.finished_at,
             finished_by=scan.finished_by,
             commit_hash=scan.commit_hash,
@@ -187,6 +194,7 @@ class Package(BaseModel):
     @field_serializer(
         "queued_at",
         "pending_at",
+        "dead_lettered_at",
         "finished_at",
         "reported_at",
     )
@@ -239,12 +247,16 @@ class PackageScanResult(PackageSpecifier):
     score: int = 0
     inspector_url: str | None = None
     rules_matched: list[str] = []
+    attempt: int | None = Field(default=None, ge=1)
+    assignment_id: uuid.UUID | None = None
 
 
 class PackageScanResultFail(PackageSpecifier):
     """The client's reason as to why scanning a package failed."""
 
     reason: str
+    attempt: int | None = Field(default=None, ge=1)
+    assignment_id: uuid.UUID | None = None
 
 
 class JobResult(BaseModel):
@@ -254,6 +266,8 @@ class JobResult(BaseModel):
     version: str
     distributions: list[str]
     hash: str
+    attempt: int = Field(ge=1)
+    assignment_id: uuid.UUID
 
 
 class GetRules(BaseModel):

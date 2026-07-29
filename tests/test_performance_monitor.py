@@ -47,6 +47,13 @@ def replace_performance_data(session: Session) -> None:
                     status=Status.FAILED,
                     queued_by="test",
                 ),
+                Scan(
+                    name="metrics-dead-lettered",
+                    version="1",
+                    status=Status.FAILED,
+                    queued_by="test",
+                    dead_lettered_at=dt.datetime(2026, 7, 25, tzinfo=dt.UTC),
+                ),
             ]
         )
 
@@ -61,6 +68,8 @@ def test_read_performance_status_uses_durable_database_state(
         snapshot = read_performance_status(db_session, now=now)
 
     assert snapshot.packages_scanned == 2
+    assert snapshot.packages_failed >= 1
+    assert snapshot.packages_dead_lettered == 1
     assert snapshot.packages_above_production_threshold == 1
     assert snapshot.packages_reported == 1
     assert snapshot.production_score_threshold == 8
@@ -88,6 +97,8 @@ def test_performance_monitor_refreshes_from_database(
     snapshot = PerformanceMonitor(engine).refresh(now=now)
 
     assert snapshot.packages_scanned == 2
+    assert snapshot.packages_failed >= 1
+    assert snapshot.packages_dead_lettered == 1
     assert snapshot.packages_above_production_threshold == 1
     assert snapshot.packages_reported == 1
 

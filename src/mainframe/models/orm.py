@@ -60,7 +60,10 @@ class Scan(Base):
     """The scans."""
 
     __tablename__: str = "scans"
-    __table_args__ = (UniqueConstraint("name", "version"),)
+    __table_args__ = (
+        UniqueConstraint("name", "version"),
+        CheckConstraint("attempt_count >= 0", name="scans_nonnegative_attempt_count"),
+    )
 
     scan_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -87,6 +90,9 @@ class Scan(Base):
 
     pending_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     pending_by: Mapped[str | None] = mapped_column(default=None)
+    attempt_count: Mapped[int] = mapped_column(default=0, server_default="0")
+    assignment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), default=None)
+    dead_lettered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None, index=True)
     finished_by: Mapped[str | None] = mapped_column(default=None)

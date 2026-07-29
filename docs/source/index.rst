@@ -16,6 +16,7 @@ Module Index
    :hidden:
 
    changelog
+   dead_letter_observability
 
 Extras
 ------
