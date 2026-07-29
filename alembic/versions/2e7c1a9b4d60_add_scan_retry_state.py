@@ -25,7 +25,11 @@ def upgrade() -> None:
         "scans",
         sa.Column("dead_lettered_at", sa.DateTime(timezone=True), nullable=True),
     )
-    op.execute("UPDATE scans SET attempt_count = 1 WHERE status = 'PENDING'")
+    op.add_column(
+        "scans",
+        sa.Column("assignment_id", sa.UUID(), nullable=True),
+    )
+    op.execute("UPDATE scans SET attempt_count = 3 WHERE status = 'PENDING'")
     op.create_check_constraint(
         "scans_nonnegative_attempt_count",
         "scans",
@@ -39,5 +43,6 @@ def downgrade() -> None:
         "scans",
         type_="check",
     )
+    op.drop_column("scans", "assignment_id")
     op.drop_column("scans", "dead_lettered_at")
     op.drop_column("scans", "attempt_count")

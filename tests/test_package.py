@@ -1,4 +1,6 @@
 import datetime
+import uuid
+from dataclasses import replace
 from typing import cast
 
 import pytest
@@ -188,6 +190,7 @@ def test_rejects_result_from_stale_assignment(
     rules_state: Rules,
 ) -> None:
     now = datetime.datetime.now(datetime.UTC)
+    first_assignment_id = uuid.uuid4()
     scan = Scan(
         name="reassigned",
         version="1",
@@ -196,6 +199,7 @@ def test_rejects_result_from_stale_assignment(
         pending_at=now - datetime.timedelta(minutes=3),
         pending_by=auth.subject,
         attempt_count=1,
+        assignment_id=first_assignment_id,
     )
     with db_session.begin():
         db_session.execute(update(Scan).values(status=Status.FINISHED))
@@ -210,12 +214,23 @@ def test_rejects_result_from_stale_assignment(
         version=scan.version,
         commit=rules_state.rules_commit,
         attempt=1,
+        assignment_id=first_assignment_id,
     )
     with pytest.raises(HTTPException) as error:
         submit_results(stale_result, db_session, auth)
 
     assert error.value.status_code == status.HTTP_409_CONFLICT
-    current_result = stale_result.model_copy(update={"attempt": 2})
+    current_result = stale_result.model_copy(
+        update={
+            "assignment_id": jobs[0].assignment_id,
+            "attempt": 2,
+        }
+    )
+    wrong_worker = replace(auth, subject="different-worker")
+    with pytest.raises(HTTPException) as error:
+        submit_results(current_result, db_session, wrong_worker)
+
+    assert error.value.status_code == status.HTTP_409_CONFLICT
     submit_results(current_result, db_session, auth)
     with db_session.begin():
         persisted = db_session.scalar(select(Scan).where(Scan.name == scan.name))

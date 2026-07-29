@@ -88,18 +88,27 @@ def submit_results(
             )
             raise error
 
-        attempt_matches = result.attempt == scan.attempt_count
-        legacy_first_attempt = result.attempt is None and scan.attempt_count == 1
-        if not attempt_matches and not legacy_first_attempt:
+        assignment_matches = (
+            result.attempt == scan.attempt_count
+            and result.assignment_id is not None
+            and result.assignment_id == scan.assignment_id
+        )
+        legacy_first_assignment = result.attempt is None and result.assignment_id is None and scan.attempt_count == 1
+        worker_matches = scan.pending_by == auth.subject
+        if not worker_matches or not (assignment_matches or legacy_first_assignment):
             error = HTTPException(
                 status.HTTP_409_CONFLICT,
-                f"Package `{name}@{version}` is no longer assigned to scan attempt {result.attempt}.",
+                f"Package `{name}@{version}` is no longer assigned to this worker lease.",
             )
             log.error(
                 "Rejected a result from a stale scan assignment",
+                assignment_id=str(result.assignment_id) if result.assignment_id is not None else None,
                 attempt=result.attempt,
+                current_assignment_id=str(scan.assignment_id) if scan.assignment_id is not None else None,
                 current_attempt=scan.attempt_count,
+                current_worker=scan.pending_by,
                 error_message=error.detail,
+                submitting_worker=auth.subject,
                 tag="stale_scan_assignment",
             )
             raise error

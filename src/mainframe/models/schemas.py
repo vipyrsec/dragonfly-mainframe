@@ -248,6 +248,7 @@ class PackageScanResult(PackageSpecifier):
     inspector_url: str | None = None
     rules_matched: list[str] = []
     attempt: int | None = Field(default=None, ge=1)
+    assignment_id: uuid.UUID | None = None
 
 
 class PackageScanResultFail(PackageSpecifier):
@@ -255,6 +256,7 @@ class PackageScanResultFail(PackageSpecifier):
 
     reason: str
     attempt: int | None = Field(default=None, ge=1)
+    assignment_id: uuid.UUID | None = None
 
 
 class JobResult(BaseModel):
@@ -265,6 +267,7 @@ class JobResult(BaseModel):
     distributions: list[str]
     hash: str
     attempt: int = Field(ge=1)
+    assignment_id: uuid.UUID
 
 
 class GetRules(BaseModel):

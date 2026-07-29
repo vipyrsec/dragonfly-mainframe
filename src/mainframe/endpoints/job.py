@@ -99,7 +99,8 @@ WITH packages AS (
         status = 'PENDING',
         pending_at = :pending_at,
         pending_by = :pending_by,
-        attempt_count = scans.attempt_count + 1
+        attempt_count = scans.attempt_count + 1,
+        assignment_id = gen_random_uuid()
     FROM packages
     WHERE scans.scan_id = packages.scan_id
     RETURNING scans.*
@@ -117,6 +118,7 @@ SELECT
     updated.pending_at,
     updated.pending_by,
     updated.attempt_count,
+    updated.assignment_id,
     updated.dead_lettered_at
 FROM updated
 LEFT JOIN download_urls ON download_urls.scan_id = updated.scan_id
@@ -133,6 +135,7 @@ LEFT JOIN download_urls ON download_urls.scan_id = updated.scan_id
         Scan.pending_at,
         Scan.pending_by,
         Scan.attempt_count,
+        Scan.assignment_id,
         Scan.dead_lettered_at,
     )
 
@@ -198,12 +201,16 @@ LEFT JOIN download_urls ON download_urls.scan_id = updated.scan_id
             tag="job_given",
         )
 
+        if scan.assignment_id is None:
+            msg = "Claimed scan is missing its assignment ID"
+            raise RuntimeError(msg)
         job_result = JobResult(
             name=scan.name,
             version=scan.version,
             distributions=[dist.url for dist in scan.download_urls],
             hash=state.rules_commit,
             attempt=scan.attempt_count,
+            assignment_id=scan.assignment_id,
         )
 
         response_body.append(job_result)
