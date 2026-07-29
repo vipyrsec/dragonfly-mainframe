@@ -147,6 +147,40 @@ def test_handle_fail(db_session: Session, test_data: list[Scan], auth: Authentic
         assert all(scan.status != Status.QUEUED for scan in test_data)
 
 
+def test_rejects_late_result_for_dead_lettered_scan(
+    db_session: Session,
+    auth: AuthenticationData,
+    rules_state: Rules,
+) -> None:
+    dead_lettered_at = datetime.datetime.now(datetime.UTC)
+    scan = Scan(
+        name="dead-lettered",
+        version="1",
+        status=Status.FAILED,
+        queued_by="test",
+        attempt_count=3,
+        dead_lettered_at=dead_lettered_at,
+        fail_reason="Worker lease expired after 3 scan attempts",
+    )
+    with db_session.begin():
+        db_session.add(scan)
+
+    result = PackageScanResult(
+        name=scan.name,
+        version=scan.version,
+        commit=rules_state.rules_commit,
+    )
+    with pytest.raises(HTTPException) as error:
+        submit_results(result, db_session, auth)
+
+    assert error.value.status_code == status.HTTP_409_CONFLICT
+    with db_session.begin():
+        persisted = db_session.scalar(select(Scan).where(Scan.name == scan.name))
+        assert persisted is not None
+        assert persisted.status == Status.FAILED
+        assert persisted.dead_lettered_at == dead_lettered_at
+
+
 def test_batch_queue(db_session: Session, pypi_client: PyPIClient, auth: AuthenticationData):
     pack = PackageSpecifier(name="c", version="1.0.0")
     batch_queue_package([pack], db_session, auth, pypi_client)

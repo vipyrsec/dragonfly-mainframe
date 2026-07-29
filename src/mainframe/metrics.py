@@ -34,6 +34,11 @@ packages_scanned = Gauge(
     "packages_scanned",
     "Database-reconciled number of successfully completed package scans.",
 )
+packages_scan_outcomes = Gauge(
+    "packages_scan_outcomes",
+    "Database-reconciled package scan totals by terminal outcome.",
+    ["outcome"],
+)
 packages_above_production_threshold = Gauge(
     "packages_above_production_threshold",
     "Database-reconciled number of successful scans at or above the production score threshold.",
@@ -57,3 +62,7 @@ performance_refresh_failures = Counter(
 
 packages_success = Counter("packages_success", "Number of packages scanned successfully")
 packages_fail = Counter("packages_fail", "Number of packages that failed scanning")
+packages_dead_lettered = Counter(
+    "packages_dead_lettered",
+    "Number of package scans dead-lettered after exhausting worker attempts.",
+)

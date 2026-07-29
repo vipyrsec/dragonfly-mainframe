@@ -1,6 +1,6 @@
 import datetime as dt
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from mainframe.endpoints.job import get_jobs
@@ -73,3 +73,90 @@ def test_batch_job(test_data: list[Scan], db_session: Session, auth: Authenticat
             assert row.status == Status.PENDING
             assert row.pending_by is not None
             assert row.pending_at is not None
+            assert row.attempt_count == 1
+
+
+def test_expired_scan_gets_a_final_attempt_then_is_dead_lettered(
+    db_session: Session,
+    auth: AuthenticationData,
+    rules_state: Rules,
+) -> None:
+    now = dt.datetime.now(dt.UTC)
+    poison = Scan(
+        name="poison",
+        version="1",
+        status=Status.PENDING,
+        queued_at=now - dt.timedelta(minutes=10),
+        queued_by="test",
+        pending_at=now - dt.timedelta(minutes=3),
+        pending_by="previous-worker",
+        attempt_count=2,
+    )
+    with db_session.begin():
+        db_session.execute(update(Scan).values(status=Status.FINISHED))
+        db_session.add(poison)
+
+    jobs = get_jobs(db_session, auth, rules_state)
+
+    assert [(job.name, job.version) for job in jobs] == [("poison", "1")]
+    with db_session.begin():
+        row = db_session.scalar(select(Scan).where(Scan.name == "poison"))
+        assert row is not None
+        assert row.status == Status.PENDING
+        assert row.attempt_count == 3
+        assert row.dead_lettered_at is None
+        row.pending_at = now - dt.timedelta(minutes=3)
+
+    jobs = get_jobs(db_session, auth, rules_state)
+
+    assert jobs == []
+    with db_session.begin():
+        row = db_session.scalar(select(Scan).where(Scan.name == "poison"))
+        assert row is not None
+        assert row.status == Status.FAILED
+        assert row.attempt_count == 3
+        assert row.dead_lettered_at is not None
+        assert row.fail_reason == "Worker lease expired after 3 scan attempts"
+
+
+def test_dead_lettering_does_not_block_healthy_work(
+    db_session: Session,
+    auth: AuthenticationData,
+    rules_state: Rules,
+) -> None:
+    now = dt.datetime.now(dt.UTC)
+    with db_session.begin():
+        db_session.execute(update(Scan).values(status=Status.FINISHED))
+        db_session.add_all(
+            [
+                Scan(
+                    name="exhausted",
+                    version="1",
+                    status=Status.PENDING,
+                    queued_at=now - dt.timedelta(minutes=10),
+                    queued_by="test",
+                    pending_at=now - dt.timedelta(minutes=3),
+                    pending_by="previous-worker",
+                    attempt_count=3,
+                ),
+                Scan(
+                    name="healthy",
+                    version="1",
+                    status=Status.QUEUED,
+                    queued_at=now - dt.timedelta(minutes=1),
+                    queued_by="test",
+                ),
+            ]
+        )
+
+    jobs = get_jobs(db_session, auth, rules_state)
+
+    assert [(job.name, job.version) for job in jobs] == [("healthy", "1")]
+    with db_session.begin():
+        rows = {
+            scan.name: scan for scan in db_session.scalars(select(Scan).where(Scan.name.in_(["exhausted", "healthy"])))
+        }
+        assert rows["exhausted"].status == Status.FAILED
+        assert rows["exhausted"].dead_lettered_at is not None
+        assert rows["healthy"].status == Status.PENDING
+        assert rows["healthy"].attempt_count == 1

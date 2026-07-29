@@ -96,7 +96,11 @@ async def lifespan(app_: FastAPI) -> AsyncGenerator[None, None]:
     app_.state.pypi_client = pypi_client
 
     setup_logging()
-    queue_monitor = QueueMonitor(engine, job_timeout=mainframe_settings.job_timeout)
+    queue_monitor = QueueMonitor(
+        engine,
+        job_timeout=mainframe_settings.job_timeout,
+        max_job_attempts=mainframe_settings.max_job_attempts,
+    )
     app_.state.queue_monitor = queue_monitor
     try:
         await asyncio.to_thread(queue_monitor.refresh)

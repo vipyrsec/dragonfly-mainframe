@@ -47,54 +47,75 @@ def submit_results(
 ) -> None:
     name = result.name
     version = result.version
+    log = logger.bind(package={"name": name, "version": version})
+    rule_names: set[str] = set()
+    new_rules: list[Rule] = []
 
     with session.begin():
-        scan = session.scalar(
-            select(Scan).where(Scan.name == name).where(Scan.version == version).options(joinedload(Scan.rules))
-        )
+        scan = session.scalar(select(Scan).where(Scan.name == name).where(Scan.version == version).with_for_update())
 
-    log = logger.bind(package={"name": name, "version": version})
+        if scan is None:
+            error = HTTPException(
+                status.HTTP_404_NOT_FOUND, detail=f"Package `{name}@{version}` not found in database."
+            )
+            log.error(
+                f"Package {name}@{version} not found in database",
+                error_message=error.detail,
+                tag="package_not_found_db",
+            )
+            raise error
 
-    if scan is None:
-        error = HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Package `{name}@{version}` not found in database.")
-        log.error(
-            f"Package {name}@{version} not found in database", error_message=error.detail, tag="package_not_found_db"
-        )
-        raise error
+        if scan.status == Status.FINISHED:
+            error = HTTPException(
+                status.HTTP_409_CONFLICT, f"Package `{name}@{version}` is already in a FINISHED state."
+            )
+            log.error(
+                f"Scan {name}@{version} already in a FINISHED state",
+                error_message=error.detail,
+                tag="already_finished",
+            )
+            raise error
 
-    if scan.status == Status.FINISHED:
-        error = HTTPException(status.HTTP_409_CONFLICT, f"Package `{name}@{version}` is already in a FINISHED state.")
-        log.error(
-            f"Scan {name}@{version} already in a FINISHED state", error_message=error.detail, tag="already_finished"
-        )
-        raise error
+        if scan.dead_lettered_at is not None:
+            error = HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"Package `{name}@{version}` exhausted its scan attempt limit.",
+            )
+            log.error(
+                "Rejected a result for a dead-lettered scan",
+                error_message=error.detail,
+                tag="already_dead_lettered",
+            )
+            raise error
 
-    with session, session.begin():
         if isinstance(result, PackageScanResultFail):
             scan.status = Status.FAILED
             scan.fail_reason = result.reason
+        else:
+            scan.status = Status.FINISHED
+            scan.finished_at = dt.datetime.now(dt.UTC)
+            scan.inspector_url = result.inspector_url
+            scan.score = result.score
+            scan.finished_by = auth.subject
+            scan.commit_hash = result.commit
 
-            session.commit()
+            # These are the rules that already have an entry in the database
+            rules = session.scalars(select(Rule).where(Rule.name.in_(result.rules_matched))).all()
+            rule_names = {rule.name for rule in rules}
+            scan.rules.extend(rules)
 
-            packages_fail.inc()
+            # These are the rules that had to be created
+            new_rules = [Rule(name=rule_name) for rule_name in result.rules_matched if rule_name not in rule_names]
+            scan.rules.extend(new_rules)
 
-            return
-
-        scan.status = Status.FINISHED
-        scan.finished_at = dt.datetime.now(dt.UTC)
-        scan.inspector_url = result.inspector_url
-        scan.score = result.score
-        scan.finished_by = auth.subject
-        scan.commit_hash = result.commit
-
-        # These are the rules that already have an entry in the database
-        rules = session.scalars(select(Rule).where(Rule.name.in_(result.rules_matched))).all()
-        rule_names = {rule.name for rule in rules}
-        scan.rules.extend(rules)
-
-        # These are the rules that had to be created
-        new_rules = [Rule(name=rule_name) for rule_name in result.rules_matched if rule_name not in rule_names]
-        scan.rules.extend(new_rules)
+    if isinstance(result, PackageScanResultFail):
+        log.error(
+            "Scanner reported a package failure",
+            reason=result.reason,
+            tag="scan_failure_submitted",
+        )
+        packages_fail.inc()
+        return
 
     log.info(
         "Scan results submitted",
