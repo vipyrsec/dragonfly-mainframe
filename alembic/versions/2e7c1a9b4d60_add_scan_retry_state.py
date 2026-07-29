@@ -29,7 +29,10 @@ def upgrade() -> None:
         "scans",
         sa.Column("assignment_id", sa.UUID(), nullable=True),
     )
-    op.execute("UPDATE scans SET attempt_count = 3 WHERE status = 'PENDING'")
+    # Retry history was not persisted before this migration. Treat the current
+    # in-flight lease as the first tracked assignment so its result remains
+    # valid and every subsequent reassignment receives an opaque assignment ID.
+    op.execute("UPDATE scans SET attempt_count = 1 WHERE status = 'PENDING'")
     op.create_check_constraint(
         "scans_nonnegative_attempt_count",
         "scans",

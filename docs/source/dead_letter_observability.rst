@@ -14,6 +14,10 @@ after the scan has been reassigned. Mainframe also verifies the authenticated
 worker identity. For rollout compatibility, a result without either assignment
 field is accepted only for the first assignment.
 
+Retry history predating the migration is not reconstructable. An existing
+``PENDING`` scan is therefore recorded as its first tracked assignment; the
+configured budget is enforced from that migration boundary forward.
+
 Metrics
 -------
 
