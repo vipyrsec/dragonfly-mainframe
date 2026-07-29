@@ -99,6 +99,7 @@ def test_expired_scan_gets_a_final_attempt_then_is_dead_lettered(
     jobs = get_jobs(db_session, auth, rules_state)
 
     assert [(job.name, job.version) for job in jobs] == [("poison", "1")]
+    assert jobs[0].attempt == 3
     with db_session.begin():
         row = db_session.scalar(select(Scan).where(Scan.name == "poison"))
         assert row is not None

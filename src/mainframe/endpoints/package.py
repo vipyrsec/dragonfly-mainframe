@@ -88,6 +88,22 @@ def submit_results(
             )
             raise error
 
+        attempt_matches = result.attempt == scan.attempt_count
+        legacy_first_attempt = result.attempt is None and scan.attempt_count == 1
+        if not attempt_matches and not legacy_first_attempt:
+            error = HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"Package `{name}@{version}` is no longer assigned to scan attempt {result.attempt}.",
+            )
+            log.error(
+                "Rejected a result from a stale scan assignment",
+                attempt=result.attempt,
+                current_attempt=scan.attempt_count,
+                error_message=error.detail,
+                tag="stale_scan_assignment",
+            )
+            raise error
+
         if isinstance(result, PackageScanResultFail):
             scan.status = Status.FAILED
             scan.fail_reason = result.reason

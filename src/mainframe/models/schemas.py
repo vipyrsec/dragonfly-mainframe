@@ -247,12 +247,14 @@ class PackageScanResult(PackageSpecifier):
     score: int = 0
     inspector_url: str | None = None
     rules_matched: list[str] = []
+    attempt: int | None = Field(default=None, ge=1)
 
 
 class PackageScanResultFail(PackageSpecifier):
     """The client's reason as to why scanning a package failed."""
 
     reason: str
+    attempt: int | None = Field(default=None, ge=1)
 
 
 class JobResult(BaseModel):
@@ -262,6 +264,7 @@ class JobResult(BaseModel):
     version: str
     distributions: list[str]
     hash: str
+    attempt: int = Field(ge=1)
 
 
 class GetRules(BaseModel):

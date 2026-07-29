@@ -203,6 +203,7 @@ LEFT JOIN download_urls ON download_urls.scan_id = updated.scan_id
             version=scan.version,
             distributions=[dist.url for dist in scan.download_urls],
             hash=state.rules_commit,
+            attempt=scan.attempt_count,
         )
 
         response_body.append(job_result)

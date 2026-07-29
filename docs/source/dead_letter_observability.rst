@@ -8,6 +8,11 @@ is below ``MAX_JOB_ATTEMPTS``. Once the final lease expires, the next job poll
 moves the scan to ``FAILED``, records ``dead_lettered_at`` and a failure reason,
 and never assigns it again.
 
+Each job response includes its assignment attempt. Clients echo that value with
+the result so Mainframe can reject a stale worker after the scan has been
+reassigned. For rollout compatibility, a result without an attempt is accepted
+only for the first assignment.
+
 Metrics
 -------
 

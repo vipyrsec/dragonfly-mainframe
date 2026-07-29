@@ -25,6 +25,7 @@ def upgrade() -> None:
         "scans",
         sa.Column("dead_lettered_at", sa.DateTime(timezone=True), nullable=True),
     )
+    op.execute("UPDATE scans SET attempt_count = 1 WHERE status = 'PENDING'")
     op.create_check_constraint(
         "scans_nonnegative_attempt_count",
         "scans",
