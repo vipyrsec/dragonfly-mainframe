@@ -23,7 +23,12 @@ from mainframe.models.orm import (
 from mainframe.models.schemas import PerformanceStatus
 
 
-def read_performance_status(session: Session, *, now: dt.datetime) -> PerformanceStatus:
+def read_performance_status(
+    session: Session,
+    *,
+    now: dt.datetime,
+    cached_rule_hits: dict[str, int] | None = None,
+) -> PerformanceStatus:
     """Read durable package and per-rule performance totals."""
     threshold = session.scalar(
         select(AlertingConfiguration.production_score_threshold).where(AlertingConfiguration.id == 1)
@@ -41,17 +46,21 @@ def read_performance_status(session: Session, *, now: dt.datetime) -> Performanc
             func.count().filter(Scan.reported_at.is_not(None)),
         ).select_from(Scan)
     ).one()
-    rule_rows = session.execute(
-        select(
-            Rule.name,
-            func.count(package_rules.c.scan_id).filter(Scan.status == Status.FINISHED),
+    if cached_rule_hits is None:
+        rule_rows = session.execute(
+            select(
+                Rule.name,
+                func.count(package_rules.c.scan_id).filter(Scan.status == Status.FINISHED),
+            )
+            .select_from(Rule)
+            .outerjoin(package_rules, Rule.id == package_rules.c.rule_id)
+            .outerjoin(Scan, Scan.scan_id == package_rules.c.scan_id)
+            .group_by(Rule.id, Rule.name)
+            .order_by(Rule.name)
         )
-        .select_from(Rule)
-        .outerjoin(package_rules, Rule.id == package_rules.c.rule_id)
-        .outerjoin(Scan, Scan.scan_id == package_rules.c.scan_id)
-        .group_by(Rule.id, Rule.name)
-        .order_by(Rule.name)
-    )
+        rule_hits_snapshot = {name: int(hit_count) for name, hit_count in rule_rows}
+    else:
+        rule_hits_snapshot = cached_rule_hits
 
     return PerformanceStatus(
         packages_scanned=int(totals[0]),
@@ -60,7 +69,7 @@ def read_performance_status(session: Session, *, now: dt.datetime) -> Performanc
         packages_above_production_threshold=int(totals[3]),
         packages_reported=int(totals[4]),
         production_score_threshold=threshold,
-        rule_hits={name: int(hit_count) for name, hit_count in rule_rows},
+        rule_hits=rule_hits_snapshot,
         sampled_at=now,
     )
 
@@ -74,10 +83,22 @@ class PerformanceMonitor:
         self._published_rules: set[str] = set()
         self._lock = Lock()
 
-    def refresh(self, *, now: dt.datetime | None = None) -> PerformanceStatus:
+    def refresh(
+        self,
+        *,
+        now: dt.datetime | None = None,
+        refresh_rule_hits: bool = True,
+    ) -> PerformanceStatus:
         sampled_at = now or dt.datetime.now(dt.UTC)
+        cached_rule_hits = None
+        if not refresh_rule_hits and self._snapshot is not None:
+            cached_rule_hits = self._snapshot.rule_hits
         with Session(bind=self.engine) as session, session.begin():
-            snapshot = read_performance_status(session, now=sampled_at)
+            snapshot = read_performance_status(
+                session,
+                now=sampled_at,
+                cached_rule_hits=cached_rule_hits,
+            )
 
         packages_scanned.set(snapshot.packages_scanned)
         packages_scan_outcomes.labels(outcome="finished").set(snapshot.packages_scanned)

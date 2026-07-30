@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 from fastapi import HTTPException, status
-from sqlalchemy import Engine, delete, update
+from sqlalchemy import Engine, delete, event, update
 from sqlalchemy.orm import Session
 
 from mainframe.endpoints.performance import public_statistics, rule_performance
@@ -75,6 +75,35 @@ def test_read_performance_status_uses_durable_database_state(
     assert snapshot.production_score_threshold == 8
     assert snapshot.rule_hits["metrics-rule"] == 2
     assert snapshot.sampled_at == now
+
+
+def test_background_refresh_reuses_rule_hit_snapshot(
+    db_session: Session,
+    engine: Engine,
+) -> None:
+    replace_performance_data(db_session)
+    monitor = PerformanceMonitor(engine)
+    initial_snapshot = monitor.refresh()
+    statements: list[str] = []
+
+    def capture_statement(
+        _connection: object,
+        _cursor: object,
+        statement: str,
+        _parameters: object,
+        _context: object,
+        _executemany: object,
+    ) -> None:
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", capture_statement)
+    try:
+        snapshot = monitor.refresh(refresh_rule_hits=False)
+    finally:
+        event.remove(engine, "before_cursor_execute", capture_statement)
+
+    assert all("package_rules" not in statement for statement in statements)
+    assert snapshot.rule_hits == initial_snapshot.rule_hits
 
 
 def test_read_performance_status_requires_alerting_configuration(
