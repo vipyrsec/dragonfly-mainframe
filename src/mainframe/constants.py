@@ -34,6 +34,7 @@ class Mainframe(EnvConfig):
     job_timeout: int = 60 * 2
     max_job_attempts: PositiveInt = 3
     queue_metrics_refresh_seconds: PositiveInt = 60
+    performance_metrics_refresh_seconds: PositiveInt = 15 * 60
 
     log_config_file: str = "logging/development.toml"
 

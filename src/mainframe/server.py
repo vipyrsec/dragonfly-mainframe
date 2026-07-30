@@ -67,7 +67,7 @@ async def monitor_performance(
     while True:
         await asyncio.sleep(refresh_seconds)
         try:
-            await asyncio.to_thread(monitor.refresh)
+            await asyncio.to_thread(monitor.refresh, refresh_rule_hits=False)
         except Exception:
             performance_refresh_failures.inc()
             logging.getLogger(__name__).exception("Failed to refresh performance metrics")
@@ -120,7 +120,7 @@ async def lifespan(app_: FastAPI) -> AsyncGenerator[None, None]:
     performance_monitor_task = asyncio.create_task(
         monitor_performance(
             performance_monitor,
-            mainframe_settings.queue_metrics_refresh_seconds,
+            mainframe_settings.performance_metrics_refresh_seconds,
         )
     )
 
