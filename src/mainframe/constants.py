@@ -35,6 +35,8 @@ class Mainframe(EnvConfig):
     max_job_attempts: PositiveInt = 3
     queue_metrics_refresh_seconds: PositiveInt = 60
     performance_metrics_refresh_seconds: PositiveInt = 15 * 60
+    performance_projection_batch_size: PositiveInt = 100
+    performance_projection_backfill_pause_seconds: PositiveInt = 1
 
     log_config_file: str = "logging/development.toml"
 

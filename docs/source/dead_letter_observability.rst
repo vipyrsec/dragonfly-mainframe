@@ -31,15 +31,30 @@ Metrics
     Process event counter for successful scans.
 
 ``packages_scan_outcomes{outcome="finished|failed|dead_lettered"}``
-    Database-reconciled terminal outcome totals. ``failed`` excludes dead
-    letters so the three series do not overlap.
+    Terminal outcome totals from the durable bounded projection. ``failed``
+    excludes dead letters so the three series do not overlap.
 
 ``packages_queue{state="exhausted"}``
     Expired scans that have consumed their attempt budget but have not yet been
     reaped by a job poll.
 
 ``performance_snapshot_timestamp_seconds``
-    Timestamp of the latest successful database reconciliation.
+    Timestamp of the latest successful compact rollup snapshot.
+
+``performance_projection_complete``
+    ``1`` after Mainframe has projected the pre-migration scan history. Durable
+    statistics endpoints remain unavailable until this initial backfill
+    completes.
+
+``performance_projection_processed_total{kind="outcome|report"}``
+    Number of authoritative scan records incorporated into compact rollups.
+
+The projector claims at most ``PERFORMANCE_PROJECTION_BATCH_SIZE`` records in
+one transaction. It reads pending work through partial indexes, marks each
+source record in the same transaction as its rollup update, and pauses between
+full historical batches. Snapshot publication reads only the compact rollup
+tables; it never aggregates the complete ``scans`` or ``package_rules``
+history.
 
 Recommended alerts
 ------------------
@@ -76,11 +91,18 @@ outcomes in 15 minutes:
       + sum(increase(packages_fail_total[15m]))
     ) >= 20
 
-Alert if durable outcome metrics have not refreshed for three refresh periods:
+Alert if the initial historical projection is incomplete:
 
 .. code-block:: promql
 
-    time() - performance_snapshot_timestamp_seconds > 180
+    performance_projection_complete == 0
+
+Alert if durable outcome metrics have not refreshed for three default refresh
+periods:
+
+.. code-block:: promql
+
+    time() - performance_snapshot_timestamp_seconds > 2700
 
 Every dead letter also emits a structured ``scan_dead_lettered`` error log with
 the package name, version, attempt count, prior worker, lease timestamp, and

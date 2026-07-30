@@ -59,6 +59,19 @@ performance_refresh_failures = Counter(
     "performance_refresh_failures",
     "Number of failed database performance snapshot refreshes.",
 )
+performance_projection_complete = Gauge(
+    "performance_projection_complete",
+    "Whether the initial bounded projection of historical performance data is complete.",
+)
+performance_projection_processed = Counter(
+    "performance_projection_processed",
+    "Number of source records incorporated into durable performance rollups.",
+    ["kind"],
+)
+performance_projection_failures = Counter(
+    "performance_projection_failures",
+    "Number of failed bounded performance projection batches.",
+)
 
 packages_success = Counter("packages_success", "Number of packages scanned successfully")
 packages_fail = Counter("packages_fail", "Number of packages that failed scanning")
