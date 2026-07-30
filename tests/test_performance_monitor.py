@@ -1,11 +1,12 @@
 import datetime as dt
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 from fastapi import HTTPException, status
 from sqlalchemy import Engine, delete, event, select, update
 from sqlalchemy.orm import Session
 
+from mainframe import performance_projection
 from mainframe.endpoints.performance import public_statistics, rule_performance
 from mainframe.metrics import rule_hits
 from mainframe.models.orm import (
@@ -107,6 +108,49 @@ def test_projection_is_exactly_once(
     assert totals is not None
     assert totals.packages_scanned == 2
     assert totals.packages_reported == 1
+
+
+@pytest.mark.parametrize(
+    ("get_results", "message"),
+    [
+        ([None], "Performance rollup could not be initialized"),
+        ([Mock(), None], "Performance projection state could not be initialized"),
+    ],
+)
+def test_projection_requires_initialized_singletons(
+    engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+    get_results: list[object | None],
+    message: str,
+) -> None:
+    session = MagicMock()
+    session.get.side_effect = get_results
+    session_factory = MagicMock()
+    session_factory.return_value.__enter__.return_value = session
+    monkeypatch.setattr(performance_projection, "Session", session_factory)
+
+    with pytest.raises(RuntimeError, match=message):
+        PerformanceProjector(engine).process_batch(batch_size=1)
+
+
+def test_projection_rejects_finished_scan_without_score(
+    db_session: Session,
+    engine: Engine,
+) -> None:
+    processed_at = dt.datetime(2026, 7, 25, tzinfo=dt.UTC)
+    with db_session.begin():
+        db_session.execute(update(Scan).values(analytics_outcome_processed_at=processed_at))
+        db_session.add(
+            Scan(
+                name="metrics-scoreless",
+                version="1",
+                status=Status.FINISHED,
+                queued_by="test",
+            )
+        )
+
+    with pytest.raises(RuntimeError, match=r"Finished scan .* has no score"):
+        PerformanceProjector(engine).process_batch(batch_size=1)
 
 
 def test_projection_picks_up_reports_after_initial_backfill(
@@ -226,6 +270,18 @@ def test_read_performance_status_requires_alerting_configuration(
         db_session.execute(delete(AlertingConfiguration))
 
     with db_session.begin(), pytest.raises(RuntimeError, match="Alerting configuration is missing"):
+        read_performance_status(db_session, now=dt.datetime.now(dt.UTC))
+
+
+def test_read_performance_status_requires_rollup(
+    db_session: Session,
+    engine: Engine,
+) -> None:
+    complete_projection(engine)
+    with db_session.begin():
+        db_session.execute(delete(PerformanceRollup))
+
+    with db_session.begin(), pytest.raises(RuntimeError, match="Performance rollup is missing"):
         read_performance_status(db_session, now=dt.datetime.now(dt.UTC))
 
 
