@@ -15,21 +15,25 @@ from mainframe.metrics import (
 )
 from mainframe.models.orm import (
     AlertingConfiguration,
+    PerformanceProjectionState,
+    PerformanceRollup,
     Rule,
-    Scan,
-    Status,
-    package_rules,
+    RuleHitRollup,
+    ScoreRollup,
 )
 from mainframe.models.schemas import PerformanceStatus
+
+
+class PerformanceProjectionIncompleteError(RuntimeError):
+    """Raised while historical analytics are still being projected."""
 
 
 def read_performance_status(
     session: Session,
     *,
     now: dt.datetime,
-    cached_rule_hits: dict[str, int] | None = None,
 ) -> PerformanceStatus:
-    """Read durable package and per-rule performance totals."""
+    """Read compact analytics without scanning operational history."""
     threshold = session.scalar(
         select(AlertingConfiguration.production_score_threshold).where(AlertingConfiguration.id == 1)
     )
@@ -37,39 +41,37 @@ def read_performance_status(
         msg = "Alerting configuration is missing"
         raise RuntimeError(msg)
 
-    totals = session.execute(
+    state = session.get(PerformanceProjectionState, 1)
+    if state is None or state.initial_backfill_completed_at is None:
+        msg = "Initial performance projection is incomplete"
+        raise PerformanceProjectionIncompleteError(msg)
+
+    totals = session.get(PerformanceRollup, 1)
+    if totals is None:
+        msg = "Performance rollup is missing"
+        raise RuntimeError(msg)
+
+    above_threshold = session.scalar(
+        select(func.coalesce(func.sum(ScoreRollup.scans), 0)).where(ScoreRollup.score >= threshold)
+    )
+    rule_rows = session.execute(
         select(
-            func.count().filter(Scan.status == Status.FINISHED),
-            func.count().filter((Scan.status == Status.FAILED) & Scan.dead_lettered_at.is_(None)),
-            func.count().filter((Scan.status == Status.FAILED) & Scan.dead_lettered_at.is_not(None)),
-            func.count().filter((Scan.status == Status.FINISHED) & (Scan.score >= threshold)),
-            func.count().filter(Scan.reported_at.is_not(None)),
-        ).select_from(Scan)
-    ).one()
-    if cached_rule_hits is None:
-        rule_rows = session.execute(
-            select(
-                Rule.name,
-                func.count(package_rules.c.scan_id).filter(Scan.status == Status.FINISHED),
-            )
-            .select_from(Rule)
-            .outerjoin(package_rules, Rule.id == package_rules.c.rule_id)
-            .outerjoin(Scan, Scan.scan_id == package_rules.c.scan_id)
-            .group_by(Rule.id, Rule.name)
-            .order_by(Rule.name)
+            Rule.name,
+            func.coalesce(RuleHitRollup.hits, 0),
         )
-        rule_hits_snapshot = {name: int(hit_count) for name, hit_count in rule_rows}
-    else:
-        rule_hits_snapshot = cached_rule_hits
+        .select_from(Rule)
+        .outerjoin(RuleHitRollup, Rule.id == RuleHitRollup.rule_id)
+        .order_by(Rule.name)
+    )
 
     return PerformanceStatus(
-        packages_scanned=int(totals[0]),
-        packages_failed=int(totals[1]),
-        packages_dead_lettered=int(totals[2]),
-        packages_above_production_threshold=int(totals[3]),
-        packages_reported=int(totals[4]),
+        packages_scanned=totals.packages_scanned,
+        packages_failed=totals.packages_failed,
+        packages_dead_lettered=totals.packages_dead_lettered,
+        packages_above_production_threshold=int(above_threshold or 0),
+        packages_reported=totals.packages_reported,
         production_score_threshold=threshold,
-        rule_hits=rule_hits_snapshot,
+        rule_hits={name: int(hit_count) for name, hit_count in rule_rows},
         sampled_at=now,
     )
 
@@ -87,17 +89,12 @@ class PerformanceMonitor:
         self,
         *,
         now: dt.datetime | None = None,
-        refresh_rule_hits: bool = True,
     ) -> PerformanceStatus:
         sampled_at = now or dt.datetime.now(dt.UTC)
-        cached_rule_hits = None
-        if not refresh_rule_hits and self._snapshot is not None:
-            cached_rule_hits = self._snapshot.rule_hits
         with Session(bind=self.engine) as session, session.begin():
             snapshot = read_performance_status(
                 session,
                 now=sampled_at,
-                cached_rule_hits=cached_rule_hits,
             )
 
         packages_scanned.set(snapshot.packages_scanned)

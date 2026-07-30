@@ -23,10 +23,14 @@ from mainframe.dependencies import validate_token
 from mainframe.endpoints import routers
 from mainframe.metrics import (
     packages_queue_refresh_failures,
+    performance_projection_complete,
+    performance_projection_failures,
+    performance_projection_processed,
     performance_refresh_failures,
 )
 from mainframe.models.schemas import ServerMetadata
 from mainframe.performance_monitor import PerformanceMonitor
+from mainframe.performance_projection import PerformanceProjector
 from mainframe.pypi import PyPIClient
 from mainframe.queue_monitor import QueueMonitor
 from mainframe.rules import Rules, fetch_rules
@@ -59,18 +63,33 @@ async def monitor_queue(monitor: QueueMonitor, refresh_seconds: int) -> None:
             logging.getLogger(__name__).exception("Failed to refresh queue metrics")
 
 
-async def monitor_performance(
+async def project_performance(
+    projector: PerformanceProjector,
     monitor: PerformanceMonitor,
+    batch_size: int,
     refresh_seconds: int,
+    backfill_pause_seconds: int,
 ) -> None:
-    """Refresh performance metrics independently of scrape traffic."""
+    """Build compact analytics in bounded batches and publish completed snapshots."""
     while True:
-        await asyncio.sleep(refresh_seconds)
+        delay = refresh_seconds
         try:
-            await asyncio.to_thread(monitor.refresh, refresh_rule_hits=False)
+            batch = await asyncio.to_thread(projector.process_batch, batch_size=batch_size)
+            performance_projection_processed.labels(kind="outcome").inc(batch.outcomes)
+            performance_projection_processed.labels(kind="report").inc(batch.reports)
+            performance_projection_complete.set(batch.initial_backfill_complete)
+            if batch.initial_backfill_complete:
+                try:
+                    await asyncio.to_thread(monitor.refresh)
+                except Exception:
+                    performance_refresh_failures.inc()
+                    logging.getLogger(__name__).exception("Failed to refresh compact performance metrics")
+            if batch_size in (batch.outcomes, batch.reports):
+                delay = backfill_pause_seconds
         except Exception:
-            performance_refresh_failures.inc()
-            logging.getLogger(__name__).exception("Failed to refresh performance metrics")
+            performance_projection_failures.inc()
+            logging.getLogger(__name__).exception("Failed to project performance metrics")
+        await asyncio.sleep(delay)
 
 
 sentry_sdk.init(
@@ -112,15 +131,15 @@ async def lifespan(app_: FastAPI) -> AsyncGenerator[None, None]:
     )
     performance_monitor = PerformanceMonitor(engine)
     app_.state.performance_monitor = performance_monitor
-    try:
-        await asyncio.to_thread(performance_monitor.refresh)
-    except Exception:
-        performance_refresh_failures.inc()
-        logging.getLogger(__name__).exception("Failed to load initial performance metrics")
+    performance_projector = PerformanceProjector(engine)
+    app_.state.performance_projector = performance_projector
     performance_monitor_task = asyncio.create_task(
-        monitor_performance(
+        project_performance(
+            performance_projector,
             performance_monitor,
+            mainframe_settings.performance_projection_batch_size,
             mainframe_settings.performance_metrics_refresh_seconds,
+            mainframe_settings.performance_projection_backfill_pause_seconds,
         )
     )
 
