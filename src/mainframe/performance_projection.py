@@ -114,11 +114,9 @@ class PerformanceProjector:
             score_counts: Counter[int] = Counter()
             for scan in outcomes:
                 if scan.status == Status.FINISHED:
-                    if scan.score is None:
-                        msg = f"Finished scan {scan.scan_id} has no score"
-                        raise RuntimeError(msg)
                     rollup.packages_scanned += 1
-                    score_counts[scan.score] += 1
+                    if scan.score is not None:
+                        score_counts[scan.score] += 1
                     rule_counts.update(rule.id for rule in scan.rules)
                 elif scan.dead_lettered_at is None:
                     rollup.packages_failed += 1

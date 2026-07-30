@@ -133,24 +133,39 @@ def test_projection_requires_initialized_singletons(
         PerformanceProjector(engine).process_batch(batch_size=1)
 
 
-def test_projection_rejects_finished_scan_without_score(
+def test_projection_preserves_finished_scan_without_score(
     db_session: Session,
     engine: Engine,
 ) -> None:
     processed_at = dt.datetime(2026, 7, 25, tzinfo=dt.UTC)
     with db_session.begin():
-        db_session.execute(update(Scan).values(analytics_outcome_processed_at=processed_at))
+        db_session.execute(
+            update(Scan).values(
+                analytics_outcome_processed_at=processed_at,
+                analytics_report_processed_at=processed_at,
+            )
+        )
         db_session.add(
             Scan(
                 name="metrics-scoreless",
                 version="1",
                 status=Status.FINISHED,
                 queued_by="test",
+                rules=[Rule(name="scoreless-rule")],
             )
         )
 
-    with pytest.raises(RuntimeError, match=r"Finished scan .* has no score"):
-        PerformanceProjector(engine).process_batch(batch_size=1)
+    projector = PerformanceProjector(engine)
+    batch = projector.process_batch(batch_size=1)
+    empty_batch = projector.process_batch(batch_size=1)
+    snapshot = PerformanceMonitor(engine).refresh()
+
+    assert batch.outcomes == 1
+    assert batch.initial_backfill_complete is True
+    assert empty_batch.processed == 0
+    assert snapshot.packages_scanned == 1
+    assert snapshot.packages_above_production_threshold == 0
+    assert snapshot.rule_hits["scoreless-rule"] == 1
 
 
 def test_projection_picks_up_reports_after_initial_backfill(
