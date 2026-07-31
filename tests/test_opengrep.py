@@ -80,7 +80,7 @@ def test_disabled_shadow_api_is_hidden(monkeypatch: pytest.MonkeyPatch) -> None:
     assert error.value.status_code == status.HTTP_404_NOT_FOUND
 
 
-def test_shadow_environment_requires_staging_access_audience(
+def test_shadow_environment_requires_staging_api_origin(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("mainframe.constants.mainframe_settings.opengrep_shadow_enabled", False)
@@ -88,15 +88,15 @@ def test_shadow_environment_requires_staging_access_audience(
 
     monkeypatch.setattr("mainframe.constants.mainframe_settings.opengrep_shadow_enabled", True)
     monkeypatch.setattr(
-        "mainframe.constants.cf_access_settings.audience",
+        "mainframe.constants.mainframe_settings.opengrep_shadow_api_origin",
         "https://dragonfly.vipyrsec.com",
     )
 
-    with pytest.raises(RuntimeError, match="staging Cloudflare Access audience"):
+    with pytest.raises(RuntimeError, match="staging API origin"):
         validate_opengrep_shadow_environment()
 
     monkeypatch.setattr(
-        "mainframe.constants.cf_access_settings.audience",
+        "mainframe.constants.mainframe_settings.opengrep_shadow_api_origin",
         "https://dragonfly-staging.vipyrsec.com",
     )
     validate_opengrep_shadow_environment()
