@@ -163,6 +163,34 @@ def test_alert_creates_idempotent_shadow_work(
         assert shadow.queued_by == auth.subject
 
 
+def test_alert_requires_an_existing_finished_scan(
+    db_session: Session,
+    auth: AuthenticationData,
+) -> None:
+    missing = PackageSpecifier(name="missing-alert-package", version="1.0.0")
+    with pytest.raises(HTTPException) as missing_error:
+        queue_opengrep_alert(missing, db_session, auth)
+    assert missing_error.value.status_code == status.HTTP_404_NOT_FOUND
+
+    unfinished = Scan(
+        name="unfinished-alert-package",
+        version="1.0.0",
+        status=Status.QUEUED,
+        queued_by="scanner",
+        download_urls=[DownloadURL(url="https://files.example/unfinished-alert-package.whl")],
+    )
+    with db_session.begin():
+        db_session.add(unfinished)
+
+    with pytest.raises(HTTPException, match="requires a finished canonical scan") as unfinished_error:
+        queue_opengrep_alert(
+            PackageSpecifier(name=unfinished.name, version=unfinished.version),
+            db_session,
+            auth,
+        )
+    assert unfinished_error.value.status_code == status.HTTP_409_CONFLICT
+
+
 def test_pre_gate_shadow_work_stays_inert(
     db_session: Session,
     auth: AuthenticationData,
