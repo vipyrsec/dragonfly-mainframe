@@ -12,6 +12,7 @@ from mainframe.rules import (
     fetch_commit_hash,
     fetch_rules,
     fetch_zipfile,
+    parse_opengrep_rules,
     parse_zipfile,
 )
 
@@ -58,6 +59,18 @@ def test_parse_zipfile():
         assert parse_zipfile(zip_file) == expected
 
 
+def test_parse_opengrep_rules_preserves_relative_paths() -> None:
+    buffer = BytesIO()
+    with ZipFile(buffer, "w") as zip_file:
+        zip_file.writestr("repo-main/opengrep-rules/python/payload.yml", "rules: []")
+        zip_file.writestr("repo-main/opengrep-rules/README.md", "ignored")
+        zip_file.writestr("repo-main/yara-rules/example.yara", "ignored")
+
+        assert parse_opengrep_rules(zip_file) == {
+            "python/payload.yml": "rules: []",
+        }
+
+
 def test_fetch_zipfile():
     mock_session: Any = Mock()
     url = "https://api.github.com/repos/owner-name/repo-name/zipball/"
@@ -80,18 +93,25 @@ def test_fetch_rules(monkeypatch: pytest.MonkeyPatch):
         "file1": "some test contents of file1.yara",
         "file2": "more test contents of file2.yara",
     }
+    opengrep_files = {"python/context.yml": "rules: []"}
 
     buffer = BytesIO()
     zip_file = ZipFile(buffer, "w")
     for filename, contents in files.items():
         zip_file.writestr(filename + ".yara", contents)
+    for filename, contents in opengrep_files.items():
+        zip_file.writestr(f"repo-main/opengrep-rules/{filename}", contents)
 
     monkeypatch.setattr("mainframe.constants.mainframe_settings.dragonfly_github_token", "token")
     monkeypatch.setattr("mainframe.rules.fetch_commit_hash", Mock(return_value="test commit hash"))
     monkeypatch.setattr("mainframe.rules.fetch_zipfile", Mock(return_value=zip_file))
 
     mock_session: Any = Mock()
-    expected = Rules(rules_commit="test commit hash", rules=files)
+    expected = Rules(
+        rules_commit="test commit hash",
+        rules=files,
+        opengrep_rules=opengrep_files,
+    )
     actual = fetch_rules(mock_session)
     assert expected == actual
 

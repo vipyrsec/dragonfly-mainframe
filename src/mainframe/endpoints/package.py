@@ -11,11 +11,12 @@ from sqlalchemy import select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
+from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
 from mainframe.dependencies import get_pypi_client, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.metrics import packages_fail, packages_ingested, packages_success
-from mainframe.models.orm import DownloadURL, Rule, Scan, Status
+from mainframe.models.orm import DownloadURL, OpenGrepScan, Rule, Scan, Status
 from mainframe.models.schemas import (
     Error,
     Package,
@@ -31,6 +32,20 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 DEFAULT_REPORTED_PACKAGE_PAGE = 1
 DEFAULT_REPORTED_PACKAGE_SIZE = 50
+
+
+def add_opengrep_shadow(session: Session, scan: Scan) -> None:
+    """Create independent shadow work only when staging enables OpenGrep."""
+    if not mainframe_settings.opengrep_shadow_enabled:
+        return
+    session.flush([scan])
+    session.add(
+        OpenGrepScan(
+            scan_id=scan.scan_id,
+            queued_at=scan.queued_at or dt.datetime.now(dt.UTC),
+            queued_by=scan.queued_by,
+        )
+    )
 
 
 @router.put(
@@ -313,6 +328,7 @@ def batch_queue_package(
             )
 
             session.add(scan)
+            add_opengrep_shadow(session, scan)
 
             packages_ingested.inc()
 
@@ -359,6 +375,7 @@ def queue_package(
     try:
         with session, session.begin():
             session.add(new_package)
+            add_opengrep_shadow(session, new_package)
     except IntegrityError as err:
         msg = f"Package {name}@{version} is already queued for scanning"
         log.warning(msg, tag="already_queued")

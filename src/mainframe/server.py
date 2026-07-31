@@ -17,7 +17,12 @@ from structlog_sentry import SentryProcessor
 
 from logging_config import configure_logger
 from logging_config.middleware import LoggingMiddleware
-from mainframe.constants import GIT_SHA, Sentry, mainframe_settings
+from mainframe.constants import (
+    GIT_SHA,
+    Sentry,
+    mainframe_settings,
+    validate_opengrep_shadow_environment,
+)
 from mainframe.database import engine
 from mainframe.dependencies import validate_token
 from mainframe.endpoints import routers
@@ -87,6 +92,7 @@ sentry_sdk.init(
 @asynccontextmanager
 async def lifespan(app_: FastAPI) -> AsyncGenerator[None, None]:
     """Load the state for the app."""
+    validate_opengrep_shadow_environment()
     http_client = httpx.Client()
     pypi_client = PyPIClient(http_client)
     rules = fetch_rules(http_client)
