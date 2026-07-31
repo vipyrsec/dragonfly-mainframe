@@ -191,7 +191,7 @@ def test_alert_requires_an_existing_finished_scan(
     assert unfinished_error.value.status_code == status.HTTP_409_CONFLICT
 
 
-def test_pre_gate_shadow_work_stays_inert(
+def test_alert_reinitializes_only_its_pre_gate_shadow_row(
     db_session: Session,
     auth: AuthenticationData,
     rules_state: Rules,
@@ -209,18 +209,53 @@ def test_pre_gate_shadow_work_stays_inert(
         db_session.add(
             OpenGrepScan(
                 scan_id=scan.scan_id,
+                status=Status.FINISHED,
                 queued_at=dt.datetime.now(dt.UTC),
                 queued_by="legacy-ingestion",
+                attempt_count=2,
+                assignment_id=uuid.uuid4(),
+                finished_at=dt.datetime.now(dt.UTC),
+                finished_by="legacy-worker",
+                commit_hash="legacy-rules",
+                duration_ms=123,
+                findings=[{"rule_id": "legacy-finding"}],
+                publication_id=uuid.uuid4(),
+                publication_claimed_at=dt.datetime.now(dt.UTC),
+                discord_message_id=100,
+                discord_thread_id=200,
+                published_chunks=3,
+                published_at=dt.datetime.now(dt.UTC),
             )
         )
 
-    with pytest.raises(HTTPException, match="inert pre-alert-gate"):
-        queue_opengrep_alert(
-            PackageSpecifier(name=scan.name, version=scan.version),
-            db_session,
-            auth,
-        )
-    assert get_opengrep_jobs(db_session, auth, rules_state) == []
+    queue_opengrep_alert(
+        PackageSpecifier(name=scan.name, version=scan.version),
+        db_session,
+        auth,
+    )
+    jobs = get_opengrep_jobs(db_session, auth, rules_state)
+
+    assert len(jobs) == 1
+    assert jobs[0].name == scan.name
+    with db_session.begin():
+        shadow = db_session.get(OpenGrepScan, scan.scan_id)
+        assert shadow is not None
+        assert shadow.alerted_at is not None
+        assert shadow.status == Status.PENDING
+        assert shadow.queued_by == auth.subject
+        assert shadow.attempt_count == 1
+        assert shadow.assignment_id == jobs[0].assignment_id
+        assert shadow.finished_at is None
+        assert shadow.finished_by is None
+        assert shadow.commit_hash is None
+        assert shadow.duration_ms is None
+        assert shadow.findings == []
+        assert shadow.publication_id is None
+        assert shadow.publication_claimed_at is None
+        assert shadow.discord_message_id is None
+        assert shadow.discord_thread_id is None
+        assert shadow.published_chunks == 0
+        assert shadow.published_at is None
 
 
 def test_shadow_result_does_not_mutate_canonical_scan(

@@ -109,10 +109,28 @@ def queue_opengrep_alert(
             )
             session.add(shadow)
         elif shadow.alerted_at is None:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                "This package has an inert pre-alert-gate shadow record.",
-            )
+            now = dt.datetime.now(dt.UTC)
+            shadow.status = Status.QUEUED
+            shadow.alerted_at = now
+            shadow.queued_at = now
+            shadow.queued_by = auth.subject
+            shadow.pending_at = None
+            shadow.pending_by = None
+            shadow.attempt_count = 0
+            shadow.assignment_id = None
+            shadow.dead_lettered_at = None
+            shadow.finished_at = None
+            shadow.finished_by = None
+            shadow.fail_reason = None
+            shadow.commit_hash = None
+            shadow.duration_ms = None
+            shadow.findings = []
+            shadow.publication_id = None
+            shadow.publication_claimed_at = None
+            shadow.discord_message_id = None
+            shadow.discord_thread_id = None
+            shadow.published_chunks = 0
+            shadow.published_at = None
 
         return QueuePackageResponse(id=str(scan.scan_id))
 
