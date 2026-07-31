@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from io import BytesIO
 from typing import Final
 from zipfile import ZipFile
@@ -10,10 +10,16 @@ from mainframe.constants import mainframe_settings
 REPOSITORY: Final[str] = "vipyrsec/security-intelligence"
 
 
+def empty_rule_corpus() -> dict[str, str]:
+    """Return an empty, typed rule corpus."""
+    return {}
+
+
 @dataclass
 class Rules:
     rules_commit: str
     rules: dict[str, str]
+    opengrep_rules: dict[str, str] = field(default_factory=empty_rule_corpus)
 
 
 def build_auth_header(access_token: str) -> dict[str, str]:
@@ -44,6 +50,18 @@ def parse_zipfile(zipfile: ZipFile) -> dict[str, str]:
     return rules
 
 
+def parse_opengrep_rules(zipfile: ZipFile) -> dict[str, str]:
+    """Return OpenGrep rules keyed by repository-relative paths."""
+    rules: dict[str, str] = {}
+    for file_path in zipfile.namelist():
+        marker = "/opengrep-rules/"
+        if marker not in file_path or not file_path.endswith((".yml", ".yaml")):
+            continue
+        relative_path = file_path.split(marker, maxsplit=1)[1]
+        rules[relative_path] = zipfile.read(file_path).decode()
+    return rules
+
+
 def fetch_zipfile(http_client: httpx.Client, *, repository: str, access_token: str) -> ZipFile:
     """Download the source zipfile from GitHub for the given repository."""
     url = f"https://api.github.com/repos/{repository}/zipball/"
@@ -65,5 +83,10 @@ def fetch_rules(http_client: httpx.Client) -> Rules:
 
     zipfile = fetch_zipfile(http_client, repository=REPOSITORY, access_token=access_token)
     rules = parse_zipfile(zipfile)
+    opengrep_rules = parse_opengrep_rules(zipfile)
 
-    return Rules(rules_commit=commit_hash, rules=rules)
+    return Rules(
+        rules_commit=commit_hash,
+        rules=rules,
+        opengrep_rules=opengrep_rules,
+    )

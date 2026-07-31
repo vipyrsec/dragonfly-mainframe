@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_valid
 from .orm import Scan, Suppression
 
 RuleName = Annotated[str, Field(min_length=1)]
+OpenGrepText = Annotated[str, Field(min_length=1, max_length=1024)]
 _DUPLICATE_RULES_ERROR = "rules must not contain duplicates"
 
 
@@ -273,6 +274,60 @@ class JobResult(BaseModel):
 class GetRules(BaseModel):
     hash: str
     rules: dict[str, str]
+
+
+class OpenGrepFinding(BaseModel):
+    """One bounded source-level finding produced by OpenGrep."""
+
+    rule_id: Annotated[str, Field(min_length=1, max_length=200)]
+    path: OpenGrepText
+    start_line: int = Field(ge=1)
+    end_line: int = Field(ge=1)
+    message: OpenGrepText
+    severity: Annotated[str, Field(min_length=1, max_length=20)]
+    evidence: Annotated[str, Field(min_length=1, max_length=32)]
+    confidence: Annotated[str, Field(min_length=1, max_length=20)]
+    execution_context: Annotated[str, Field(min_length=1, max_length=64)]
+    inspector_url: Annotated[str, Field(min_length=1, max_length=2048)]
+
+
+class OpenGrepScanResult(PackageSpecifier):
+    """Successful OpenGrep shadow result."""
+
+    commit: Annotated[str, Field(min_length=1, max_length=128)]
+    duration_ms: int = Field(ge=0)
+    findings: list[OpenGrepFinding] = Field(max_length=500)
+    attempt: int = Field(ge=1)
+    assignment_id: uuid.UUID
+
+
+class OpenGrepScanResultFail(PackageSpecifier):
+    """Failed OpenGrep shadow result."""
+
+    reason: Annotated[str, Field(min_length=1, max_length=2048)]
+    duration_ms: int = Field(ge=0)
+    attempt: int = Field(ge=1)
+    assignment_id: uuid.UUID
+
+
+class OpenGrepResult(BaseModel):
+    """Completed OpenGrep shadow work awaiting bot publication."""
+
+    scan_id: uuid.UUID
+    name: str
+    version: str
+    status: str
+    commit: str | None
+    duration_ms: int | None
+    findings: list[OpenGrepFinding]
+    fail_reason: str | None
+    finished_at: datetime.datetime
+
+
+class OpenGrepPublished(BaseModel):
+    """Publication acknowledgement for a completed shadow result."""
+
+    published_at: datetime.datetime
 
 
 class NoJob(BaseModel):

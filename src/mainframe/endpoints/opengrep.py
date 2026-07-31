@@ -1,0 +1,260 @@
+"""Staging-only OpenGrep shadow queue and result endpoints."""
+
+import datetime as dt
+import uuid
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select, text, update
+from sqlalchemy.orm import Session
+
+from mainframe.constants import mainframe_settings
+from mainframe.database import get_db
+from mainframe.dependencies import get_rules, validate_token
+from mainframe.json_web_token import AuthenticationData
+from mainframe.models.orm import OpenGrepScan, Scan, Status
+from mainframe.models.schemas import (
+    GetRules,
+    JobResult,
+    OpenGrepPublished,
+    OpenGrepResult,
+    OpenGrepScanResult,
+    OpenGrepScanResultFail,
+)
+from mainframe.rules import Rules
+
+
+def require_opengrep_shadow() -> None:
+    """Hide the shadow API unless staging explicitly enables it."""
+    if not mainframe_settings.opengrep_shadow_enabled:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+
+
+router = APIRouter(
+    prefix="/opengrep",
+    tags=["opengrep"],
+    dependencies=[
+        Depends(validate_token),
+        Depends(require_opengrep_shadow),
+    ],
+)
+
+
+Authenticated = Annotated[AuthenticationData, Depends(validate_token)]
+Database = Annotated[Session, Depends(get_db)]
+
+
+@router.get("/rules")
+def get_opengrep_rules(state: Annotated[Rules, Depends(get_rules)]) -> GetRules:
+    """Return the reviewed OpenGrep corpus without exposing YARA rules."""
+    return GetRules(hash=state.rules_commit, rules=state.opengrep_rules)
+
+
+def dead_letter_expired_shadow_scans(
+    session: Session,
+    *,
+    retry_before: dt.datetime,
+    now: dt.datetime,
+) -> None:
+    """Fail expired shadow leases after the configured attempt budget."""
+    reason = f"Worker lease expired after {mainframe_settings.max_job_attempts} scan attempts"
+    session.execute(
+        update(OpenGrepScan)
+        .where(
+            OpenGrepScan.status == Status.PENDING,
+            OpenGrepScan.pending_at < retry_before,
+            OpenGrepScan.attempt_count >= mainframe_settings.max_job_attempts,
+        )
+        .values(
+            status=Status.FAILED,
+            fail_reason=reason,
+            dead_lettered_at=now,
+            finished_at=now,
+        )
+    )
+
+
+@router.post("/jobs")
+def get_opengrep_jobs(
+    session: Database,
+    auth: Authenticated,
+    state: Annotated[Rules, Depends(get_rules)],
+    batch: Annotated[int, Query(ge=1, le=100)] = 1,
+) -> list[JobResult]:
+    """Lease OpenGrep work without consuming the canonical YARA queue."""
+    statement = text("""\
+WITH candidates AS (
+    SELECT opengrep_scans.scan_id
+    FROM opengrep_scans
+    WHERE
+        opengrep_scans.attempt_count < :max_job_attempts
+        AND (
+            opengrep_scans.status = 'QUEUED'
+            OR (
+                opengrep_scans.status = 'PENDING'
+                AND opengrep_scans.pending_at < :retry_before
+            )
+        )
+    ORDER BY opengrep_scans.pending_at NULLS FIRST, opengrep_scans.queued_at
+    LIMIT :batch
+    FOR UPDATE OF opengrep_scans SKIP LOCKED
+), updated AS (
+    UPDATE opengrep_scans
+    SET
+        status = 'PENDING',
+        pending_at = :pending_at,
+        pending_by = :pending_by,
+        attempt_count = opengrep_scans.attempt_count + 1,
+        assignment_id = gen_random_uuid()
+    FROM candidates
+    WHERE opengrep_scans.scan_id = candidates.scan_id
+    RETURNING opengrep_scans.*
+)
+SELECT
+    updated.scan_id,
+    updated.attempt_count,
+    updated.assignment_id,
+    scans.name,
+    scans.version,
+    download_urls.url
+FROM updated
+JOIN scans ON scans.scan_id = updated.scan_id
+LEFT JOIN download_urls ON download_urls.scan_id = updated.scan_id
+ORDER BY updated.queued_at, download_urls.id
+""")
+    now = dt.datetime.now(dt.UTC)
+    retry_before = now - dt.timedelta(seconds=mainframe_settings.job_timeout)
+    with session.begin():
+        dead_letter_expired_shadow_scans(
+            session,
+            retry_before=retry_before,
+            now=now,
+        )
+        rows = session.execute(
+            statement,
+            {
+                "batch": batch,
+                "max_job_attempts": mainframe_settings.max_job_attempts,
+                "pending_at": now,
+                "pending_by": auth.subject,
+                "retry_before": retry_before,
+            },
+        ).mappings()
+        jobs: dict[uuid.UUID, JobResult] = {}
+        for row in rows:
+            scan_id = row["scan_id"]
+            if scan_id not in jobs:
+                jobs[scan_id] = JobResult(
+                    name=row["name"],
+                    version=row["version"],
+                    distributions=[],
+                    hash=state.rules_commit,
+                    attempt=row["attempt_count"],
+                    assignment_id=row["assignment_id"],
+                )
+            if row["url"] is not None:
+                jobs[scan_id].distributions.append(row["url"])
+    return list(jobs.values())
+
+
+@router.put("/package")
+def submit_opengrep_result(
+    result: OpenGrepScanResult | OpenGrepScanResultFail,
+    session: Database,
+    auth: Authenticated,
+) -> None:
+    """Store a leased shadow result without changing the canonical scan."""
+    now = dt.datetime.now(dt.UTC)
+    with session.begin():
+        row = session.execute(
+            select(OpenGrepScan, Scan)
+            .join(Scan, Scan.scan_id == OpenGrepScan.scan_id)
+            .where(Scan.name == result.name, Scan.version == result.version)
+            .with_for_update(of=OpenGrepScan)
+        ).one_or_none()
+        if row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND)
+        shadow, _scan = row
+        valid_lease = (
+            shadow.status == Status.PENDING
+            and shadow.pending_by == auth.subject
+            and shadow.attempt_count == result.attempt
+            and shadow.assignment_id == result.assignment_id
+        )
+        if not valid_lease:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "OpenGrep scan is no longer assigned to this worker lease.",
+            )
+
+        shadow.duration_ms = result.duration_ms
+        shadow.finished_at = now
+        shadow.finished_by = auth.subject
+        if isinstance(result, OpenGrepScanResultFail):
+            shadow.status = Status.FAILED
+            shadow.fail_reason = result.reason
+            shadow.findings = []
+            return
+
+        shadow.status = Status.FINISHED
+        shadow.commit_hash = result.commit
+        shadow.findings = [finding.model_dump(mode="json") for finding in result.findings]
+
+
+@router.get("/results")
+def get_unpublished_opengrep_results(
+    session: Database,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> list[OpenGrepResult]:
+    """Return completed shadow results not yet acknowledged by the bot."""
+    with session.begin():
+        rows = session.execute(
+            select(OpenGrepScan, Scan)
+            .join(Scan, Scan.scan_id == OpenGrepScan.scan_id)
+            .where(
+                OpenGrepScan.status.in_((Status.FINISHED, Status.FAILED)),
+                OpenGrepScan.published_at.is_(None),
+            )
+            .order_by(OpenGrepScan.finished_at)
+            .limit(limit)
+        ).all()
+
+    results: list[OpenGrepResult] = []
+    for shadow, scan in rows:
+        if shadow.finished_at is None:
+            msg = "Terminal OpenGrep scan is missing finished_at"
+            raise RuntimeError(msg)
+        results.append(
+            OpenGrepResult(
+                scan_id=shadow.scan_id,
+                name=scan.name,
+                version=scan.version,
+                status=shadow.status.name.lower(),
+                commit=shadow.commit_hash,
+                duration_ms=shadow.duration_ms,
+                findings=shadow.findings,
+                fail_reason=shadow.fail_reason,
+                finished_at=shadow.finished_at,
+            )
+        )
+    return results
+
+
+@router.post("/results/{scan_id}/published")
+def acknowledge_opengrep_result(
+    scan_id: uuid.UUID,
+    session: Database,
+) -> OpenGrepPublished:
+    """Acknowledge publication only after the complete Discord thread exists."""
+    published_at = dt.datetime.now(dt.UTC)
+    with session.begin():
+        shadow = session.scalar(select(OpenGrepScan).where(OpenGrepScan.scan_id == scan_id).with_for_update())
+        if shadow is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND)
+        if shadow.status not in (Status.FINISHED, Status.FAILED):
+            raise HTTPException(status.HTTP_409_CONFLICT, "OpenGrep scan is not complete.")
+        if shadow.published_at is None:
+            shadow.published_at = published_at
+        else:
+            published_at = shadow.published_at
+    return OpenGrepPublished(published_at=published_at)
