@@ -152,9 +152,11 @@ def test_alert_creates_idempotent_shadow_work(
     with db_session.begin():
         db_session.add(scan)
 
-    package = OpenGrepAlert(name=scan.name, version=scan.version, discord_alert_message_id=100)
-    first = queue_opengrep_alert(package, db_session, auth)
+    legacy_package = OpenGrepAlert(name=scan.name, version=scan.version)
+    package = legacy_package.model_copy(update={"discord_alert_message_id": 100})
+    first = queue_opengrep_alert(legacy_package, db_session, auth)
     second = queue_opengrep_alert(package, db_session, auth)
+    third = queue_opengrep_alert(package, db_session, auth)
 
     with pytest.raises(HTTPException, match="already attached") as conflict:
         queue_opengrep_alert(
@@ -163,7 +165,7 @@ def test_alert_creates_idempotent_shadow_work(
             auth,
         )
 
-    assert first == second
+    assert first == second == third
     assert conflict.value.status_code == status.HTTP_409_CONFLICT
     with db_session.begin():
         shadow = db_session.get(OpenGrepScan, scan.scan_id)
