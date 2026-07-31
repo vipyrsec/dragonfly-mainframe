@@ -16,13 +16,13 @@ from mainframe.models.orm import OpenGrepScan, Scan, Status
 from mainframe.models.schemas import (
     GetRules,
     JobResult,
+    OpenGrepAlert,
     OpenGrepPublicationClaim,
     OpenGrepPublicationProgress,
     OpenGrepPublished,
     OpenGrepResult,
     OpenGrepScanResult,
     OpenGrepScanResultFail,
-    PackageSpecifier,
     QueuePackageResponse,
 )
 from mainframe.rules import Rules
@@ -81,7 +81,7 @@ def dead_letter_expired_shadow_scans(
 
 @router.post("/alerts")
 def queue_opengrep_alert(
-    package: PackageSpecifier,
+    package: OpenGrepAlert,
     session: Database,
     auth: Authenticated,
 ) -> QueuePackageResponse:
@@ -106,6 +106,7 @@ def queue_opengrep_alert(
                 alerted_at=now,
                 queued_at=now,
                 queued_by=auth.subject,
+                discord_alert_message_id=package.discord_alert_message_id,
             )
             session.add(shadow)
         elif shadow.alerted_at is None:
@@ -127,10 +128,22 @@ def queue_opengrep_alert(
             shadow.findings = []
             shadow.publication_id = None
             shadow.publication_claimed_at = None
+            shadow.discord_alert_message_id = package.discord_alert_message_id
             shadow.discord_message_id = None
             shadow.discord_thread_id = None
             shadow.published_chunks = 0
             shadow.published_at = None
+
+        elif shadow.discord_alert_message_id is None:
+            shadow.discord_alert_message_id = package.discord_alert_message_id
+        elif (
+            package.discord_alert_message_id is not None
+            and shadow.discord_alert_message_id != package.discord_alert_message_id
+        ):
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "OpenGrep shadow work is already attached to another Discord alert.",
+            )
 
         return QueuePackageResponse(id=str(scan.scan_id))
 
@@ -311,6 +324,7 @@ def get_unpublished_opengrep_results(
                 fail_reason=shadow.fail_reason,
                 finished_at=shadow.finished_at,
                 publication_id=cast("uuid.UUID", shadow.publication_id),
+                discord_alert_message_id=shadow.discord_alert_message_id,
                 discord_message_id=shadow.discord_message_id,
                 discord_thread_id=shadow.discord_thread_id,
                 published_chunks=shadow.published_chunks,

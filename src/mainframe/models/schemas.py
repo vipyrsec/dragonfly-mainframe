@@ -310,6 +310,12 @@ class OpenGrepScanResultFail(PackageSpecifier):
     assignment_id: uuid.UUID
 
 
+class OpenGrepAlert(PackageSpecifier):
+    """An alert delivered to Discord and eligible for OpenGrep processing."""
+
+    discord_alert_message_id: int | None = Field(default=None, ge=1)
+
+
 class OpenGrepResult(BaseModel):
     """Completed OpenGrep shadow work awaiting bot publication."""
 
@@ -323,6 +329,7 @@ class OpenGrepResult(BaseModel):
     fail_reason: str | None
     finished_at: datetime.datetime
     publication_id: uuid.UUID
+    discord_alert_message_id: int | None
     discord_message_id: int | None
     discord_thread_id: int | None
     published_chunks: int = Field(ge=0)

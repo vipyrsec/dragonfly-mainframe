@@ -22,6 +22,7 @@ from mainframe.endpoints.package import queue_package
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import DownloadURL, OpenGrepScan, Scan, Status
 from mainframe.models.schemas import (
+    OpenGrepAlert,
     OpenGrepFinding,
     OpenGrepPublicationClaim,
     OpenGrepPublicationProgress,
@@ -151,23 +152,36 @@ def test_alert_creates_idempotent_shadow_work(
     with db_session.begin():
         db_session.add(scan)
 
-    package = PackageSpecifier(name=scan.name, version=scan.version)
+    package = OpenGrepAlert(name=scan.name, version=scan.version, discord_alert_message_id=100)
     first = queue_opengrep_alert(package, db_session, auth)
     second = queue_opengrep_alert(package, db_session, auth)
 
+    with pytest.raises(HTTPException, match="already attached") as conflict:
+        queue_opengrep_alert(
+            package.model_copy(update={"discord_alert_message_id": 101}),
+            db_session,
+            auth,
+        )
+
     assert first == second
+    assert conflict.value.status_code == status.HTTP_409_CONFLICT
     with db_session.begin():
         shadow = db_session.get(OpenGrepScan, scan.scan_id)
         assert shadow is not None
         assert shadow.alerted_at is not None
         assert shadow.queued_by == auth.subject
+        assert shadow.discord_alert_message_id == 100
 
 
 def test_alert_requires_an_existing_finished_scan(
     db_session: Session,
     auth: AuthenticationData,
 ) -> None:
-    missing = PackageSpecifier(name="missing-alert-package", version="1.0.0")
+    missing = OpenGrepAlert(
+        name="missing-alert-package",
+        version="1.0.0",
+        discord_alert_message_id=100,
+    )
     with pytest.raises(HTTPException) as missing_error:
         queue_opengrep_alert(missing, db_session, auth)
     assert missing_error.value.status_code == status.HTTP_404_NOT_FOUND
@@ -184,7 +198,7 @@ def test_alert_requires_an_existing_finished_scan(
 
     with pytest.raises(HTTPException, match="requires a finished canonical scan") as unfinished_error:
         queue_opengrep_alert(
-            PackageSpecifier(name=unfinished.name, version=unfinished.version),
+            OpenGrepAlert(name=unfinished.name, version=unfinished.version, discord_alert_message_id=100),
             db_session,
             auth,
         )
@@ -229,7 +243,7 @@ def test_alert_reinitializes_only_its_pre_gate_shadow_row(
         )
 
     queue_opengrep_alert(
-        PackageSpecifier(name=scan.name, version=scan.version),
+        OpenGrepAlert(name=scan.name, version=scan.version, discord_alert_message_id=300),
         db_session,
         auth,
     )
@@ -252,6 +266,7 @@ def test_alert_reinitializes_only_its_pre_gate_shadow_row(
         assert shadow.findings == []
         assert shadow.publication_id is None
         assert shadow.publication_claimed_at is None
+        assert shadow.discord_alert_message_id == 300
         assert shadow.discord_message_id is None
         assert shadow.discord_thread_id is None
         assert shadow.published_chunks == 0

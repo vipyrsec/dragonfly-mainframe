@@ -151,6 +151,7 @@ class OpenGrepScan(Base):
     findings: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default_factory=list)
     publication_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), default=None)
     publication_claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    discord_alert_message_id: Mapped[int | None] = mapped_column(BigInteger, default=None)
     discord_message_id: Mapped[int | None] = mapped_column(BigInteger, default=None)
     discord_thread_id: Mapped[int | None] = mapped_column(BigInteger, default=None)
     published_chunks: Mapped[int] = mapped_column(default=0, server_default="0")
