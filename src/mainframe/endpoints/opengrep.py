@@ -2,10 +2,10 @@
 
 import datetime as dt
 import uuid
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, text, update
+from sqlalchemy import or_, select, text, update
 from sqlalchemy.orm import Session
 
 from mainframe.constants import mainframe_settings
@@ -16,6 +16,8 @@ from mainframe.models.orm import OpenGrepScan, Scan, Status
 from mainframe.models.schemas import (
     GetRules,
     JobResult,
+    OpenGrepPublicationClaim,
+    OpenGrepPublicationProgress,
     OpenGrepPublished,
     OpenGrepResult,
     OpenGrepScanResult,
@@ -206,7 +208,9 @@ def get_unpublished_opengrep_results(
     session: Database,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> list[OpenGrepResult]:
-    """Return completed shadow results not yet acknowledged by the bot."""
+    """Atomically lease completed shadow results to one publisher."""
+    now = dt.datetime.now(dt.UTC)
+    claim_before = now - dt.timedelta(seconds=mainframe_settings.opengrep_publication_timeout)
     with session.begin():
         rows = session.execute(
             select(OpenGrepScan, Scan)
@@ -214,10 +218,19 @@ def get_unpublished_opengrep_results(
             .where(
                 OpenGrepScan.status.in_((Status.FINISHED, Status.FAILED)),
                 OpenGrepScan.published_at.is_(None),
+                or_(
+                    OpenGrepScan.publication_id.is_(None),
+                    OpenGrepScan.publication_claimed_at.is_(None),
+                    OpenGrepScan.publication_claimed_at < claim_before,
+                ),
             )
             .order_by(OpenGrepScan.finished_at)
             .limit(limit)
+            .with_for_update(of=OpenGrepScan, skip_locked=True)
         ).all()
+        for shadow, _scan in rows:
+            shadow.publication_id = uuid.uuid4()
+            shadow.publication_claimed_at = now
 
     results: list[OpenGrepResult] = []
     for shadow, scan in rows:
@@ -235,24 +248,69 @@ def get_unpublished_opengrep_results(
                 findings=shadow.findings,
                 fail_reason=shadow.fail_reason,
                 finished_at=shadow.finished_at,
+                publication_id=cast("uuid.UUID", shadow.publication_id),
+                discord_message_id=shadow.discord_message_id,
+                discord_thread_id=shadow.discord_thread_id,
+                published_chunks=shadow.published_chunks,
             )
         )
     return results
 
 
+def require_publication_claim(
+    shadow: OpenGrepScan | None,
+    publication_id: uuid.UUID,
+) -> OpenGrepScan:
+    """Return a matching terminal publication lease or raise a safe conflict."""
+    if shadow is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if shadow.status not in (Status.FINISHED, Status.FAILED):
+        raise HTTPException(status.HTTP_409_CONFLICT, "OpenGrep scan is not complete.")
+    if shadow.publication_id != publication_id:
+        raise HTTPException(status.HTTP_409_CONFLICT, "OpenGrep publication lease is stale.")
+    return shadow
+
+
+@router.post("/results/{scan_id}/publication")
+def checkpoint_opengrep_publication(
+    scan_id: uuid.UUID,
+    progress: OpenGrepPublicationProgress,
+    session: Database,
+) -> None:
+    """Persist monotonic Discord thread progress for retry-safe resumption."""
+    with session.begin():
+        shadow = require_publication_claim(
+            session.scalar(select(OpenGrepScan).where(OpenGrepScan.scan_id == scan_id).with_for_update()),
+            progress.publication_id,
+        )
+        if shadow.published_at is not None:
+            return
+        if progress.published_chunks < shadow.published_chunks:
+            raise HTTPException(status.HTTP_409_CONFLICT, "OpenGrep publication progress cannot move backwards.")
+        for field in ("discord_message_id", "discord_thread_id"):
+            existing = getattr(shadow, field)
+            incoming = getattr(progress, field)
+            if existing is not None and incoming not in (None, existing):
+                raise HTTPException(status.HTTP_409_CONFLICT, f"{field} cannot change after it is recorded.")
+            if incoming is not None:
+                setattr(shadow, field, incoming)
+        shadow.published_chunks = progress.published_chunks
+        shadow.publication_claimed_at = dt.datetime.now(dt.UTC)
+
+
 @router.post("/results/{scan_id}/published")
 def acknowledge_opengrep_result(
     scan_id: uuid.UUID,
+    claim: OpenGrepPublicationClaim,
     session: Database,
 ) -> OpenGrepPublished:
     """Acknowledge publication only after the complete Discord thread exists."""
     published_at = dt.datetime.now(dt.UTC)
     with session.begin():
-        shadow = session.scalar(select(OpenGrepScan).where(OpenGrepScan.scan_id == scan_id).with_for_update())
-        if shadow is None:
-            raise HTTPException(status.HTTP_404_NOT_FOUND)
-        if shadow.status not in (Status.FINISHED, Status.FAILED):
-            raise HTTPException(status.HTTP_409_CONFLICT, "OpenGrep scan is not complete.")
+        shadow = require_publication_claim(
+            session.scalar(select(OpenGrepScan).where(OpenGrepScan.scan_id == scan_id).with_for_update()),
+            claim.publication_id,
+        )
         if shadow.published_at is None:
             shadow.published_at = published_at
         else:

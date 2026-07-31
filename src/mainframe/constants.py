@@ -38,6 +38,7 @@ class Mainframe(EnvConfig):
     queue_metrics_refresh_seconds: PositiveInt = 60
     performance_metrics_refresh_seconds: PositiveInt = 15 * 60
     opengrep_shadow_enabled: bool = False
+    opengrep_publication_timeout: PositiveInt = 5 * 60
 
     log_config_file: str = "logging/development.toml"
 

@@ -39,6 +39,11 @@ def upgrade() -> None:
         sa.Column("commit_hash", sa.String(), nullable=True),
         sa.Column("duration_ms", sa.BigInteger(), nullable=True),
         sa.Column("findings", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("publication_id", sa.UUID(), nullable=True),
+        sa.Column("publication_claimed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("discord_message_id", sa.BigInteger(), nullable=True),
+        sa.Column("discord_thread_id", sa.BigInteger(), nullable=True),
+        sa.Column("published_chunks", sa.Integer(), server_default="0", nullable=False),
         sa.Column("published_at", sa.DateTime(timezone=True), nullable=True),
         sa.CheckConstraint(
             "attempt_count >= 0",
@@ -47,6 +52,10 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "duration_ms IS NULL OR duration_ms >= 0",
             name="opengrep_scans_nonnegative_duration",
+        ),
+        sa.CheckConstraint(
+            "published_chunks >= 0",
+            name="opengrep_scans_nonnegative_published_chunks",
         ),
         sa.ForeignKeyConstraint(
             ["scan_id"],

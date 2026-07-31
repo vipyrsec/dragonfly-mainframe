@@ -322,6 +322,24 @@ class OpenGrepResult(BaseModel):
     findings: list[OpenGrepFinding]
     fail_reason: str | None
     finished_at: datetime.datetime
+    publication_id: uuid.UUID
+    discord_message_id: int | None
+    discord_thread_id: int | None
+    published_chunks: int = Field(ge=0)
+
+
+class OpenGrepPublicationClaim(BaseModel):
+    """Identify the publisher holding a shadow-result lease."""
+
+    publication_id: uuid.UUID
+
+
+class OpenGrepPublicationProgress(OpenGrepPublicationClaim):
+    """Durable Discord publication progress for retry-safe resumption."""
+
+    discord_message_id: int | None = Field(default=None, ge=1)
+    discord_thread_id: int | None = Field(default=None, ge=1)
+    published_chunks: int = Field(ge=0)
 
 
 class OpenGrepPublished(BaseModel):

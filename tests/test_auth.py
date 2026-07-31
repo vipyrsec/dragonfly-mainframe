@@ -43,6 +43,7 @@ PROTECTED_ROUTES = {
     ("POST", "/batch/package"),
     ("POST", "/jobs"),
     ("POST", "/opengrep/jobs"),
+    ("POST", "/opengrep/results/{scan_id}/publication"),
     ("POST", "/opengrep/results/{scan_id}/published"),
     ("POST", "/package"),
     ("POST", "/packages/{package_name}/versions/{package_version}/suppressions"),
