@@ -42,6 +42,7 @@ PROTECTED_ROUTES = {
     ("GET", "/rules/performance"),
     ("POST", "/batch/package"),
     ("POST", "/jobs"),
+    ("POST", "/opengrep/alerts"),
     ("POST", "/opengrep/jobs"),
     ("POST", "/opengrep/results/{scan_id}/publication"),
     ("POST", "/opengrep/results/{scan_id}/heartbeat"),

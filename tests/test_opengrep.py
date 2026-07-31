@@ -14,6 +14,7 @@ from mainframe.endpoints.opengrep import (
     get_opengrep_rules,
     get_unpublished_opengrep_results,
     heartbeat_opengrep_publication,
+    queue_opengrep_alert,
     require_opengrep_shadow,
     submit_opengrep_result,
 )
@@ -47,6 +48,7 @@ def queued_shadow(db_session: Session) -> Scan:
         db_session.add(
             OpenGrepScan(
                 scan_id=scan.scan_id,
+                alerted_at=dt.datetime.now(dt.UTC),
                 queued_at=scan.queued_at or dt.datetime.now(dt.UTC),
                 queued_by=scan.queued_by,
             )
@@ -115,16 +117,13 @@ def test_opengrep_rules_are_separate() -> None:
     assert response.rules == {"python/payload.yml": "rules: []"}
 
 
-def test_queue_creates_additive_shadow_work_when_enabled(
+def test_package_ingestion_never_creates_shadow_work(
     db_session: Session,
     auth: AuthenticationData,
     pypi_client: PyPIClient,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("mainframe.constants.mainframe_settings.opengrep_shadow_enabled", True)
-
     response = queue_package(
-        PackageSpecifier(name="new-shadow-package", version="1.0.0"),
+        PackageSpecifier(name="ordinary-package", version="1.0.0"),
         db_session,
         auth,
         pypi_client,
@@ -135,8 +134,128 @@ def test_queue_creates_additive_shadow_work_when_enabled(
         shadow = db_session.get(OpenGrepScan, uuid.UUID(response.id))
         assert canonical is not None
         assert canonical.status == Status.QUEUED
+        assert shadow is None
+
+
+def test_alert_creates_idempotent_shadow_work(
+    db_session: Session,
+    auth: AuthenticationData,
+) -> None:
+    scan = Scan(
+        name="alerting-package",
+        version="1.0.0",
+        status=Status.FINISHED,
+        queued_by="scanner",
+        download_urls=[DownloadURL(url="https://files.example/alerting-package.whl")],
+    )
+    with db_session.begin():
+        db_session.add(scan)
+
+    package = PackageSpecifier(name=scan.name, version=scan.version)
+    first = queue_opengrep_alert(package, db_session, auth)
+    second = queue_opengrep_alert(package, db_session, auth)
+
+    assert first == second
+    with db_session.begin():
+        shadow = db_session.get(OpenGrepScan, scan.scan_id)
         assert shadow is not None
-        assert shadow.status == Status.QUEUED
+        assert shadow.alerted_at is not None
+        assert shadow.queued_by == auth.subject
+
+
+def test_alert_requires_an_existing_finished_scan(
+    db_session: Session,
+    auth: AuthenticationData,
+) -> None:
+    missing = PackageSpecifier(name="missing-alert-package", version="1.0.0")
+    with pytest.raises(HTTPException) as missing_error:
+        queue_opengrep_alert(missing, db_session, auth)
+    assert missing_error.value.status_code == status.HTTP_404_NOT_FOUND
+
+    unfinished = Scan(
+        name="unfinished-alert-package",
+        version="1.0.0",
+        status=Status.QUEUED,
+        queued_by="scanner",
+        download_urls=[DownloadURL(url="https://files.example/unfinished-alert-package.whl")],
+    )
+    with db_session.begin():
+        db_session.add(unfinished)
+
+    with pytest.raises(HTTPException, match="requires a finished canonical scan") as unfinished_error:
+        queue_opengrep_alert(
+            PackageSpecifier(name=unfinished.name, version=unfinished.version),
+            db_session,
+            auth,
+        )
+    assert unfinished_error.value.status_code == status.HTTP_409_CONFLICT
+
+
+def test_alert_reinitializes_only_its_pre_gate_shadow_row(
+    db_session: Session,
+    auth: AuthenticationData,
+    rules_state: Rules,
+) -> None:
+    scan = Scan(
+        name="legacy-shadow-package",
+        version="1.0.0",
+        status=Status.FINISHED,
+        queued_by="scanner",
+        download_urls=[DownloadURL(url="https://files.example/legacy-shadow-package.whl")],
+    )
+    with db_session.begin():
+        db_session.add(scan)
+        db_session.flush([scan])
+        db_session.add(
+            OpenGrepScan(
+                scan_id=scan.scan_id,
+                status=Status.FINISHED,
+                queued_at=dt.datetime.now(dt.UTC),
+                queued_by="legacy-ingestion",
+                attempt_count=2,
+                assignment_id=uuid.uuid4(),
+                finished_at=dt.datetime.now(dt.UTC),
+                finished_by="legacy-worker",
+                commit_hash="legacy-rules",
+                duration_ms=123,
+                findings=[{"rule_id": "legacy-finding"}],
+                publication_id=uuid.uuid4(),
+                publication_claimed_at=dt.datetime.now(dt.UTC),
+                discord_message_id=100,
+                discord_thread_id=200,
+                published_chunks=3,
+                published_at=dt.datetime.now(dt.UTC),
+            )
+        )
+
+    queue_opengrep_alert(
+        PackageSpecifier(name=scan.name, version=scan.version),
+        db_session,
+        auth,
+    )
+    jobs = get_opengrep_jobs(db_session, auth, rules_state)
+
+    assert len(jobs) == 1
+    assert jobs[0].name == scan.name
+    with db_session.begin():
+        shadow = db_session.get(OpenGrepScan, scan.scan_id)
+        assert shadow is not None
+        assert shadow.alerted_at is not None
+        assert shadow.status == Status.PENDING
+        assert shadow.queued_by == auth.subject
+        assert shadow.attempt_count == 1
+        assert shadow.assignment_id == jobs[0].assignment_id
+        assert shadow.finished_at is None
+        assert shadow.finished_by is None
+        assert shadow.commit_hash is None
+        assert shadow.duration_ms is None
+        assert shadow.findings == []
+        assert shadow.publication_id is None
+        assert shadow.publication_claimed_at is None
+        assert shadow.discord_message_id is None
+        assert shadow.discord_thread_id is None
+        assert shadow.published_chunks == 0
+        assert shadow.published_at is None
 
 
 def test_shadow_result_does_not_mutate_canonical_scan(

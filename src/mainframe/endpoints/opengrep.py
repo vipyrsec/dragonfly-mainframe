@@ -22,6 +22,8 @@ from mainframe.models.schemas import (
     OpenGrepResult,
     OpenGrepScanResult,
     OpenGrepScanResultFail,
+    PackageSpecifier,
+    QueuePackageResponse,
 )
 from mainframe.rules import Rules
 
@@ -63,6 +65,7 @@ def dead_letter_expired_shadow_scans(
     session.execute(
         update(OpenGrepScan)
         .where(
+            OpenGrepScan.alerted_at.is_not(None),
             OpenGrepScan.status == Status.PENDING,
             OpenGrepScan.pending_at < retry_before,
             OpenGrepScan.attempt_count >= mainframe_settings.max_job_attempts,
@@ -74,6 +77,62 @@ def dead_letter_expired_shadow_scans(
             finished_at=now,
         )
     )
+
+
+@router.post("/alerts")
+def queue_opengrep_alert(
+    package: PackageSpecifier,
+    session: Database,
+    auth: Authenticated,
+) -> QueuePackageResponse:
+    """Create idempotent shadow work only for a package selected for alerting."""
+    with session.begin():
+        scan = session.scalar(
+            select(Scan).where(Scan.name == package.name, Scan.version == package.version).with_for_update()
+        )
+        if scan is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND)
+        if scan.status != Status.FINISHED:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "OpenGrep shadow work requires a finished canonical scan.",
+            )
+
+        shadow = session.get(OpenGrepScan, scan.scan_id)
+        if shadow is None:
+            now = dt.datetime.now(dt.UTC)
+            shadow = OpenGrepScan(
+                scan_id=scan.scan_id,
+                alerted_at=now,
+                queued_at=now,
+                queued_by=auth.subject,
+            )
+            session.add(shadow)
+        elif shadow.alerted_at is None:
+            now = dt.datetime.now(dt.UTC)
+            shadow.status = Status.QUEUED
+            shadow.alerted_at = now
+            shadow.queued_at = now
+            shadow.queued_by = auth.subject
+            shadow.pending_at = None
+            shadow.pending_by = None
+            shadow.attempt_count = 0
+            shadow.assignment_id = None
+            shadow.dead_lettered_at = None
+            shadow.finished_at = None
+            shadow.finished_by = None
+            shadow.fail_reason = None
+            shadow.commit_hash = None
+            shadow.duration_ms = None
+            shadow.findings = []
+            shadow.publication_id = None
+            shadow.publication_claimed_at = None
+            shadow.discord_message_id = None
+            shadow.discord_thread_id = None
+            shadow.published_chunks = 0
+            shadow.published_at = None
+
+        return QueuePackageResponse(id=str(scan.scan_id))
 
 
 @router.post("/jobs")
@@ -89,6 +148,8 @@ WITH candidates AS (
     SELECT opengrep_scans.scan_id
     FROM opengrep_scans
     WHERE
+        opengrep_scans.alerted_at IS NOT NULL
+        AND
         opengrep_scans.attempt_count < :max_job_attempts
         AND (
             opengrep_scans.status = 'QUEUED'
@@ -216,6 +277,7 @@ def get_unpublished_opengrep_results(
             select(OpenGrepScan, Scan)
             .join(Scan, Scan.scan_id == OpenGrepScan.scan_id)
             .where(
+                OpenGrepScan.alerted_at.is_not(None),
                 OpenGrepScan.status.in_((Status.FINISHED, Status.FAILED)),
                 OpenGrepScan.published_at.is_(None),
                 or_(

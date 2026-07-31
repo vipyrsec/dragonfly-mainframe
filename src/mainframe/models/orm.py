@@ -18,6 +18,7 @@ from sqlalchemy import (
     String,
     Table,
     UniqueConstraint,
+    and_,
     or_,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -131,6 +132,7 @@ class OpenGrepScan(Base):
         kw_only=True,
     )
     status: Mapped[Status] = mapped_column(default=Status.QUEUED)
+    alerted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     queued_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default_factory=lambda: datetime.now(UTC),
@@ -158,9 +160,12 @@ class OpenGrepScan(Base):
 Index(
     "ix_opengrep_scans_status",
     OpenGrepScan.status,
-    postgresql_where=or_(
-        OpenGrepScan.status == Status.QUEUED,
-        OpenGrepScan.status == Status.PENDING,
+    postgresql_where=and_(
+        OpenGrepScan.alerted_at.is_not(None),
+        or_(
+            OpenGrepScan.status == Status.QUEUED,
+            OpenGrepScan.status == Status.PENDING,
+        ),
     ),
 )
 
