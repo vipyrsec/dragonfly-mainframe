@@ -38,6 +38,7 @@ class Mainframe(EnvConfig):
     queue_metrics_refresh_seconds: PositiveInt = 60
     performance_metrics_refresh_seconds: PositiveInt = 15 * 60
     opengrep_shadow_enabled: bool = False
+    opengrep_shadow_api_origin: str = ""
     opengrep_publication_timeout: PositiveInt = 5 * 60
 
     log_config_file: str = "logging/development.toml"
@@ -72,9 +73,9 @@ cf_access_settings = CFAccess.model_validate({})
 
 
 def validate_opengrep_shadow_environment() -> None:
-    """Bind the shadow feature to staging's environment-specific audience."""
+    """Bind the shadow feature to the configured staging API origin."""
     if not mainframe_settings.opengrep_shadow_enabled:
         return
-    if cf_access_settings.audience.rstrip("/") != STAGING_API_ORIGIN:
-        msg = "OpenGrep shadow requires the staging Cloudflare Access audience"
+    if mainframe_settings.opengrep_shadow_api_origin.rstrip("/") != STAGING_API_ORIGIN:
+        msg = "OpenGrep shadow requires the staging API origin"
         raise RuntimeError(msg)
