@@ -361,15 +361,27 @@ def checkpoint_opengrep_publication(
         )
         if shadow.published_at is not None:
             return
-        if progress.published_chunks < shadow.published_chunks:
+        if shadow.discord_message_id is not None and progress.discord_message_id not in (
+            None,
+            shadow.discord_message_id,
+        ):
+            raise HTTPException(status.HTTP_409_CONFLICT, "discord_message_id cannot change after it is recorded.")
+        replacing_thread = (
+            shadow.discord_thread_id is not None
+            and progress.discord_thread_id is not None
+            and shadow.discord_thread_id != progress.discord_thread_id
+        )
+        if replacing_thread and progress.published_chunks != 0:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "A replacement Discord thread must restart publication progress.",
+            )
+        if not replacing_thread and progress.published_chunks < shadow.published_chunks:
             raise HTTPException(status.HTTP_409_CONFLICT, "OpenGrep publication progress cannot move backwards.")
-        for field in ("discord_message_id", "discord_thread_id"):
-            existing = getattr(shadow, field)
-            incoming = getattr(progress, field)
-            if existing is not None and incoming not in (None, existing):
-                raise HTTPException(status.HTTP_409_CONFLICT, f"{field} cannot change after it is recorded.")
-            if incoming is not None:
-                setattr(shadow, field, incoming)
+        if progress.discord_message_id is not None:
+            shadow.discord_message_id = progress.discord_message_id
+        if progress.discord_thread_id is not None:
+            shadow.discord_thread_id = progress.discord_thread_id
         shadow.published_chunks = progress.published_chunks
         shadow.publication_claimed_at = dt.datetime.now(dt.UTC)
 

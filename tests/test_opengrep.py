@@ -553,6 +553,18 @@ def test_shadow_publication_progress_is_monotonic_and_resumable(
     with pytest.raises(HTTPException, match="discord_message_id cannot change"):
         checkpoint_opengrep_publication(scan_id, changed_message, db_session)
 
+    incomplete_replacement = progress.model_copy(update={"discord_thread_id": 300})
+    with pytest.raises(HTTPException, match="must restart publication progress"):
+        checkpoint_opengrep_publication(scan_id, incomplete_replacement, db_session)
+
+    replacement = incomplete_replacement.model_copy(update={"published_chunks": 0})
+    checkpoint_opengrep_publication(scan_id, replacement, db_session)
+    with db_session.begin():
+        shadow = db_session.get(OpenGrepScan, scan_id)
+        assert shadow is not None
+        assert shadow.discord_thread_id == 300
+        assert shadow.published_chunks == 0
+
 
 def test_shadow_publication_rejects_a_stale_claim(
     db_session: Session,
