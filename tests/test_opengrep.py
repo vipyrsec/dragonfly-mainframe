@@ -13,6 +13,7 @@ from mainframe.endpoints.opengrep import (
     get_opengrep_jobs,
     get_opengrep_rules,
     get_unpublished_opengrep_results,
+    heartbeat_opengrep_publication,
     require_opengrep_shadow,
     submit_opengrep_result,
 )
@@ -356,6 +357,30 @@ def test_shadow_results_are_claimed_once_until_the_lease_expires(
     assert len(first) == 1
     assert second == []
     assert first[0].publication_id is not None
+
+
+def test_shadow_publication_heartbeat_prevents_lease_takeover(
+    db_session: Session,
+) -> None:
+    scan = queued_shadow(db_session)
+    with db_session.begin():
+        shadow = db_session.get(OpenGrepScan, scan.scan_id)
+        assert shadow is not None
+        shadow.status = Status.FINISHED
+        shadow.finished_at = dt.datetime.now(dt.UTC)
+    result = get_unpublished_opengrep_results(db_session)[0]
+    with db_session.begin():
+        shadow = db_session.get(OpenGrepScan, scan.scan_id)
+        assert shadow is not None
+        shadow.publication_claimed_at = dt.datetime.now(dt.UTC) - dt.timedelta(hours=1)
+
+    heartbeat_opengrep_publication(
+        scan.scan_id,
+        OpenGrepPublicationClaim(publication_id=result.publication_id),
+        db_session,
+    )
+
+    assert get_unpublished_opengrep_results(db_session) == []
 
 
 def test_shadow_publication_progress_is_monotonic_and_resumable(

@@ -298,6 +298,22 @@ def checkpoint_opengrep_publication(
         shadow.publication_claimed_at = dt.datetime.now(dt.UTC)
 
 
+@router.post("/results/{scan_id}/heartbeat")
+def heartbeat_opengrep_publication(
+    scan_id: uuid.UUID,
+    claim: OpenGrepPublicationClaim,
+    session: Database,
+) -> None:
+    """Renew an active publication lease without changing its progress."""
+    with session.begin():
+        shadow = require_publication_claim(
+            session.scalar(select(OpenGrepScan).where(OpenGrepScan.scan_id == scan_id).with_for_update()),
+            claim.publication_id,
+        )
+        if shadow.published_at is None:
+            shadow.publication_claimed_at = dt.datetime.now(dt.UTC)
+
+
 @router.post("/results/{scan_id}/published")
 def acknowledge_opengrep_result(
     scan_id: uuid.UUID,
