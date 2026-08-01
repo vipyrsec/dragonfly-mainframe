@@ -305,6 +305,7 @@ def test_shadow_result_does_not_mutate_canonical_scan(
             commit=job.hash,
             duration_ms=42,
             findings=[finding],
+            partial_reason="One rule timed out; preserved completed findings.",
             attempt=job.attempt,
             assignment_id=job.assignment_id,
         ),
@@ -317,6 +318,7 @@ def test_shadow_result_does_not_mutate_canonical_scan(
     assert len(unpublished) == 1
     assert unpublished[0].scan_id == scan.scan_id
     assert unpublished[0].findings == [finding]
+    assert unpublished[0].fail_reason == "One rule timed out; preserved completed findings."
     with db_session.begin():
         canonical = db_session.get(Scan, scan.scan_id)
         shadow = db_session.get(OpenGrepScan, scan.scan_id)
@@ -327,6 +329,7 @@ def test_shadow_result_does_not_mutate_canonical_scan(
         assert shadow is not None
         assert shadow.status == Status.FINISHED
         assert shadow.duration_ms == 42
+        assert shadow.fail_reason == "One rule timed out; preserved completed findings."
 
     claim = OpenGrepPublicationClaim(publication_id=unpublished[0].publication_id)
     acknowledgement = acknowledge_opengrep_result(scan.scan_id, claim, db_session)

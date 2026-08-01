@@ -275,6 +275,7 @@ def submit_opengrep_result(
         shadow.status = Status.FINISHED
         shadow.commit_hash = result.commit
         shadow.findings = [finding.model_dump(mode="json") for finding in result.findings]
+        shadow.fail_reason = result.partial_reason
 
 
 @router.get("/results")
