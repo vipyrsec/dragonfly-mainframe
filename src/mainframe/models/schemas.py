@@ -292,11 +292,12 @@ class OpenGrepFinding(BaseModel):
 
 
 class OpenGrepScanResult(PackageSpecifier):
-    """Successful OpenGrep shadow result."""
+    """Complete or partial OpenGrep shadow result with preserved findings."""
 
     commit: Annotated[str, Field(min_length=1, max_length=128)]
     duration_ms: int = Field(ge=0)
     findings: list[OpenGrepFinding] = Field(max_length=500)
+    partial_reason: Annotated[str, Field(min_length=1, max_length=2048)] | None = None
     attempt: int = Field(ge=1)
     assignment_id: uuid.UUID
 
