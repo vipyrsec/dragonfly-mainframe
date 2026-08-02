@@ -106,6 +106,7 @@ async def lifespan(app_: FastAPI) -> AsyncGenerator[None, None]:
         engine,
         job_timeout=mainframe_settings.job_timeout,
         max_job_attempts=mainframe_settings.max_job_attempts,
+        refresh_interval_seconds=mainframe_settings.queue_metrics_refresh_seconds,
     )
     app_.state.queue_monitor = queue_monitor
     try:
@@ -114,7 +115,7 @@ async def lifespan(app_: FastAPI) -> AsyncGenerator[None, None]:
         packages_queue_refresh_failures.inc()
         logging.getLogger(__name__).exception("Failed to load initial queue metrics")
     queue_monitor_task = asyncio.create_task(
-        monitor_queue(queue_monitor, mainframe_settings.queue_metrics_refresh_seconds)
+        monitor_queue(queue_monitor, queue_monitor.refresh_interval_seconds)
     )
     performance_monitor = PerformanceMonitor(engine)
     app_.state.performance_monitor = performance_monitor
