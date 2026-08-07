@@ -51,6 +51,8 @@ class Mainframe(EnvConfig):
             raise ValueError(msg)
         return self
 
+    score_threshold: int = 5
+
 
 mainframe_settings = Mainframe()  # pyright: ignore[reportCallIssue]
 
