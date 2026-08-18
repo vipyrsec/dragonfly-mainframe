@@ -260,6 +260,14 @@ class PackageScanResultFail(PackageSpecifier):
     assignment_id: uuid.UUID | None = None
 
 
+class SuppressedPackageResponse(BaseModel):
+    name: str
+    version: str
+    scan_id: str
+    suppressed_at: Optional[str] = None
+    rules: list[str] = []
+
+
 class JobResult(BaseModel):
     """Package information of a requested job."""
 
