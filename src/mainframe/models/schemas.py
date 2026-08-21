@@ -31,6 +31,7 @@ class QueueStatus(BaseModel):
     oldest_queued_at: datetime.datetime | None
     oldest_age_seconds: int | None
     sampled_at: datetime.datetime
+    refresh_interval_seconds: int
 
     @field_serializer("oldest_queued_at", "sampled_at")
     def serialize_timestamp(self, value: datetime.datetime | None) -> int | None:

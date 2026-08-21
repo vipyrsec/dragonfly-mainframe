@@ -21,6 +21,7 @@ def read_queue_status(
     now: dt.datetime,
     job_timeout: int,
     max_job_attempts: int,
+    refresh_interval_seconds: int,
 ) -> QueueStatus:
     """Read all queue states with one indexed aggregate query."""
     retry_before = now - dt.timedelta(seconds=job_timeout)
@@ -65,6 +66,7 @@ def read_queue_status(
         oldest_queued_at=oldest_queued_at,
         oldest_age_seconds=oldest_age_seconds,
         sampled_at=now,
+        refresh_interval_seconds=refresh_interval_seconds,
     )
 
 
@@ -85,10 +87,18 @@ def update_queue_metrics(snapshot: QueueStatus) -> None:
 class QueueMonitor:
     """Periodically refreshed, process-local view of durable database queue state."""
 
-    def __init__(self, engine: Engine, *, job_timeout: int, max_job_attempts: int) -> None:
+    def __init__(
+        self,
+        engine: Engine,
+        *,
+        job_timeout: int,
+        max_job_attempts: int,
+        refresh_interval_seconds: int,
+    ) -> None:
         self.engine = engine
         self.job_timeout = job_timeout
         self.max_job_attempts = max_job_attempts
+        self.refresh_interval_seconds = refresh_interval_seconds
         self._snapshot: QueueStatus | None = None
         self._lock = Lock()
 
@@ -100,6 +110,7 @@ class QueueMonitor:
                 now=sampled_at,
                 job_timeout=self.job_timeout,
                 max_job_attempts=self.max_job_attempts,
+                refresh_interval_seconds=self.refresh_interval_seconds,
             )
 
         update_queue_metrics(snapshot)
