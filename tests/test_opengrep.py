@@ -57,11 +57,11 @@ def queued_shadow(db_session: Session) -> Scan:
     return scan
 
 
-def test_shadow_configuration_is_staging_only() -> None:
-    with pytest.raises(ValueError, match="requires ENVIRONMENT=staging"):
+def test_shadow_configuration_requires_supported_environment() -> None:
+    with pytest.raises(ValueError, match="requires ENVIRONMENT=staging or production"):
         Mainframe(
             dragonfly_github_token="test",
-            environment="production",
+            environment="unknown",
             opengrep_shadow_enabled=True,
         )
 
@@ -83,24 +83,33 @@ def test_disabled_shadow_api_is_hidden(monkeypatch: pytest.MonkeyPatch) -> None:
     assert error.value.status_code == status.HTTP_404_NOT_FOUND
 
 
-def test_shadow_environment_requires_staging_api_origin(
+def test_shadow_environment_requires_matching_api_origin(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("mainframe.constants.mainframe_settings.opengrep_shadow_enabled", False)
     validate_opengrep_shadow_environment()
 
+    monkeypatch.setattr("mainframe.constants.mainframe_settings.environment", "staging")
     monkeypatch.setattr("mainframe.constants.mainframe_settings.opengrep_shadow_enabled", True)
     monkeypatch.setattr(
         "mainframe.constants.mainframe_settings.opengrep_shadow_api_origin",
         "https://dragonfly.vipyrsec.com",
     )
 
-    with pytest.raises(RuntimeError, match="staging API origin"):
+    with pytest.raises(RuntimeError, match="API origin matching ENVIRONMENT"):
         validate_opengrep_shadow_environment()
 
     monkeypatch.setattr(
         "mainframe.constants.mainframe_settings.opengrep_shadow_api_origin",
         "https://dragonfly-staging.vipyrsec.com",
+    )
+    validate_opengrep_shadow_environment()
+    monkeypatch.setattr("mainframe.constants.mainframe_settings.environment", "production")
+    with pytest.raises(RuntimeError, match="API origin matching ENVIRONMENT"):
+        validate_opengrep_shadow_environment()
+    monkeypatch.setattr(
+        "mainframe.constants.mainframe_settings.opengrep_shadow_api_origin",
+        "https://dragonfly.vipyrsec.com",
     )
     validate_opengrep_shadow_environment()
 
