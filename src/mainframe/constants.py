@@ -5,7 +5,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Git SHA for Sentry
 GIT_SHA = getenv("GIT_SHA", "development")
-STAGING_API_ORIGIN = "https://dragonfly-staging.vipyrsec.com"
+OPENGREP_API_ORIGINS = {
+    "staging": "https://dragonfly-staging.vipyrsec.com",
+    "production": "https://dragonfly.vipyrsec.com",
+}
 
 
 class EnvConfig(BaseSettings):
@@ -44,10 +47,10 @@ class Mainframe(EnvConfig):
     log_config_file: str = "logging/development.toml"
 
     @model_validator(mode="after")
-    def restrict_opengrep_shadow_to_staging(self) -> "Mainframe":
-        """Reject an OpenGrep shadow stream outside staging."""
-        if self.opengrep_shadow_enabled and self.environment != "staging":
-            msg = "OPENGREP_SHADOW_ENABLED requires ENVIRONMENT=staging"
+    def validate_opengrep_environment(self) -> "Mainframe":
+        """Require a supported environment for OpenGrep."""
+        if self.opengrep_shadow_enabled and self.environment not in OPENGREP_API_ORIGINS:
+            msg = "OPENGREP_SHADOW_ENABLED requires ENVIRONMENT=staging or production"
             raise ValueError(msg)
         return self
 
@@ -73,9 +76,10 @@ cf_access_settings = CFAccess.model_validate({})
 
 
 def validate_opengrep_shadow_environment() -> None:
-    """Bind the shadow feature to the configured staging API origin."""
+    """Bind OpenGrep to the API origin for its environment."""
     if not mainframe_settings.opengrep_shadow_enabled:
         return
-    if mainframe_settings.opengrep_shadow_api_origin.rstrip("/") != STAGING_API_ORIGIN:
-        msg = "OpenGrep shadow requires the staging API origin"
+    expected_origin = OPENGREP_API_ORIGINS.get(mainframe_settings.environment)
+    if mainframe_settings.opengrep_shadow_api_origin.rstrip("/") != expected_origin:
+        msg = "OpenGrep requires the API origin matching ENVIRONMENT"
         raise RuntimeError(msg)
