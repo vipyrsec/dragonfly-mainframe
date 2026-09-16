@@ -1,7 +1,7 @@
 import datetime
 import uuid
 from enum import Enum
-from typing import Annotated, Any, Self
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
@@ -278,9 +278,32 @@ class ObservationReport(BaseModel):
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
+ReuseCount = Annotated[int, Field(ge=0, le=2**63 - 1, strict=True)]
+
+
+class ScannerReuseMetrics(BaseModel):
+    """Bounded per-job counters; exported to Prometheus without database storage."""
+
+    mode: Literal["off", "observe", "reuse"]
+    lookups: ReuseCount
+    candidate_files: ReuseCount
+    reused_files: ReuseCount
+    reused_bytes: ReuseCount
+    inserted_files: ReuseCount
+    evicted_files: ReuseCount
+    errors: ReuseCount
+    validated_files: ReuseCount
+    mismatched_files: ReuseCount
+    overhead_us: ReuseCount
+    engine_us: ReuseCount
+    engine_files: ReuseCount
+    engine_bytes: ReuseCount
+
+
 class PackageScanResult(PackageSpecifier):
     """Client payload to server containing the results of a package scan."""
 
+    scan_reuse: ScannerReuseMetrics | None = None
     commit: str
     score: int = 0
     inspector_url: str | None = None
@@ -292,6 +315,7 @@ class PackageScanResult(PackageSpecifier):
 class PackageScanResultFail(PackageSpecifier):
     """The client's reason as to why scanning a package failed."""
 
+    scan_reuse: ScannerReuseMetrics | None = None
     reason: str
     attempt: int | None = Field(default=None, ge=1)
     assignment_id: uuid.UUID | None = None
@@ -316,6 +340,7 @@ class GetRules(BaseModel):
 class OpenGrepScanResult(PackageSpecifier):
     """Complete or partial OpenGrep shadow result with preserved findings."""
 
+    scan_reuse: ScannerReuseMetrics | None = None
     commit: Annotated[str, Field(min_length=1, max_length=128)]
     duration_ms: int = Field(ge=0)
     findings: list[OpenGrepFinding] = Field(max_length=500)
@@ -327,6 +352,7 @@ class OpenGrepScanResult(PackageSpecifier):
 class OpenGrepScanResultFail(PackageSpecifier):
     """Failed OpenGrep shadow result."""
 
+    scan_reuse: ScannerReuseMetrics | None = None
     reason: Annotated[str, Field(min_length=1, max_length=2048)]
     duration_ms: int = Field(ge=0)
     attempt: int = Field(ge=1)

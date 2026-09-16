@@ -1,4 +1,8 @@
+from typing import Literal
+
 from prometheus_client import Counter, Gauge
+
+from mainframe.models.schemas import ScannerReuseMetrics
 
 packages_ingested = Counter("packages_ingested", "Total number of packages ingested")
 
@@ -66,3 +70,57 @@ packages_dead_lettered = Counter(
     "packages_dead_lettered",
     "Number of package scans dead-lettered after exhausting worker attempts.",
 )
+
+
+REUSE_FIELDS = (
+    "lookups",
+    "candidate_files",
+    "reused_files",
+    "reused_bytes",
+    "inserted_files",
+    "evicted_files",
+    "errors",
+    "validated_files",
+    "mismatched_files",
+    "engine_files",
+    "engine_bytes",
+)
+scanner_reuse_counters = {
+    name: Counter(f"scanner_reuse_{name}", f"Worker-reported {name} from accepted scan results.", ["scanner", "mode"])
+    for name in REUSE_FIELDS
+}
+scanner_reuse_reports = Counter(
+    "scanner_reuse_reports", "Accepted worker reuse telemetry reports.", ["scanner", "mode"]
+)
+scanner_reuse_engine_seconds = Counter(
+    "scanner_reuse_engine_seconds", "Measured engine wall seconds from accepted results.", ["scanner", "mode"]
+)
+scanner_reuse_overhead_seconds = Counter(
+    "scanner_reuse_overhead_seconds", "Measured cache overhead wall seconds from accepted results.", ["scanner", "mode"]
+)
+scanner_reuse_last_report = Gauge(
+    "scanner_reuse_last_report_timestamp_seconds", "Latest accepted reuse telemetry timestamp.", ["scanner", "mode"]
+)
+# Keep label cardinality fixed and establish zero series before the first report.
+for _scanner in ("yara", "opengrep"):
+    for _mode in ("off", "observe", "reuse"):
+        for _counter in (
+            *scanner_reuse_counters.values(),
+            scanner_reuse_reports,
+            scanner_reuse_engine_seconds,
+            scanner_reuse_overhead_seconds,
+        ):
+            _counter.labels(_scanner, _mode).inc(0)
+        scanner_reuse_last_report.labels(_scanner, _mode).set(0)
+
+
+def record_scanner_reuse(scanner: Literal["yara", "opengrep"], metrics: ScannerReuseMetrics | None) -> None:
+    """Count only committed, accepted leases; scanner labels come from the route."""
+    if metrics is None:
+        return
+    for name, counter in scanner_reuse_counters.items():
+        counter.labels(scanner, metrics.mode).inc(getattr(metrics, name))
+    scanner_reuse_reports.labels(scanner, metrics.mode).inc()
+    scanner_reuse_engine_seconds.labels(scanner, metrics.mode).inc(metrics.engine_us / 1_000_000)
+    scanner_reuse_overhead_seconds.labels(scanner, metrics.mode).inc(metrics.overhead_us / 1_000_000)
+    scanner_reuse_last_report.labels(scanner, metrics.mode).set_to_current_time()

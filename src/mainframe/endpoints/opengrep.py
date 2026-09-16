@@ -12,6 +12,7 @@ from mainframe.constants import mainframe_settings
 from mainframe.database import get_db
 from mainframe.dependencies import get_rules, validate_token
 from mainframe.json_web_token import AuthenticationData
+from mainframe.metrics import record_scanner_reuse
 from mainframe.models.orm import OpenGrepScan, Scan, Status
 from mainframe.models.schemas import (
     GetRules,
@@ -270,12 +271,13 @@ def submit_opengrep_result(
             shadow.status = Status.FAILED
             shadow.fail_reason = result.reason
             shadow.findings = []
-            return
+        else:
+            shadow.status = Status.FINISHED
+            shadow.commit_hash = result.commit
+            shadow.findings = [finding.model_dump(mode="json") for finding in result.findings]
+            shadow.fail_reason = result.partial_reason
 
-        shadow.status = Status.FINISHED
-        shadow.commit_hash = result.commit
-        shadow.findings = [finding.model_dump(mode="json") for finding in result.findings]
-        shadow.fail_reason = result.partial_reason
+    record_scanner_reuse("opengrep", result.scan_reuse)
 
 
 @router.get("/results")
