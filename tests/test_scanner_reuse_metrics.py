@@ -112,3 +112,17 @@ def test_metrics_counts_are_bounded_strict_integers(invalid: object) -> None:
 def test_old_workers_need_no_telemetry() -> None:
     record_scanner_reuse("yara", None)
     assert PackageScanResult(name="legacy", version="1", commit="old").scan_reuse is None
+
+
+@pytest.mark.parametrize(
+    ("field", "maximum"),
+    [
+        ("lookups", 1_000_000),
+        ("reused_bytes", 16 * 1024**3),
+        ("engine_us", 24 * 60 * 60 * 1_000_000),
+    ],
+)
+def test_metrics_operational_limits(field: str, maximum: int) -> None:
+    ScannerReuseMetrics.model_validate(metrics_payload() | {field: maximum})
+    with pytest.raises(ValidationError):
+        ScannerReuseMetrics.model_validate(metrics_payload() | {field: maximum + 1})

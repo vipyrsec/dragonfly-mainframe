@@ -278,7 +278,10 @@ class ObservationReport(BaseModel):
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
-ReuseCount = Annotated[int, Field(ge=0, le=2**63 - 1, strict=True)]
+# Generous per-job caps above deployed limits (131072 files, 2 GiB expanded).
+ReuseCount = Annotated[int, Field(ge=0, le=1_000_000, strict=True)]
+ReuseBytes = Annotated[int, Field(ge=0, le=16 * 1024**3, strict=True)]
+ReuseMicros = Annotated[int, Field(ge=0, le=24 * 60 * 60 * 1_000_000, strict=True)]
 
 
 class ScannerReuseMetrics(BaseModel):
@@ -288,16 +291,16 @@ class ScannerReuseMetrics(BaseModel):
     lookups: ReuseCount
     candidate_files: ReuseCount
     reused_files: ReuseCount
-    reused_bytes: ReuseCount
+    reused_bytes: ReuseBytes
     inserted_files: ReuseCount
     evicted_files: ReuseCount
     errors: ReuseCount
     validated_files: ReuseCount
     mismatched_files: ReuseCount
-    overhead_us: ReuseCount
-    engine_us: ReuseCount
+    overhead_us: ReuseMicros
+    engine_us: ReuseMicros
     engine_files: ReuseCount
-    engine_bytes: ReuseCount
+    engine_bytes: ReuseBytes
 
 
 class PackageScanResult(PackageSpecifier):
