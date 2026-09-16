@@ -1,5 +1,6 @@
 import datetime as dt
 import uuid
+from typing import cast
 
 import pytest
 from fastapi import HTTPException, status
@@ -18,7 +19,7 @@ from mainframe.endpoints.opengrep import (
     require_opengrep_shadow,
     submit_opengrep_result,
 )
-from mainframe.endpoints.package import queue_package
+from mainframe.endpoints.package import lookup_package_info, queue_package
 from mainframe.json_web_token import AuthenticationData
 from mainframe.models.orm import DownloadURL, OpenGrepScan, Scan, Status
 from mainframe.models.schemas import (
@@ -28,6 +29,7 @@ from mainframe.models.schemas import (
     OpenGrepPublicationProgress,
     OpenGrepScanResult,
     OpenGrepScanResultFail,
+    Package,
     PackageSpecifier,
 )
 from mainframe.pypi import PyPIClient
@@ -55,6 +57,56 @@ def queued_shadow(db_session: Session) -> Scan:
             )
         )
     return scan
+
+
+@pytest.mark.parametrize("scan_status", list(Status))
+def test_lookup_returns_stored_evidence_without_claiming_publication(db_session: Session, scan_status: Status) -> None:
+    scan = queued_shadow(db_session)
+    publication_id = uuid.uuid4()
+    with db_session.begin():
+        shadow = db_session.get(OpenGrepScan, scan.scan_id)
+        assert shadow is not None
+        shadow.status = scan_status
+        shadow.publication_id = publication_id
+        shadow.published_at = dt.datetime.now(dt.UTC)
+        shadow.fail_reason = "Partial scan"
+        shadow.findings = [
+            {
+                "rule_id": "example",
+                "path": "src/example.py",
+                "start_line": 1,
+                "end_line": 2,
+                "message": "Evidence",
+                "severity": "WARNING",
+                "evidence": "flow",
+                "confidence": "high",
+                "execution_context": "import_time",
+                "inspector_url": "https://inspector.example/src/example.py",
+            }
+        ]
+    results = lookup_package_info(db_session, name=scan.name, version=scan.version, include_opengrep=True)
+    assert isinstance(results, list)
+    package = cast("list[Package]", results)[0]
+    assert package.opengrep is not None
+    assert package.opengrep.status == scan_status.name.lower()
+    assert package.opengrep.findings[0].rule_id == "example"
+    assert package.opengrep.fail_reason == "Partial scan"
+    with db_session.begin():
+        stored = db_session.get(OpenGrepScan, scan.scan_id)
+        assert stored is not None
+        assert stored.publication_id == publication_id
+        assert stored.publication_claimed_at is None
+        assert stored.published_at is not None
+
+
+def test_lookup_omits_evidence_unless_requested_and_rejects_bulk_evidence(db_session: Session) -> None:
+    scan = queued_shadow(db_session)
+    results = lookup_package_info(db_session, name=scan.name, version=scan.version)
+    assert isinstance(results, list)
+    assert cast("list[Package]", results)[0].opengrep is None
+    with pytest.raises(HTTPException) as error:
+        lookup_package_info(db_session, name=scan.name, include_opengrep=True)
+    assert error.value.status_code == 400
 
 
 def test_shadow_configuration_requires_supported_environment() -> None:

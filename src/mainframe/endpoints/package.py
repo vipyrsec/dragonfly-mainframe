@@ -15,7 +15,7 @@ from mainframe.database import get_db
 from mainframe.dependencies import get_pypi_client, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.metrics import packages_fail, packages_ingested, packages_success
-from mainframe.models.orm import DownloadURL, Rule, Scan, Status
+from mainframe.models.orm import DownloadURL, OpenGrepScan, Rule, Scan, Status
 from mainframe.models.schemas import (
     Error,
     Package,
@@ -173,6 +173,8 @@ def lookup_package_info(  # noqa: PLR0913
     version: str | None = None,
     page: int | None = None,
     size: int | None = None,
+    *,
+    include_opengrep: bool = False,
 ) -> Page[Package] | Sequence[Package]:
     """Lookup information on scanned packages based on name, version, or time scanned.
 
@@ -196,6 +198,7 @@ def lookup_package_info(  # noqa: PLR0913
         version: The version of the package.
         page: The page number of the result set.
         size: The page size of the result set.
+        include_opengrep: Include stored evidence for an exact name and version, without claiming publication.
     """
     nn_name = name is not None
     nn_version = version is not None
@@ -207,6 +210,9 @@ def lookup_package_info(  # noqa: PLR0913
         log.debug("Invalid parameter combination", tag="invalid_parameter_combination")
         raise HTTPException(status.HTTP_400_BAD_REQUEST)
 
+    if include_opengrep and (not nn_name or not nn_version or nn_since):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "OpenGrep evidence requires an exact name and version.")
+
     query = select(Scan).order_by(Scan.queued_at.desc()).options(joinedload(Scan.rules), joinedload(Scan.download_urls))
     if nn_name:
         query = query.where(Scan.name == name)
@@ -216,16 +222,19 @@ def lookup_package_info(  # noqa: PLR0913
         query = query.where(Scan.finished_at >= dt.datetime.fromtimestamp(since, tz=dt.UTC))
 
     with session, session.begin():
+        shadow = None
+        if include_opengrep:
+            shadow = session.scalar(select(OpenGrepScan).join(Scan).where(Scan.name == name, Scan.version == version))
         if page and size:
             params = Params(page=page, size=size)
             return paginate(
                 session,
                 query,
                 params=params,
-                transformer=lambda items: [Package.from_db(item) for item in items],
+                transformer=lambda items: [Package.from_db(item, shadow) for item in items],
             )
         data = session.scalars(query).unique()
-        return [Package.from_db(result) for result in data]
+        return [Package.from_db(result, shadow) for result in data]
 
 
 @router.get(

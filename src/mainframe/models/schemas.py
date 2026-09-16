@@ -5,7 +5,7 @@ from typing import Annotated, Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
-from .orm import Scan, Suppression
+from .orm import OpenGrepScan, Scan, Suppression
 
 RuleName = Annotated[str, Field(min_length=1)]
 OpenGrepText = Annotated[str, Field(min_length=1, max_length=1024)]
@@ -140,6 +140,32 @@ class Error(BaseModel):
     detail: str
 
 
+class OpenGrepFinding(BaseModel):
+    """One bounded source-level finding produced by OpenGrep."""
+
+    rule_id: Annotated[str, Field(min_length=1, max_length=200)]
+    path: OpenGrepText
+    start_line: int = Field(ge=1)
+    end_line: int = Field(ge=1)
+    message: OpenGrepText
+    severity: Annotated[str, Field(min_length=1, max_length=20)]
+    evidence: Annotated[str, Field(min_length=1, max_length=32)]
+    confidence: Annotated[str, Field(min_length=1, max_length=20)]
+    execution_context: Annotated[str, Field(min_length=1, max_length=64)]
+    inspector_url: Annotated[str, Field(min_length=1, max_length=2048)]
+
+
+class OpenGrepDetails(BaseModel):
+    """Read-only evidence and scan state, independent of Discord publication."""
+
+    status: str
+    commit: str | None
+    duration_ms: int | None
+    findings: list[OpenGrepFinding]
+    fail_reason: str | None
+    finished_at: datetime.datetime | None
+
+
 class Package(BaseModel):
     """Model representing a package queried from the database."""
 
@@ -166,9 +192,10 @@ class Package(BaseModel):
     finished_by: str | None
 
     commit_hash: str | None
+    opengrep: OpenGrepDetails | None = None
 
     @classmethod
-    def from_db(cls, scan: Scan) -> Self:
+    def from_db(cls, scan: Scan, opengrep: OpenGrepScan | None = None) -> Self:
         return cls(
             scan_id=str(scan.scan_id),
             name=scan.name,
@@ -190,6 +217,16 @@ class Package(BaseModel):
             finished_at=scan.finished_at,
             finished_by=scan.finished_by,
             commit_hash=scan.commit_hash,
+            opengrep=OpenGrepDetails(
+                status=opengrep.status.name.lower(),
+                commit=opengrep.commit_hash,
+                duration_ms=opengrep.duration_ms,
+                findings=[OpenGrepFinding.model_validate(finding) for finding in opengrep.findings],
+                fail_reason=opengrep.fail_reason,
+                finished_at=opengrep.finished_at,
+            )
+            if opengrep
+            else None,
         )
 
     @field_serializer(
@@ -274,21 +311,6 @@ class JobResult(BaseModel):
 class GetRules(BaseModel):
     hash: str
     rules: dict[str, str]
-
-
-class OpenGrepFinding(BaseModel):
-    """One bounded source-level finding produced by OpenGrep."""
-
-    rule_id: Annotated[str, Field(min_length=1, max_length=200)]
-    path: OpenGrepText
-    start_line: int = Field(ge=1)
-    end_line: int = Field(ge=1)
-    message: OpenGrepText
-    severity: Annotated[str, Field(min_length=1, max_length=20)]
-    evidence: Annotated[str, Field(min_length=1, max_length=32)]
-    confidence: Annotated[str, Field(min_length=1, max_length=20)]
-    execution_context: Annotated[str, Field(min_length=1, max_length=64)]
-    inspector_url: Annotated[str, Field(min_length=1, max_length=2048)]
 
 
 class OpenGrepScanResult(PackageSpecifier):
