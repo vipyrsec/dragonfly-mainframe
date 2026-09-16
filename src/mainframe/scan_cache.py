@@ -220,21 +220,28 @@ def store(session: Session, context: CacheContext, values: list[CacheValue]) -> 
 def expire_entries(session: Session, scanner: Literal["yara", "opengrep"], current_rules: str) -> int:
     if not writer_lock(session, scanner):
         return 0
-    expired = list(
-        session.scalars(
-            select(ScanCacheEntry)
-            .join(ScanCacheNamespace)
-            .where(ScanCacheNamespace.scanner == scanner, ScanCacheEntry.expires_at <= dt.datetime.now(dt.UTC))
-            .order_by(ScanCacheEntry.expires_at)
-            .limit(CLEANUP_BATCH)
-        )
+    victims = (
+        select(ScanCacheEntry.namespace, ScanCacheEntry.file_digest, ScanCacheEntry.language)
+        .join(ScanCacheNamespace)
+        .where(ScanCacheNamespace.scanner == scanner, ScanCacheEntry.expires_at <= dt.datetime.now(dt.UTC))
+        .order_by(ScanCacheEntry.expires_at)
+        .limit(CLEANUP_BATCH)
     )
-    for entry in expired:
-        generation = session.get(ScanCacheNamespace, entry.namespace)
+    expired = session.execute(
+        delete(ScanCacheEntry)
+        .where(tuple_(ScanCacheEntry.namespace, ScanCacheEntry.file_digest, ScanCacheEntry.language).in_(victims))
+        .returning(ScanCacheEntry.namespace, func.octet_length(ScanCacheEntry.result))
+        .execution_options(synchronize_session=False)
+    ).all()
+    totals: dict[bytes, tuple[int, int]] = {}
+    for namespace, size in expired:
+        count, payload = totals.get(namespace, (0, 0))
+        totals[namespace] = (count + 1, payload + size)
+    for namespace, (count, payload) in totals.items():
+        generation = session.get(ScanCacheNamespace, namespace)
         assert generation is not None
-        generation.entry_count -= 1
-        generation.payload_bytes -= len(entry.result.encode())
-        session.delete(entry)
+        generation.entry_count -= count
+        generation.payload_bytes -= payload
     session.flush()
     session.execute(
         delete(ScanCacheNamespace).where(
