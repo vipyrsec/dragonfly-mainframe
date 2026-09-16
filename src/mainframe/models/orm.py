@@ -14,6 +14,7 @@ from sqlalchemy import (
     FetchedValue,
     ForeignKey,
     Index,
+    LargeBinary,
     PrimaryKeyConstraint,
     String,
     Table,
@@ -257,3 +258,39 @@ class Suppression(Base):
         DateTime(timezone=True),
         default_factory=lambda: datetime.now(UTC),
     )
+
+
+class ScanCacheNamespace(Base):
+    """A revocable rules/engine generation; counters change only with batch writes."""
+
+    __tablename__ = "scan_cache_namespaces"
+    __table_args__ = (
+        CheckConstraint("octet_length(namespace) = 32", name="cache_namespace_digest_length"),
+        CheckConstraint("entry_count >= 0 AND payload_bytes >= 0", name="cache_nonnegative_counts"),
+    )
+    namespace: Mapped[bytes] = mapped_column(LargeBinary(32), primary_key=True)
+    scanner: Mapped[str] = mapped_column()
+    rules_commit: Mapped[str] = mapped_column()
+    rules_digest: Mapped[bytes] = mapped_column(LargeBinary(32))
+    engine_digest: Mapped[bytes] = mapped_column(LargeBinary(32))
+    revoked: Mapped[bool] = mapped_column(default=False)
+    entry_count: Mapped[int] = mapped_column(default=0)
+    payload_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
+
+
+class ScanCacheEntry(Base):
+    """Immutable completed file results; hit traffic never updates these rows."""
+
+    __tablename__ = "scan_cache_entries"
+    __table_args__ = (
+        CheckConstraint("octet_length(file_digest) = 32", name="cache_file_digest_length"),
+        CheckConstraint("octet_length(result) <= 16384", name="cache_result_size"),
+        CheckConstraint("char_length(language) <= 32", name="cache_language_size"),
+    )
+    namespace: Mapped[bytes] = mapped_column(
+        LargeBinary(32), ForeignKey("scan_cache_namespaces.namespace"), primary_key=True
+    )
+    file_digest: Mapped[bytes] = mapped_column(LargeBinary(32), primary_key=True)
+    language: Mapped[str] = mapped_column(primary_key=True)
+    result: Mapped[str] = mapped_column()
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

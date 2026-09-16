@@ -30,6 +30,8 @@ from mainframe.json_web_token import (
 from mainframe.server import app
 
 PROTECTED_ROUTES = {
+    ("POST", "/scan-cache/lookup"),
+    ("POST", "/scan-cache/write"),
     ("GET", "/alerting/configuration"),
     ("GET", "/package"),
     ("GET", "/opengrep/results"),

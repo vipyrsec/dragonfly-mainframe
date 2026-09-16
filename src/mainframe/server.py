@@ -35,6 +35,7 @@ from mainframe.performance_monitor import PerformanceMonitor
 from mainframe.pypi import PyPIClient
 from mainframe.queue_monitor import QueueMonitor
 from mainframe.rules import Rules, fetch_rules
+from mainframe.scan_cache import maintain_cache
 
 from . import __version__
 
@@ -76,6 +77,15 @@ async def monitor_performance(
         except Exception:
             performance_refresh_failures.inc()
             logging.getLogger(__name__).exception("Failed to refresh performance metrics")
+
+
+async def monitor_scan_cache(app_: FastAPI) -> None:
+    while True:
+        await asyncio.sleep(60)
+        try:
+            await asyncio.to_thread(maintain_cache, app_.state.rules.rules_commit)
+        except Exception:
+            logging.getLogger(__name__).exception("Failed to expire scanner cache entries")
 
 
 sentry_sdk.init(
@@ -130,8 +140,13 @@ async def lifespan(app_: FastAPI) -> AsyncGenerator[None, None]:
         )
     )
 
+    scan_cache_task = asyncio.create_task(monitor_scan_cache(app_))
+
     yield
 
+    scan_cache_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await scan_cache_task
     queue_monitor_task.cancel()
     performance_monitor_task.cancel()
     with suppress(asyncio.CancelledError):

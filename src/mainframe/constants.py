@@ -40,6 +40,11 @@ class Mainframe(EnvConfig):
     max_job_attempts: PositiveInt = 3
     queue_metrics_refresh_seconds: PositiveInt = 60
     performance_metrics_refresh_seconds: PositiveInt = 15 * 60
+    scan_cache_enabled: bool = False
+    scan_cache_max_entries: PositiveInt = 500_000
+    scan_cache_max_bytes: PositiveInt = 64 * 1024 * 1024
+    scan_cache_max_disk_bytes: PositiveInt = 512 * 1024 * 1024
+    scan_cache_ttl_seconds: PositiveInt = 24 * 60 * 60
     opengrep_shadow_enabled: bool = False
     opengrep_shadow_api_origin: str = ""
     opengrep_publication_timeout: PositiveInt = 5 * 60

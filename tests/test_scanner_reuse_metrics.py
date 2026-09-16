@@ -67,7 +67,7 @@ def test_only_accepted_leases_count_once(
                     assignment_id=assignment,
                 )
             )
-    payload = {
+    payload: dict[str, object] = {
         "name": "reuse-metrics",
         "version": "1",
         "commit": "rules",
