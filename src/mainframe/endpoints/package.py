@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 from mainframe.database import get_db
 from mainframe.dependencies import get_pypi_client, validate_token
 from mainframe.json_web_token import AuthenticationData
-from mainframe.metrics import packages_fail, packages_ingested, packages_success
+from mainframe.metrics import packages_fail, packages_ingested, packages_success, record_scanner_reuse
 from mainframe.models.orm import DownloadURL, OpenGrepScan, Rule, Scan, Status
 from mainframe.models.schemas import (
     Error,
@@ -113,6 +113,7 @@ def submit_results(
             )
             raise error
 
+        count_reuse = scan.status == Status.PENDING
         if isinstance(result, PackageScanResultFail):
             scan.status = Status.FAILED
             scan.fail_reason = result.reason
@@ -133,6 +134,8 @@ def submit_results(
             new_rules = [Rule(name=rule_name) for rule_name in result.rules_matched if rule_name not in rule_names]
             scan.rules.extend(new_rules)
 
+    if count_reuse:
+        record_scanner_reuse("yara", result.scan_reuse)
     if isinstance(result, PackageScanResultFail):
         log.error(
             "Scanner reported a package failure",
