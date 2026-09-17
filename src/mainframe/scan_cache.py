@@ -12,16 +12,27 @@ from typing import Literal
 
 from fastapi import HTTPException
 from prometheus_client import Counter, Gauge, Histogram
-from sqlalchemy import Engine, create_engine, delete, func, select, text, tuple_
+from sqlalchemy import Engine, create_engine, delete, func, select, text, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from mainframe.constants import mainframe_settings
 from mainframe.models.orm import OpenGrepScan, Scan, ScanCacheEntry, ScanCacheNamespace, Status
-from mainframe.models.scan_cache import CacheContext, CacheLease, CacheLookup, CacheReply, CacheValue, CacheWriteReply
+from mainframe.models.scan_cache import (
+    CacheContext,
+    CacheKey,
+    CacheLease,
+    CacheLookup,
+    CacheReply,
+    CacheValue,
+    CacheWriteReply,
+)
 from mainframe.rules import Rules
 
+quarantined_entries = Counter(
+    "scanner_cache_quarantined_total", "File results quarantined after validation", ["scanner"]
+)
 requests = Counter("scanner_cache_requests_total", "Durable cache operations", ["operation", "outcome"])
 latency = Histogram("scanner_cache_request_seconds", "Durable cache operation duration", ["operation"])
 rows_written = Counter("scanner_cache_rows_inserted_total", "New durable cache rows", ["scanner"])
@@ -129,6 +140,7 @@ def lookup(session: Session, request: CacheLookup) -> CacheReply:
             ScanCacheEntry.namespace == namespace,
             tuple_(ScanCacheEntry.file_digest, ScanCacheEntry.language).in_(keys),
             ScanCacheEntry.expires_at > dt.datetime.now(dt.UTC),
+            ScanCacheEntry.quarantined.is_(False),
         )
     )
     return CacheReply(
@@ -136,6 +148,25 @@ def lookup(session: Session, request: CacheLookup) -> CacheReply:
             CacheValue(file_digest=row.file_digest.hex(), language=row.language, result=row.result) for row in rows
         ]
     )
+
+
+def quarantine(session: Session, context: CacheContext, keys: list[CacheKey]) -> CacheWriteReply:
+    """Retain evidence and quota accounting; isolate only existing suspect keys."""
+    changed = session.scalars(
+        update(ScanCacheEntry)
+        .where(
+            ScanCacheEntry.namespace == context.namespace(),
+            tuple_(ScanCacheEntry.file_digest, ScanCacheEntry.language).in_(
+                {(bytes.fromhex(key.file_digest), key.language) for key in keys}
+            ),
+            ScanCacheEntry.quarantined.is_(False),
+        )
+        .values(quarantined=True)
+        .returning(ScanCacheEntry.file_digest)
+        .execution_options(synchronize_session=False)
+    ).all()
+    quarantined_entries.labels(context.scanner).inc(len(changed))
+    return CacheWriteReply(quarantined=len(changed))
 
 
 def writer_lock(session: Session, scanner: Literal["yara", "opengrep"]) -> bool:

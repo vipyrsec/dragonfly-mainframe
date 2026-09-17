@@ -303,8 +303,70 @@ def test_http_cache_round_trip_commits_before_response(
             )
             assert response.status_code == 200
             assert response.json()["entries"][0]["result"] == "[]"
+            request = CacheWrite(context=ctx, lease=lease, entries=[], quarantine=[value()])
+            quarantined = await client.post("/scan-cache/write", json=request.model_dump(mode="json"))
+            assert quarantined.status_code == 200
+            assert quarantined.json()["quarantined"] == 1
+            with db_session.begin():
+                assert db_session.scalar(select(ScanCacheEntry.quarantined)) is True
+            response = await client.post(
+                "/scan-cache/lookup", json=CacheLookup(context=ctx, keys=[value()]).model_dump(mode="json")
+            )
+            assert response.json() == {"revoked": False, "entries": []}
+            stale = request.model_copy(update={"lease": lease.model_copy(update={"attempt": 2})})
+            assert (await client.post("/scan-cache/write", json=stale.model_dump(mode="json"))).status_code == 409
 
     try:
         anyio.run(exercise)
     finally:
         app_without_auth.dependency_overrides.pop(get_rules)
+
+
+def test_quarantine_preserves_other_keys_evidence_and_quotas(db_session: Session, rules_state: Rules) -> None:
+    ctx = context(rules_state)
+    other = ctx.model_copy(update={"engine_digest": "b" * 64})
+    with db_session.begin():
+        scan_cache.store(db_session, ctx, [value(result='["suspect"]'), value("2"), value(language="py")])
+        scan_cache.store(db_session, other, [value()])
+        before = db_session.execute(
+            select(ScanCacheNamespace.entry_count, ScanCacheNamespace.payload_bytes).where(
+                ScanCacheNamespace.namespace == ctx.namespace()
+            )
+        ).one()
+        assert scan_cache.quarantine(db_session, ctx, [value(), value("3")]).quarantined == 1
+    db_session.expire_all()
+    with db_session.begin():
+        assert scan_cache.quarantine(db_session, ctx, [value()]).quarantined == 0
+        assert scan_cache.store(db_session, ctx, [value()]).inserted == 0
+        reply = scan_cache.lookup(
+            db_session, CacheLookup(context=ctx, keys=[value(), value("2"), value(language="py")])
+        )
+        assert not reply.revoked
+        assert {(r.file_digest, r.language) for r in reply.entries} == {("2" * 64, ""), ("1" * 64, "py")}
+        assert scan_cache.lookup(db_session, CacheLookup(context=other, keys=[value()])).entries
+        row = db_session.get(ScanCacheEntry, (ctx.namespace(), bytes.fromhex("1" * 64), ""))
+        assert row is not None
+        assert row.quarantined
+        assert row.result == '["suspect"]'
+        assert (
+            db_session.execute(
+                select(ScanCacheNamespace.entry_count, ScanCacheNamespace.payload_bytes).where(
+                    ScanCacheNamespace.namespace == ctx.namespace()
+                )
+            ).one()
+            == before
+        )
+        row.expires_at = dt.datetime.now(dt.UTC) - dt.timedelta(seconds=1)
+        db_session.flush()
+        assert scan_cache.expire_entries(db_session, "yara", ctx.rules_commit) == 1
+
+
+def test_quarantine_requests_cannot_mix_operations(rules_state: Rules) -> None:
+    ctx = context(rules_state)
+    lease = CacheLease(name="test", version="1", assignment_id=uuid.uuid4(), attempt=1)
+    with pytest.raises(ValidationError, match="Quarantine must be separate"):
+        CacheWrite(context=ctx, lease=lease, entries=[value()], quarantine=[value()])
+    with pytest.raises(ValidationError, match="Quarantine must be separate"):
+        CacheWrite(context=ctx, lease=lease, entries=[], revoke=True, quarantine=[value()])
+    with pytest.raises(ValidationError):
+        CacheWrite(context=ctx, lease=lease, entries=[], quarantine=[value()] * 129)
