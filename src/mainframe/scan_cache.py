@@ -83,6 +83,8 @@ def cache_session() -> Generator[Session, None, None]:
         with Session(cache_engine()) as session, session.begin():
             configure_transaction(session)
             yield session
+        for scanner in ("yara", "opengrep"):
+            rows_renewed.labels(scanner).inc(session.info.get(f"cache_renewed_{scanner}", 0))
     except SQLAlchemyError as error:
         requests.labels("database", "error").inc()
         logging.getLogger(__name__).warning("Durable scan cache unavailable", exc_info=True)
@@ -177,7 +179,8 @@ def renew_hits(session: Session, context: CacheContext, rows: list[ScanCacheEntr
         .returning(ScanCacheEntry.file_digest)
         .execution_options(synchronize_session=False)
     ).all()
-    rows_renewed.labels(context.scanner).inc(len(renewed))
+    metric_key = f"cache_renewed_{context.scanner}"
+    session.info[metric_key] = session.info.get(metric_key, 0) + len(renewed)
 
 
 def quarantine(session: Session, context: CacheContext, keys: list[CacheKey]) -> CacheWriteReply:

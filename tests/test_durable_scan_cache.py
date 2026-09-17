@@ -7,6 +7,7 @@ import anyio
 import httpx
 import pytest
 from fastapi import FastAPI, HTTPException
+from prometheus_client import REGISTRY
 from pydantic import ValidationError
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -154,6 +155,34 @@ def test_renewal_rechecks_revocation_and_short_ttl(
     db_session.expire_all()
     with db_session.begin():
         assert row.expires_at == now + dt.timedelta(seconds=60)
+
+
+def test_renewal_metric_counts_only_committed_updates(db_session: Session, rules_state: Rules) -> None:
+    def renewal_count() -> float:
+        return REGISTRY.get_sample_value("scanner_cache_rows_renewed_total", {"scanner": "yara"}) or 0
+
+    ctx = context(rules_state)
+    due = dt.datetime.now(dt.UTC) + dt.timedelta(hours=22)
+    with db_session.begin():
+        scan_cache.store(db_session, ctx, [value()])
+        db_session.execute(text("UPDATE scan_cache_entries SET expires_at = :due"), {"due": due})
+    before = renewal_count()
+    connection = scan_cache.cache_session()
+    session = next(connection)
+    assert scan_cache.lookup(session, CacheLookup(context=ctx, keys=[value()])).entries == [value()]
+    assert renewal_count() == before
+    with pytest.raises(HTTPException) as failure:
+        connection.throw(SQLAlchemyError("transaction failed before commit"))
+    assert failure.value.status_code == 503
+    assert renewal_count() == before
+    with db_session.begin():
+        assert db_session.scalar(select(ScanCacheEntry.expires_at)) == due
+    connection = scan_cache.cache_session()
+    session = next(connection)
+    scan_cache.lookup(session, CacheLookup(context=ctx, keys=[value()]))
+    with pytest.raises(StopIteration):
+        next(connection)
+    assert renewal_count() == before + 1
 
 
 def test_quotas_bound_all_namespaces(db_session: Session, rules_state: Rules, monkeypatch: pytest.MonkeyPatch) -> None:
