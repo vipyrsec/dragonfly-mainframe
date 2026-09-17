@@ -62,9 +62,13 @@ class CacheWrite(BaseModel):
     lease: CacheLease
     entries: Annotated[list[CacheValue], Field(max_length=128)]
     revoke: bool = False
+    quarantine: Annotated[list[CacheKey], Field(max_length=128)] = Field(default_factory=list[CacheKey])
 
     @model_validator(mode="after")
     def validate_batch(self) -> Self:
+        if self.quarantine and (self.entries or self.revoke):
+            msg = "Quarantine must be separate from insertion or generation revocation"
+            raise ValueError(msg)
         if sum(len(entry.result.encode()) for entry in self.entries) > 512 * 1024:
             msg = "Cache write batch exceeds 512 KiB"
             raise ValueError(msg)
@@ -72,5 +76,6 @@ class CacheWrite(BaseModel):
 
 
 class CacheWriteReply(BaseModel):
+    quarantined: int = 0
     inserted: int = 0
     skipped: int = 0

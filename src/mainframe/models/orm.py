@@ -294,3 +294,4 @@ class ScanCacheEntry(Base):
     language: Mapped[str] = mapped_column(primary_key=True)
     result: Mapped[str] = mapped_column()
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    quarantined: Mapped[bool] = mapped_column(default=False, server_default="false")

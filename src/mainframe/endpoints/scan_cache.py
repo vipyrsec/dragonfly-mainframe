@@ -36,6 +36,10 @@ def write_cache(body: CacheWrite, session: Database, rules: RuleState, auth: Aut
         scan_cache.requests.labels("write", "busy").inc()
         raise HTTPException(503, "Cache writer busy; scan normally")
     with scan_cache.latency.labels("write").time():
+        if body.quarantine:
+            result = scan_cache.quarantine(session, body.context, body.quarantine)
+            scan_cache.requests.labels("write", "quarantined").inc()
+            return result
         if body.revoke:
             generation = scan_cache.generation_for_write(session, body.context)
             if generation is not None:
