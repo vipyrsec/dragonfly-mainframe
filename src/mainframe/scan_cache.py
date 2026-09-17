@@ -1,4 +1,4 @@
-"""Optional cache storage: bounded batches, immutable rows, isolated DB pool."""
+"""Optional cache storage: bounded batches, immutable results, isolated DB pool."""
 
 import datetime as dt
 import hashlib
@@ -36,6 +36,7 @@ quarantined_entries = Counter(
 requests = Counter("scanner_cache_requests_total", "Durable cache operations", ["operation", "outcome"])
 latency = Histogram("scanner_cache_request_seconds", "Durable cache operation duration", ["operation"])
 rows_written = Counter("scanner_cache_rows_inserted_total", "New durable cache rows", ["scanner"])
+rows_renewed = Counter("scanner_cache_rows_renewed_total", "Cache hits whose expiry was extended", ["scanner"])
 cache_size = Gauge("scanner_cache_storage_bytes", "Physical cache bytes including indexes and TOAST")
 cache_entries = Gauge("scanner_cache_entries", "Live cache entries across generations", ["scanner"])
 cache_payload = Gauge("scanner_cache_payload_bytes", "Live serialized result bytes", ["scanner"])
@@ -82,6 +83,8 @@ def cache_session() -> Generator[Session, None, None]:
         with Session(cache_engine()) as session, session.begin():
             configure_transaction(session)
             yield session
+        for scanner in ("yara", "opengrep"):
+            rows_renewed.labels(scanner).inc(session.info.get(f"cache_renewed_{scanner}", 0))
     except SQLAlchemyError as error:
         requests.labels("database", "error").inc()
         logging.getLogger(__name__).warning("Durable scan cache unavailable", exc_info=True)
@@ -135,19 +138,49 @@ def lookup(session: Session, request: CacheLookup) -> CacheReply:
     if generation.revoked:
         return CacheReply(revoked=True)
     keys = {(bytes.fromhex(key.file_digest), key.language) for key in request.keys}
+    now = dt.datetime.now(dt.UTC)
     rows = session.scalars(
         select(ScanCacheEntry).where(
             ScanCacheEntry.namespace == namespace,
             tuple_(ScanCacheEntry.file_digest, ScanCacheEntry.language).in_(keys),
-            ScanCacheEntry.expires_at > dt.datetime.now(dt.UTC),
+            ScanCacheEntry.expires_at > now,
             ScanCacheEntry.quarantined.is_(False),
         )
-    )
+    ).all()
+    renew_hits(session, request.context, list(rows), now)
     return CacheReply(
         entries=[
             CacheValue(file_digest=row.file_digest.hex(), language=row.language, result=row.result) for row in rows
         ]
     )
+
+
+def renew_hits(session: Session, context: CacheContext, rows: list[ScanCacheEntry], now: dt.datetime) -> None:
+    """Coalesce hot-key writes to hourly batches without reviving invalid entries."""
+    ttl = mainframe_settings.scan_cache_ttl_seconds
+    expires = now + dt.timedelta(seconds=ttl)
+    cutoff = expires - dt.timedelta(seconds=min(3600, ttl / 2))
+    keys = {(row.file_digest, row.language) for row in rows if row.expires_at <= cutoff}
+    if not keys or not writer_lock(session, context.scanner):
+        return
+    renewed = session.scalars(
+        update(ScanCacheEntry)
+        .where(
+            ScanCacheEntry.namespace == context.namespace(),
+            tuple_(ScanCacheEntry.file_digest, ScanCacheEntry.language).in_(keys),
+            ScanCacheEntry.expires_at > now,
+            ScanCacheEntry.expires_at <= cutoff,
+            ScanCacheEntry.quarantined.is_(False),
+            select(ScanCacheNamespace.namespace)
+            .where(ScanCacheNamespace.namespace == context.namespace(), ScanCacheNamespace.revoked.is_(False))
+            .exists(),
+        )
+        .values(expires_at=expires)
+        .returning(ScanCacheEntry.file_digest)
+        .execution_options(synchronize_session=False)
+    ).all()
+    metric_key = f"cache_renewed_{context.scanner}"
+    session.info[metric_key] = session.info.get(metric_key, 0) + len(renewed)
 
 
 def quarantine(session: Session, context: CacheContext, keys: list[CacheKey]) -> CacheWriteReply:

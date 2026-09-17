@@ -7,6 +7,7 @@ import anyio
 import httpx
 import pytest
 from fastapi import FastAPI, HTTPException
+from prometheus_client import REGISTRY
 from pydantic import ValidationError
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -56,7 +57,7 @@ def test_rules_engine_language_and_content_are_separate(db_session: Session, rul
             scan_cache.validate_context(changed, rules_state)
 
 
-def test_hits_and_duplicate_writes_do_not_update_rows(db_session: Session, rules_state: Rules) -> None:
+def test_recent_hits_and_duplicate_writes_do_not_update_rows(db_session: Session, rules_state: Rules) -> None:
     ctx = context(rules_state)
     with db_session.begin():
         scan_cache.store(db_session, ctx, [value()])
@@ -70,6 +71,118 @@ def test_hits_and_duplicate_writes_do_not_update_rows(db_session: Session, rules
         assert generation is not None
         assert generation.entry_count == 1
         assert generation.payload_bytes == 2
+
+
+@pytest.mark.parametrize("scanner", ["yara", "opengrep"])
+def test_hits_renew_only_due_valid_keys(db_session: Session, rules_state: Rules, scanner: str) -> None:
+    ctx = context(rules_state, scanner=scanner)
+    other = ctx.model_copy(update={"engine_digest": "b" * 64})
+    now = dt.datetime.now(dt.UTC)
+    due = now + dt.timedelta(hours=22)
+    with db_session.begin():
+        scan_cache.store(db_session, ctx, [value(), value("2"), value("3"), value("4"), value(language="py")])
+        scan_cache.store(db_session, other, [value()])
+        for row in db_session.scalars(select(ScanCacheEntry)):
+            row.expires_at = due
+            if row.file_digest == bytes.fromhex("3" * 64):
+                row.expires_at = now - dt.timedelta(seconds=1)
+            if row.file_digest == bytes.fromhex("4" * 64):
+                row.quarantined = True
+    db_session.expunge_all()
+    with db_session.begin():
+        reply = scan_cache.lookup(db_session, CacheLookup(context=ctx, keys=[value(), value("3"), value("4")]))
+        assert reply.entries == [value()]
+    db_session.expunge_all()
+    with db_session.begin():
+        rows = list(db_session.scalars(select(ScanCacheEntry)))
+        for row in rows:
+            if row.namespace == ctx.namespace() and row.file_digest == bytes.fromhex("1" * 64) and not row.language:
+                assert (
+                    now + dt.timedelta(hours=24) <= row.expires_at <= dt.datetime.now(dt.UTC) + dt.timedelta(hours=24)
+                )
+                assert row.result == "[]"
+            elif row.file_digest != bytes.fromhex("3" * 64):
+                assert row.expires_at == due
+        generation = db_session.get(ScanCacheNamespace, ctx.namespace())
+        assert generation is not None
+        assert (generation.entry_count, generation.payload_bytes) == (5, 10)
+        before = db_session.execute(text("SELECT xmin::text, expires_at FROM scan_cache_entries ORDER BY 2, 1")).all()
+        scan_cache.lookup(db_session, CacheLookup(context=ctx, keys=[value()]))
+    with db_session.begin():
+        assert (
+            db_session.execute(text("SELECT xmin::text, expires_at FROM scan_cache_entries ORDER BY 2, 1")).all()
+            == before
+        )
+
+
+def test_renewal_contention_preserves_hits(
+    db_session: Session, rules_state: Rules, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx = context(rules_state)
+    due = dt.datetime.now(dt.UTC) + dt.timedelta(hours=22)
+    with db_session.begin():
+        scan_cache.store(db_session, ctx, [value()])
+        db_session.execute(text("UPDATE scan_cache_entries SET expires_at = :due"), {"due": due})
+    monkeypatch.setattr(scan_cache, "writer_lock", MagicMock(return_value=False))
+    with db_session.begin():
+        assert scan_cache.lookup(db_session, CacheLookup(context=ctx, keys=[value()])).entries == [value()]
+        assert db_session.scalar(select(ScanCacheEntry.expires_at)) == due
+
+
+def test_renewal_rechecks_revocation_and_short_ttl(
+    db_session: Session, rules_state: Rules, monkeypatch: pytest.MonkeyPatch
+):
+    ctx = context(rules_state)
+    now = dt.datetime.now(dt.UTC)
+    monkeypatch.setattr(mainframe_settings, "scan_cache_ttl_seconds", 60)
+    with db_session.begin():
+        scan_cache.store(db_session, ctx, [value()])
+        row = db_session.scalar(select(ScanCacheEntry))
+        assert row is not None
+        row.expires_at = now + dt.timedelta(seconds=20)
+    with db_session.begin():
+        scan_cache.renew_hits(db_session, ctx, [row], now)
+    db_session.expire_all()
+    with db_session.begin():
+        assert row.expires_at == now + dt.timedelta(seconds=60)
+        generation = db_session.get(ScanCacheNamespace, ctx.namespace())
+        assert generation is not None
+        generation.revoked = True
+    with db_session.begin():
+        # Simulate revocation committed between the initial read and renewal.
+        scan_cache.renew_hits(db_session, ctx, [row], now + dt.timedelta(seconds=40))
+        assert scan_cache.lookup(db_session, CacheLookup(context=ctx, keys=[value()])).revoked
+    db_session.expire_all()
+    with db_session.begin():
+        assert row.expires_at == now + dt.timedelta(seconds=60)
+
+
+def test_renewal_metric_counts_only_committed_updates(db_session: Session, rules_state: Rules) -> None:
+    def renewal_count() -> float:
+        return REGISTRY.get_sample_value("scanner_cache_rows_renewed_total", {"scanner": "yara"}) or 0
+
+    ctx = context(rules_state)
+    due = dt.datetime.now(dt.UTC) + dt.timedelta(hours=22)
+    with db_session.begin():
+        scan_cache.store(db_session, ctx, [value()])
+        db_session.execute(text("UPDATE scan_cache_entries SET expires_at = :due"), {"due": due})
+    before = renewal_count()
+    connection = scan_cache.cache_session()
+    session = next(connection)
+    assert scan_cache.lookup(session, CacheLookup(context=ctx, keys=[value()])).entries == [value()]
+    assert renewal_count() == before
+    with pytest.raises(HTTPException) as failure:
+        connection.throw(SQLAlchemyError("transaction failed before commit"))
+    assert failure.value.status_code == 503
+    assert renewal_count() == before
+    with db_session.begin():
+        assert db_session.scalar(select(ScanCacheEntry.expires_at)) == due
+    connection = scan_cache.cache_session()
+    session = next(connection)
+    scan_cache.lookup(session, CacheLookup(context=ctx, keys=[value()]))
+    with pytest.raises(StopIteration):
+        next(connection)
+    assert renewal_count() == before + 1
 
 
 def test_quotas_bound_all_namespaces(db_session: Session, rules_state: Rules, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -298,11 +411,17 @@ def test_http_cache_round_trip_commits_before_response(
             # A new database session observes the write immediately after HTTP completion.
             with db_session.begin():
                 assert db_session.scalar(select(func.count()).select_from(ScanCacheEntry)) == 1
+                due = dt.datetime.now(dt.UTC) + dt.timedelta(hours=22)
+                db_session.execute(text("UPDATE scan_cache_entries SET expires_at = :due"), {"due": due})
             response = await client.post(
                 "/scan-cache/lookup", json=CacheLookup(context=ctx, keys=[value()]).model_dump(mode="json")
             )
             assert response.status_code == 200
             assert response.json()["entries"][0]["result"] == "[]"
+            with db_session.begin():
+                expires = db_session.scalar(select(ScanCacheEntry.expires_at))
+                assert expires is not None
+                assert expires > due + dt.timedelta(hours=1)
             request = CacheWrite(context=ctx, lease=lease, entries=[], quarantine=[value()])
             quarantined = await client.post("/scan-cache/write", json=request.model_dump(mode="json"))
             assert quarantined.status_code == 200
