@@ -279,7 +279,7 @@ class ScanCacheNamespace(Base):
 
 
 class ScanCacheEntry(Base):
-    """Immutable completed file results; hit traffic never updates these rows."""
+    """Immutable completed file results with bounded expiry renewal on hits."""
 
     __tablename__ = "scan_cache_entries"
     __table_args__ = (
