@@ -1,12 +1,18 @@
 """Minimal client over PyPI JSON API."""
 
 from http import HTTPStatus
+from time import sleep
 from typing import Self
 
 import httpx
 from pydantic import BaseModel, Field
 
 PYPI_BASE_URL = "https://pypi.org/pypi"
+METADATA_ATTEMPTS = 3
+
+
+class MetadataUnavailableError(Exception):
+    """Transient upstream failure; retain the package for later ingestion."""
 
 
 class PackageNotFoundError(Exception):
@@ -67,7 +73,7 @@ class PyPIClient:
         """
         url = f"{PYPI_BASE_URL}/{name}/{version}/json"
 
-        response = self.http_client.get(url)
+        response = self._get_metadata_response(url)
         if response.status_code == HTTPStatus.NOT_FOUND:
             raise PackageNotFoundError(name, version)
         response.raise_for_status()
@@ -78,3 +84,18 @@ class PyPIClient:
             version=data.info.version,
             distributions=data.urls,
         )
+
+    def _get_metadata_response(self, url: str) -> httpx.Response:
+        attempt = 0
+        while True:
+            try:
+                response = self.http_client.get(url)
+                if response.status_code == HTTPStatus.TOO_MANY_REQUESTS or response.is_server_error:
+                    response.raise_for_status()
+            except (httpx.TransportError, httpx.HTTPStatusError) as error:
+                if attempt == METADATA_ATTEMPTS - 1:
+                    raise MetadataUnavailableError(url) from error
+                sleep(0.25 * 2**attempt)
+                attempt += 1
+            else:
+                return response

@@ -86,6 +86,10 @@ def cache_session() -> Generator[Session, None, None]:
         for scanner in ("yara", "opengrep"):
             rows_renewed.labels(scanner).inc(session.info.get(f"cache_renewed_{scanner}", 0))
     except SQLAlchemyError as error:
+        # A failed COMMIT can leave psycopg2's connection in an aborted
+        # transaction even after SQLAlchemy closes the session. The gate
+        # excludes other users of this single-connection pool during disposal.
+        cache_engine().dispose()
         requests.labels("database", "error").inc()
         logging.getLogger(__name__).warning("Durable scan cache unavailable", exc_info=True)
         raise HTTPException(503, "Cache unavailable; scan normally") from error

@@ -26,6 +26,7 @@ from mainframe.constants import (
 from mainframe.database import engine
 from mainframe.dependencies import validate_token
 from mainframe.endpoints import routers
+from mainframe.ingestion import retry_ingestion
 from mainframe.metrics import (
     packages_queue_refresh_failures,
     performance_refresh_failures,
@@ -88,6 +89,15 @@ async def monitor_scan_cache(app_: FastAPI) -> None:
             logging.getLogger(__name__).exception("Failed to expire scanner cache entries")
 
 
+async def monitor_ingestion(pypi_client: PyPIClient) -> None:
+    while True:
+        await asyncio.sleep(60)
+        try:
+            await asyncio.to_thread(retry_ingestion, engine, pypi_client)
+        except Exception:
+            logging.getLogger(__name__).exception("Failed to retry package ingestion")
+
+
 sentry_sdk.init(
     dsn=Sentry.dsn,
     environment=Sentry.environment,
@@ -141,9 +151,13 @@ async def lifespan(app_: FastAPI) -> AsyncGenerator[None, None]:
     )
 
     scan_cache_task = asyncio.create_task(monitor_scan_cache(app_))
+    ingestion_task = asyncio.create_task(monitor_ingestion(pypi_client))
 
     yield
 
+    ingestion_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await ingestion_task
     scan_cache_task.cancel()
     with suppress(asyncio.CancelledError):
         await scan_cache_task

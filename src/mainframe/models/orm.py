@@ -60,6 +60,18 @@ package_rules = Table(
 )
 
 
+class IngestionRetry(Base):
+    """Packages accepted for ingestion whose upstream metadata is unavailable."""
+
+    __tablename__: str = "ingestion_retries"
+
+    name: Mapped[str] = mapped_column(primary_key=True, kw_only=True)
+    version: Mapped[str] = mapped_column(primary_key=True, kw_only=True)
+    queued_by: Mapped[str] = mapped_column(kw_only=True)
+    retry_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, kw_only=True)
+    attempts: Mapped[int] = mapped_column(default=0, server_default="0")
+
+
 class Scan(Base):
     """The scans."""
 

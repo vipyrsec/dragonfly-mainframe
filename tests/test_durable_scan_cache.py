@@ -291,6 +291,37 @@ def test_cache_admission_and_isolated_connection(monkeypatch: pytest.MonkeyPatch
     assert unavailable.value.status_code == 503
 
 
+def test_cache_recovers_after_commit_timeout() -> None:
+    transaction = scan_cache.cache_session()
+    session = next(transaction)
+    old_backend = session.scalar(text("SELECT pg_backend_pid()"))
+    session.execute(text("CREATE TEMP TABLE cache_commit_test (id integer) ON COMMIT DROP"))
+    session.execute(
+        text(
+            "CREATE FUNCTION pg_temp.delay_cache_commit() RETURNS trigger LANGUAGE plpgsql AS "
+            "$$ BEGIN RAISE EXCEPTION 'canceling statement due to statement timeout' "
+            "USING ERRCODE = '57014'; END $$"
+        )
+    )
+    session.execute(
+        text(
+            "CREATE CONSTRAINT TRIGGER delay_cache_commit AFTER INSERT ON cache_commit_test "
+            "DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION pg_temp.delay_cache_commit()"
+        )
+    )
+    session.execute(text("INSERT INTO cache_commit_test VALUES (1)"))
+    with pytest.raises(HTTPException) as error:
+        next(transaction)
+    assert error.value.status_code == 503
+    recovered = scan_cache.cache_session()
+    session = next(recovered)
+    assert session.scalar(text("SELECT pg_backend_pid()")) != old_backend
+    assert session.scalar(text("SHOW statement_timeout")) == "200ms"
+    assert session.scalar(text("SELECT 1")) == 1
+    with pytest.raises(StopIteration):
+        next(recovered)
+
+
 def test_maintenance_and_namespace_budget(
     db_session: Session, rules_state: Rules, monkeypatch: pytest.MonkeyPatch
 ) -> None:
