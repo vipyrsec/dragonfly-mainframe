@@ -295,6 +295,7 @@ class ScanCacheEntry(Base):
 
     __tablename__ = "scan_cache_entries"
     __table_args__ = (
+        Index("ix_scan_cache_entries_namespace_expires_at", "namespace", "expires_at"),
         CheckConstraint("octet_length(file_digest) = 32", name="cache_file_digest_length"),
         CheckConstraint("octet_length(result) <= 16384", name="cache_result_size"),
         CheckConstraint("char_length(language) <= 32", name="cache_language_size"),

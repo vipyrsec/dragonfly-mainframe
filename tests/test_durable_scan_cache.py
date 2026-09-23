@@ -520,3 +520,49 @@ def test_quarantine_requests_cannot_mix_operations(rules_state: Rules) -> None:
         CacheWrite(context=ctx, lease=lease, entries=[], revoke=True, quarantine=[value()])
     with pytest.raises(ValidationError):
         CacheWrite(context=ctx, lease=lease, entries=[], quarantine=[value()] * 129)
+
+
+def test_expiry_budget_spans_namespaces_without_touching_other_scanners(
+    db_session: Session, rules_state: Rules, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx = context(rules_state)
+    other = context(rules_state, engine_digest="b" * 64)
+    opengrep = context(rules_state, scanner="opengrep")
+    monkeypatch.setattr(scan_cache, "CLEANUP_BATCH", 1)
+    with db_session.begin():
+        for generation in (ctx, other, opengrep):
+            scan_cache.store(db_session, generation, [value()])
+        for row in db_session.scalars(select(ScanCacheEntry)):
+            row.expires_at = dt.datetime.now(dt.UTC) - dt.timedelta(seconds=1)
+        scan_cache.store(db_session, other, [value("2")])
+    for remaining in (2, 1):
+        with db_session.begin():
+            assert scan_cache.expire_entries(db_session, "yara", ctx.rules_commit) == 1
+        db_session.expunge_all()
+        with db_session.begin():
+            assert (
+                db_session.scalar(
+                    select(func.sum(ScanCacheNamespace.entry_count)).where(ScanCacheNamespace.scanner == "yara")
+                )
+                == remaining
+            )
+            assert db_session.get(ScanCacheEntry, (opengrep.namespace(), bytes.fromhex("1" * 64), "")) is not None
+    with db_session.begin():
+        assert scan_cache.expire_entries(db_session, "yara", ctx.rules_commit) == 0
+        assert scan_cache.expire_entries(db_session, "opengrep", ctx.rules_commit) == 1
+
+
+def test_maintenance_database_error_releases_and_replaces_connection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(mainframe_settings, "scan_cache_enabled", True)
+    with scan_cache.cache_engine().connect() as connection:
+        previous_backend = connection.scalar(text("SELECT pg_backend_pid()"))
+    with monkeypatch.context() as patch:
+        patch.setattr(scan_cache, "expire_entries", MagicMock(side_effect=SQLAlchemyError("timeout")))
+        with pytest.raises(HTTPException) as error:
+            scan_cache.maintain_cache("rules")
+        assert error.value.status_code == 503
+    with scan_cache.cache_engine().connect() as connection:
+        assert connection.scalar(text("SELECT pg_backend_pid()")) != previous_backend
+    scan_cache.maintain_cache("rules")

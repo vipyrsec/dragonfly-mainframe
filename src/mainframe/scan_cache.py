@@ -7,6 +7,7 @@ import threading
 import time
 from collections import deque
 from collections.abc import Generator
+from contextlib import contextmanager
 from functools import cache
 from typing import Literal
 
@@ -47,7 +48,7 @@ _rate_lock = threading.Lock()
 _recent_requests: deque[float] = deque()
 MAX_REQUESTS_PER_SECOND = 10
 MAX_NAMESPACES = 8
-CLEANUP_BATCH = 1000
+CLEANUP_BATCH = 100
 
 
 @cache
@@ -288,28 +289,32 @@ def store(session: Session, context: CacheContext, values: list[CacheValue]) -> 
 def expire_entries(session: Session, scanner: Literal["yara", "opengrep"], current_rules: str) -> int:
     if not writer_lock(session, scanner):
         return 0
-    victims = (
-        select(ScanCacheEntry.namespace, ScanCacheEntry.file_digest, ScanCacheEntry.language)
-        .join(ScanCacheNamespace)
-        .where(ScanCacheNamespace.scanner == scanner, ScanCacheEntry.expires_at <= dt.datetime.now(dt.UTC))
-        .order_by(ScanCacheEntry.expires_at)
-        .limit(CLEANUP_BATCH)
-    )
-    expired = session.execute(
-        delete(ScanCacheEntry)
-        .where(tuple_(ScanCacheEntry.namespace, ScanCacheEntry.file_digest, ScanCacheEntry.language).in_(victims))
-        .returning(ScanCacheEntry.namespace, func.octet_length(ScanCacheEntry.result))
-        .execution_options(synchronize_session=False)
-    ).all()
-    totals: dict[bytes, tuple[int, int]] = {}
-    for namespace, size in expired:
-        count, payload = totals.get(namespace, (0, 0))
-        totals[namespace] = (count + 1, payload + size)
-    for namespace, (count, payload) in totals.items():
-        generation = session.get(ScanCacheNamespace, namespace)
-        assert generation is not None
-        generation.entry_count -= count
-        generation.payload_bytes -= payload
+    expired_count = 0
+    generations = session.scalars(select(ScanCacheNamespace).where(ScanCacheNamespace.scanner == scanner)).all()
+    for generation in generations:
+        if expired_count >= CLEANUP_BATCH:
+            break
+        victims = (
+            select(ScanCacheEntry.file_digest, ScanCacheEntry.language)
+            .where(
+                ScanCacheEntry.namespace == generation.namespace,
+                ScanCacheEntry.expires_at <= dt.datetime.now(dt.UTC),
+            )
+            .order_by(ScanCacheEntry.expires_at)
+            .limit(CLEANUP_BATCH - expired_count)
+        )
+        sizes = session.scalars(
+            delete(ScanCacheEntry)
+            .where(
+                ScanCacheEntry.namespace == generation.namespace,
+                tuple_(ScanCacheEntry.file_digest, ScanCacheEntry.language).in_(victims),
+            )
+            .returning(func.octet_length(ScanCacheEntry.result))
+            .execution_options(synchronize_session=False)
+        ).all()
+        generation.entry_count -= len(sizes)
+        generation.payload_bytes -= sum(sizes)
+        expired_count += len(sizes)
     session.flush()
     session.execute(
         delete(ScanCacheNamespace).where(
@@ -318,7 +323,7 @@ def expire_entries(session: Session, scanner: Literal["yara", "opengrep"], curre
             (ScanCacheNamespace.rules_commit != current_rules) | ScanCacheNamespace.revoked.is_(False),
         )
     )
-    return len(expired)
+    return expired_count
 
 
 def maintain_cache(current_rules: str) -> None:
@@ -326,7 +331,7 @@ def maintain_cache(current_rules: str) -> None:
     if not mainframe_settings.scan_cache_enabled:
         return
     expired = 0
-    for session in cache_session():
+    with contextmanager(cache_session)() as session:
         expired = expire_entries(session, "yara", current_rules)
         expired += expire_entries(session, "opengrep", current_rules)
         cache_size.set(session.scalar(text("SELECT pg_total_relation_size('scan_cache_entries')")) or 0)
