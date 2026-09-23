@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi_pagination import Page, Params
 from fastapi_pagination.ext.sqlalchemy import paginate
 from sqlalchemy import select, tuple_
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -15,7 +16,7 @@ from mainframe.database import get_db
 from mainframe.dependencies import get_pypi_client, validate_token
 from mainframe.json_web_token import AuthenticationData
 from mainframe.metrics import packages_fail, packages_ingested, packages_success, record_scanner_reuse
-from mainframe.models.orm import DownloadURL, OpenGrepScan, Rule, Scan, Status
+from mainframe.models.orm import DownloadURL, IngestionRetry, OpenGrepScan, Rule, Scan, Status
 from mainframe.models.schemas import (
     Error,
     Package,
@@ -24,7 +25,7 @@ from mainframe.models.schemas import (
     PackageSpecifier,
     QueuePackageResponse,
 )
-from mainframe.pypi import PackageMetadata, PackageNotFoundError, PyPIClient
+from mainframe.pypi import MetadataUnavailableError, PackageMetadata, PackageNotFoundError, PyPIClient
 
 router = APIRouter(tags=["package"])
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -277,25 +278,30 @@ def lookup_reported_packages(
 def _deduplicate_packages(packages: list[PackageSpecifier], session: Session) -> set[tuple[str, str]]:
     name_ver = {(p.name, p.version) for p in packages}
     scalars = session.scalars(select(Scan).where(tuple_(Scan.name, Scan.version).in_(name_ver)))
-    return name_ver - {(scan.name, scan.version) for scan in scalars.all()}
+    existing = {(scan.name, scan.version) for scan in scalars.all()}
+    pending = session.execute(
+        select(IngestionRetry.name, IngestionRetry.version).where(
+            tuple_(IngestionRetry.name, IngestionRetry.version).in_(name_ver)
+        )
+    )
+    return name_ver - existing - {(name, version) for name, version in pending}
 
 
 def _get_packages_metadata(
     pypi_client: PyPIClient, packages_to_check: set[tuple[str, str]]
-) -> Iterable[PackageMetadata]:
+) -> Iterable[PackageMetadata | PackageSpecifier]:
     if not packages_to_check:
         return
 
-    def _get_package_metadata(package: tuple[str, str]) -> PackageMetadata | None:
+    def _get_package_metadata(package: tuple[str, str]) -> PackageMetadata | PackageSpecifier | None:
         try:
             return pypi_client.get_package_metadata(*package)
         except PackageNotFoundError:
             return None
+        except MetadataUnavailableError:
+            return PackageSpecifier(name=package[0], version=package[1])
 
-    # IO-bound, so these threads won't take up much CPU. Just spawn as many as
-    # we need to send all requests at once. We avoid the
-    # `len(packages_to_check) == 0` case by returning early above
-    with ThreadPoolExecutor(max_workers=len(packages_to_check)) as tpe:
+    with ThreadPoolExecutor(max_workers=min(4, len(packages_to_check))) as tpe:
         yield from filter(None, tpe.map(_get_package_metadata, packages_to_check))
 
 
@@ -315,7 +321,23 @@ def batch_queue_package(
     with session, session.begin():
         packages_to_check = _deduplicate_packages(packages, session)
 
-        for package_metadata in _get_packages_metadata(pypi_client, packages_to_check):
+    metadata = list(_get_packages_metadata(pypi_client, packages_to_check))
+    ingested = 0
+    with session, session.begin():
+        for package_metadata in metadata:
+            if isinstance(package_metadata, PackageSpecifier):
+                session.execute(
+                    insert(IngestionRetry)
+                    .values(
+                        name=package_metadata.name,
+                        version=package_metadata.version,
+                        queued_by=auth.subject,
+                        retry_at=dt.datetime.now(dt.UTC) + dt.timedelta(minutes=1),
+                    )
+                    .on_conflict_do_nothing()
+                )
+                logger.warning("Package retained for metadata retry", package=package_metadata.model_dump())
+                continue
             scan = Scan(
                 name=package_metadata.name,
                 version=package_metadata.version,
@@ -326,7 +348,8 @@ def batch_queue_package(
 
             session.add(scan)
 
-            packages_ingested.inc()
+            ingested += 1
+    packages_ingested.inc(ingested)
 
 
 @router.post(
