@@ -1,5 +1,6 @@
 """Minimal client over PyPI JSON API."""
 
+import re
 from http import HTTPStatus
 from time import sleep
 from typing import Self
@@ -71,6 +72,10 @@ class PyPIClient:
         Raises:
             PackageNotFoundError: If the package or version does not exist on PyPI.
         """
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name):
+            raise PackageNotFoundError(name, version)
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+!-]*", version):
+            raise PackageNotFoundError(name, version)
         url = f"{PYPI_BASE_URL}/{name}/{version}/json"
 
         response = self._get_metadata_response(url)

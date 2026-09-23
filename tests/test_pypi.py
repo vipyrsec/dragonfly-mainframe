@@ -138,3 +138,20 @@ def test_permanent_metadata_error_is_not_retried():
     with pytest.raises(httpx.HTTPStatusError):
         PyPIClient(http_client).get_package_metadata("requests", "2.32.3")
     assert http_client.get.call_count == 1
+
+
+@pytest.mark.parametrize(
+    ("name", "version"),
+    [("../admin", "1"), ("requests", "../admin"), ("requests?x=1", "1"), ("requests", "1#fragment")],
+)
+def test_metadata_path_cannot_be_redirected(name: str, version: str) -> None:
+    http_client = _make_mock_http_client(httpx.Response(200, json=SAMPLE_RESPONSE))
+    with pytest.raises(PackageNotFoundError):
+        PyPIClient(http_client).get_package_metadata(name, version)
+    http_client.get.assert_not_called()
+
+
+def test_metadata_accepts_epoch_and_local_version() -> None:
+    http_client = _make_mock_http_client(httpx.Response(200, json=SAMPLE_RESPONSE))
+    PyPIClient(http_client).get_package_metadata("stac-fastapi.eodag", "1!2.0rc1+local.3")
+    http_client.get.assert_called_once_with("https://pypi.org/pypi/stac-fastapi.eodag/1!2.0rc1+local.3/json")
