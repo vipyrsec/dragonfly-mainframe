@@ -73,7 +73,9 @@ def test_queue_status_distinguishes_durable_states(db_session: Session) -> None:
     )
 
     with db_session.begin():
-        snapshot = read_queue_status(db_session, now=now, job_timeout=120, max_job_attempts=3)
+        snapshot = read_queue_status(
+            db_session, now=now, job_timeout=120, max_job_attempts=3, refresh_interval_seconds=60
+        )
 
     assert snapshot.queued == 1
     assert snapshot.in_progress == 1
@@ -84,6 +86,7 @@ def test_queue_status_distinguishes_durable_states(db_session: Session) -> None:
     assert snapshot.oldest_queued_at == now - dt.timedelta(minutes=10)
     assert snapshot.oldest_age_seconds == 600
     assert snapshot.sampled_at == now
+    assert snapshot.refresh_interval_seconds == 60
 
 
 def test_queue_status_handles_an_empty_queue(db_session: Session) -> None:
@@ -91,7 +94,9 @@ def test_queue_status_handles_an_empty_queue(db_session: Session) -> None:
     replace_queue(db_session, [])
 
     with db_session.begin():
-        snapshot = read_queue_status(db_session, now=now, job_timeout=120, max_job_attempts=3)
+        snapshot = read_queue_status(
+            db_session, now=now, job_timeout=120, max_job_attempts=3, refresh_interval_seconds=60
+        )
 
     assert snapshot.total_backlog == 0
     assert snapshot.stranded == 0
@@ -105,7 +110,7 @@ def test_queue_status_normalizes_a_naive_database_timestamp() -> None:
     oldest_queued_at = (now - dt.timedelta(minutes=5)).replace(tzinfo=None)
     session.execute.return_value.one.return_value = (1, 0, 0, 0, 0, oldest_queued_at)
 
-    snapshot = read_queue_status(session, now=now, job_timeout=120, max_job_attempts=3)
+    snapshot = read_queue_status(session, now=now, job_timeout=120, max_job_attempts=3, refresh_interval_seconds=60)
 
     assert snapshot.oldest_queued_at == now - dt.timedelta(minutes=5)
     assert snapshot.oldest_age_seconds == 300
@@ -114,7 +119,7 @@ def test_queue_status_normalizes_a_naive_database_timestamp() -> None:
 def test_queue_monitor_caches_latest_snapshot(db_session: Session, engine: Engine) -> None:
     now = dt.datetime(2026, 7, 25, 12, 0, tzinfo=dt.UTC)
     replace_queue(db_session, [])
-    monitor = QueueMonitor(engine, job_timeout=120, max_job_attempts=3)
+    monitor = QueueMonitor(engine, job_timeout=120, max_job_attempts=3, refresh_interval_seconds=60)
 
     assert monitor.get_snapshot() is None
 
@@ -132,11 +137,12 @@ def test_queue_monitor_caches_latest_snapshot(db_session: Session, engine: Engin
         "oldest_queued_at": None,
         "oldest_age_seconds": None,
         "sampled_at": int(now.timestamp()),
+        "refresh_interval_seconds": 60,
     }
 
 
 def test_queue_endpoint_is_unavailable_before_initial_snapshot(engine: Engine) -> None:
-    monitor = QueueMonitor(engine, job_timeout=120, max_job_attempts=3)
+    monitor = QueueMonitor(engine, job_timeout=120, max_job_attempts=3, refresh_interval_seconds=60)
 
     with pytest.raises(HTTPException) as error:
         queue_status(monitor)
