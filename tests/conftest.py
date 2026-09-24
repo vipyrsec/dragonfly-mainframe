@@ -55,6 +55,12 @@ def engine(superuser_engine: Engine) -> Engine:
     return create_engine(db_url, pool_size=5, max_overflow=10)
 
 
+@pytest.fixture
+def alembic_engine():
+    db_url = make_url(DB_URL).set(username="postgres")
+    return create_engine(db_url)
+
+
 @pytest.fixture(params=data, scope="session")
 def test_data(request: pytest.FixtureRequest) -> list[Scan]:
     return request.param
